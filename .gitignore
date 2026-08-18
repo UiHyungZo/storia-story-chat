@@ -1,0 +1,42 @@
+# macOS
+.DS_Store
+
+# Node / Expo (apps/client)
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.env
+.env.local
+
+# React Native / iOS / Android
+apps/client/ios/Pods/
+apps/client/ios/build/
+apps/client/android/build/
+apps/client/android/.gradle/
+apps/client/android/app/build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Java / Gradle (apps/backend)
+apps/backend/build/
+apps/backend/.gradle/
+apps/backend/out/
+*.class
+HELP.md
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Docker volumes / local env
+.env.*.local
