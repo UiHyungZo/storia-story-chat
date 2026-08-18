@@ -1,14 +1,15 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: mariadb:11.4
     environment:
-      POSTGRES_DB: storia
-      POSTGRES_USER: storia
-      POSTGRES_PASSWORD: storia
+      MARIADB_DATABASE: storia
+      MARIADB_USER: storia
+      MARIADB_PASSWORD: storia
+      MARIADB_ROOT_PASSWORD: storia
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - storia_pgdata:/var/lib/postgresql/data
+      - storia_db_data:/var/lib/mysql
 
 volumes:
-  storia_pgdata:
+  storia_db_data:
