@@ -13,11 +13,39 @@ apps/
 docs/           # ERD, API 명세, 아키텍처 다이어그램
 ```
 
-## 로컬 실행 (준비 중)
+## 문서
 
-- 클라이언트: `apps/client` 참고
-- 백엔드: `apps/backend` 참고, `docker compose up -d`로 로컬 Postgres 실행
+- [아키텍처](./docs/architecture/README.md) — 현재 구현 상태 및 목표 아키텍처(WebSocket/WebRTC)
+- [ERD](./docs/erd/README.md)
+
+## 로컬 실행
+
+### 1. DB
+
+```bash
+docker compose up -d
+```
+
+### 2. 백엔드 (Spring Boot)
+
+```bash
+cd apps/backend
+./gradlew bootRun
+```
+
+- REST API: `http://localhost:8080/api/characters`
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+
+### 3. 클라이언트 (Expo)
+
+```bash
+cd apps/client
+npx expo run:ios   # 최초 1회 (Development Build 생성)
+npx expo start     # 이후 개발 시
+```
+
+Expo Go는 지원하지 않습니다 (커스텀 Native Module 사용 예정 — Development Build 필수).
 
 ## 개발 현황
 
-Week 1 스캐폴딩 진행 중.
+Week 1 완료: RN 클라이언트(캐릭터 목록/채팅방 UI, 더미 데이터) + Spring Boot 백엔드(REST API, DB 스키마, 캐릭터 시딩) 스캐폴딩.
