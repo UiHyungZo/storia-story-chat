@@ -3,7 +3,7 @@
 ## 0. 변경 이력
 
 - **v2**: 백엔드 레이어 신설 (Spring Boot). WebSocket 기반 실시간 스트리밍 추가.
-- **v3**: **WebRTC 기반 음성 통화 기능 추가.** "블루개러지 AI Artist / Software Engineer / Full Stack" 공고의 자격요건·주요업무를 100% 커버하는 것을 목표로 범위 확장.
+- **v3**: **WebRTC 기반 음성 통화 기능 추가.** AI 캐릭터 서비스 + 실시간 음성 인터랙션을 요구하는 채용 공고 전반의 자격요건·주요업무를 폭넓게 커버하는 것을 목표로 범위 확장.
 
 ---
 
@@ -11,7 +11,7 @@
 
 **목적**: React Native + Spring Boot 기반 풀스택 학습 및 포트폴리오 프로젝트. AI 캐릭터와 텍스트 채팅뿐 아니라 **실시간 음성 통화**로도 상호작용할 수 있는 앱을, 클라이언트-백엔드-실시간 통신(WebSocket+WebRTC)-Native Module까지 전 구간 직접 구현하여 증명한다.
 
-**타겟 포지션**: Blue Garage(JYP Entertainment 자회사) **"AI Artist / Software Engineer / Full Stack"** 공고를 1차 타겟으로 하되, 클라이언트 파트만 발췌해 RN 전문 프론트엔드 포지션(예: FANS팀)에도 재사용 가능하도록 설계.
+**타겟 포지션**: **"AI Artist / Software Engineer / Full Stack"** 유형의 AI/엔터테인먼트 채용 공고를 1차 타겟으로 하되, 클라이언트 파트만 발췌해 RN 전문 프론트엔드 포지션에도 재사용 가능하도록 설계.
 
 **핵심 증명 목표**
 - RN + TypeScript + Expo 기반으로 실제 동작하는 앱을 처음부터 끝까지 만들 수 있다.
@@ -159,7 +159,7 @@
 - **README에 "텍스트 스트리밍(WebSocket) vs 음성 통화(WebRTC)" 아키텍처를 구분해서 다이어그램으로 정리** — JD의 "WebSocket/WebRTC 연동 경험"을 명확히 시각적으로 어필
 - B안/C안 구조를 선택한 이유(1인 개발 일정 내 현실적 완성도 확보)를 기술 블로그 형태로 문서화 — 풀 실시간 파이프라인(A안)과의 트레이드오프를 스스로 인지하고 설계했다는 점을 어필 포인트로 전환
 - **AI Artist Full Stack 지원 시**: 백엔드+WebSocket+WebRTC+LLM+TTS 파이프라인 전체를 동일 비중으로 강조
-- **RN 전문 포지션(FANS 등) 지원 시**: 클라이언트 파트(RN 앱 구조, Native Module, 실시간 UX, 통화 화면 UI/상태관리)를 메인으로, 백엔드는 "협업 이해를 위해 직접 구현" 정도로 보조 언급
+- **RN 전문 포지션 지원 시**: 클라이언트 파트(RN 앱 구조, Native Module, 실시간 UX, 통화 화면 UI/상태관리)를 메인으로, 백엔드는 "협업 이해를 위해 직접 구현" 정도로 보조 언급
 
 ---
 
