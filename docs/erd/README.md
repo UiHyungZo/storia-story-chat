@@ -1,11 +1,11 @@
 # ERD
 
-Week 1 기준 구현된 스키마 (`apps/backend/.../entity`). User 테이블은 PostgreSQL 예약어 충돌을 피하기 위해 `app_user`로 매핑했습니다.
+Week 1 기준 구현된 스키마 (`apps/backend/.../entity`), DB는 MariaDB. `User`는 `app_user`로, `Character`는 `story_character`로 매핑했습니다 — 둘 다 MariaDB/MySQL 예약어(`USER`, `CHARACTER`)와의 충돌을 피하기 위함입니다.
 
 ```mermaid
 erDiagram
     APP_USER ||--o{ CONVERSATION : has
-    CHARACTER ||--o{ CONVERSATION : has
+    STORY_CHARACTER ||--o{ CONVERSATION : has
     CONVERSATION ||--o{ MESSAGE : contains
 
     APP_USER {
@@ -15,7 +15,7 @@ erDiagram
         timestamp lastActiveAt
     }
 
-    CHARACTER {
+    STORY_CHARACTER {
         bigint id PK
         string name
         string concept

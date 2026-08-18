@@ -8,7 +8,7 @@ REST API 스켈레톤만 연결되어 있습니다. WebSocket 스트리밍, Gemi
 flowchart LR
     Client["RN Client\n(Expo)"] -->|"GET /api/characters"| Backend["Spring Boot\nBackend"]
     Client -->|"GET /api/conversations/:id/messages"| Backend
-    Backend --> DB[("PostgreSQL")]
+    Backend --> DB[("MariaDB")]
 ```
 
 ## 목표 아키텍처 (PRD v3 최종 형태)
@@ -30,7 +30,7 @@ flowchart LR
 
     Gemini["Google Gemini API"]
     TTS["TTS API"]
-    DB[("PostgreSQL")]
+    DB[("MariaDB")]
 
     Chat -->|"텍스트 발행"| WS
     WS -->|"스트리밍 청크"| Chat
