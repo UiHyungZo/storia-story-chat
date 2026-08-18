@@ -2,7 +2,7 @@ spring:
   application:
     name: backend
   datasource:
-    url: jdbc:postgresql://localhost:5432/storia
+    url: jdbc:mariadb://localhost:3306/storia
     username: storia
     password: storia
   jpa:
