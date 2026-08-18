@@ -7,7 +7,8 @@ services:
       MARIADB_PASSWORD: storia
       MARIADB_ROOT_PASSWORD: storia
     ports:
-      - "3306:3306"
+      # 3307 → local Homebrew mysqld already occupies 127.0.0.1:3306 on this machine
+      - "3307:3306"
     volumes:
       - storia_db_data:/var/lib/mysql
 
