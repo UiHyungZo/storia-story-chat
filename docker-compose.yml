@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: storia
+      POSTGRES_USER: storia
+      POSTGRES_PASSWORD: storia
+    ports:
+      - "5432:5432"
+    volumes:
+      - storia_pgdata:/var/lib/postgresql/data
+
+volumes:
+  storia_pgdata:
