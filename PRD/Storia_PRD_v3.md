@@ -2,8 +2,8 @@
 
 ## 0. 변경 이력
 
-- **v2**: 백엔드 레이어 신설 (Spring Boot). WebSocket 기반 실시간 스트리밍 추가.
-- **v3**: **WebRTC 기반 음성 통화 기능 추가.** AI 캐릭터 서비스 + 실시간 음성 인터랙션을 요구하는 채용 공고 전반의 자격요건·주요업무를 폭넓게 커버하는 것을 목표로 범위 확장.
+- **v2**: 백엔드 레이어 신설 (Spring Boot). WebSocket 기반 실시간 스트리밍 추가. (DB: PostgreSQL)
+- **v3**: **WebRTC 기반 음성 통화 기능 추가.** AI 캐릭터 서비스 + 실시간 음성 인터랙션을 요구하는 채용 공고 전반의 자격요건·주요업무를 폭넓게 커버하는 것을 목표로 범위 확장. **DB를 PostgreSQL에서 MariaDB로 변경.**
 
 ---
 
@@ -67,7 +67,7 @@
 *(v2와 동일)*
 
 ### 3.5 데이터 저장 및 상태 복원
-*(v2와 동일)* PostgreSQL + AsyncStorage 캐싱. 음성 통화는 **텍스트로 전사된 요약만** 대화 히스토리에 남기고 음성 자체는 저장하지 않음 (저장 비용/개인정보 이슈 최소화, 포트폴리오 범위에서 충분).
+*(v2와 동일, DB는 MariaDB로 변경)* MariaDB + AsyncStorage 캐싱. 음성 통화는 **텍스트로 전사된 요약만** 대화 히스토리에 남기고 음성 자체는 저장하지 않음 (저장 비용/개인정보 이슈 최소화, 포트폴리오 범위에서 충분).
 
 ### 3.6 푸시 알림
 *(v2와 동일)*
@@ -128,7 +128,7 @@
 | 백엔드 프레임워크 | Spring Boot 3.x |
 | 백엔드 언어 | Java 또는 Kotlin |
 | 실시간 통신 | WebSocket(STOMP) — 텍스트 스트리밍 + **WebRTC 시그널링 중계** |
-| DB | PostgreSQL + JPA/Hibernate |
+| DB | MariaDB + JPA/Hibernate |
 | API 문서화 | Swagger/OpenAPI |
 | AI API | Google Gemini API (텍스트), TTS API (음성 합성) |
 | 푸시 | FCM(백엔드 Admin SDK), Native Module 로컬 알림 |
