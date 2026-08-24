@@ -14,7 +14,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 - [ ] Android 에뮬레이터는 `10.0.2.2`, iOS 시뮬레이터는 `localhost`로 자동 분기(`src/api/config.ts`) — 실기기 테스트 시 `EXPO_PUBLIC_API_BASE_URL` 환경변수로 개발 머신 LAN IP를 넣어야 함 (자동 감지 불가). iOS 시뮬레이터 기준(`localhost`)은 검증됨, LAN IP 경로는 미검증.
 - [x] **캐릭터 목록 → 채팅방 진입 → 메시지 전송 → 히스토리 복원까지 실제 왕복 확인함** (iOS 시뮬레이터). 이 과정에서 `useConversationStore.getMessages()`가 메시지 없을 때 `?? []`로 매번 새 배열을 반환해 Zustand 셀렉터 참조가 불안정해지고, 채팅방 진입 시 "Maximum update depth exceeded"로 **거의 항상 크래시하는 실제 버그**를 발견 — `EMPTY_MESSAGES` 상수로 고침(커밋 `e0ec8cb`). 앱 완전 종료 후 재시작 + 백엔드 완전 종료 후 재시작 두 경우 모두 DB에서 메시지가 정상 복원되는 것도 확인.
-- [ ] CORS 설정이 실제로 필요했는지(RN 네이티브는 CORS 영향 없음, Expo 웹/브라우저 디버깅 시나리오만 해당) 확인 후 불필요하면 제거 검토
+- [x] **(2026-08-24 결정)** CORS 설정 유지하기로 결정 — `WebConfig`의 기존 주석이 이미 정확한 근거를 담고 있음(RN 네이티브 fetch는 CORS 영향 없지만 Swagger UI 등 브라우저 기반 API 확인 시나리오엔 필요). 로컬 개발 전용 전체 허용 설정이라 제거할 이유 없음, 배포 전 재검토(코드 주석에 이미 명시)만 남기고 종료.
 
 ## 2주차 — Gemini 연동 & WebSocket
 
