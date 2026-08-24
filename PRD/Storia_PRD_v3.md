@@ -181,5 +181,4 @@
 - **정식 유저 인증 시스템 (JWT/OAuth)** — 디바이스 ID 기반 익명 세션으로 최소화
 - **TURN 서버 구축** — NAT 환경 대응은 STUN까지만, TURN은 인프라 비용/난이도 대비 포트폴리오 기여도가 낮아 제외 (README에 "프로덕션에서는 TURN 필요"로 명시)
 - **Google Play Console 정식 등록/출시** — Firebase App Distribution으로 대체
-- **Android Native Module (Kotlin)**
 - **풀 듀플렉스 실시간 음성 대화 (동시 말하기/끊기 감지 등)** — 턴제 방식으로 단순화

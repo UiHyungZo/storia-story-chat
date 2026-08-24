@@ -52,6 +52,8 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [x] Swift Native Module (Haptic + 로컬 알림) — `apps/client/modules/storia-native/`에 로컬 Expo 모듈로 추가(클래식 `RCTBridgeModule` 패턴: `HapticNotifierModule.swift` + `HapticNotifierModule.m`의 `RCT_EXTERN_MODULE`/`RCT_EXTERN_METHOD`). `NativeModules.HapticNotifier.notify(title, body)`로 노출되고, 호출 시 `UINotificationFeedbackGenerator`로 햅틱 + `UNUserNotificationCenter`로 포그라운드에서도 보이는 로컬 알림(배너)을 띄움. `useConversationStore`가 어시스턴트 응답이 도착하는 두 지점(WS `onDone`, REST `postMessage` 성공) 모두에서 호출.
   - **이 프로젝트는 `ios/`를 커밋하지 않고 `expo prebuild`로 매번 재생성하는 구조**라서, 네이티브 코드를 `ios/` 안에 직접 넣으면 다음 prebuild 때 사라짐. 대신 Expo가 기본으로 찾는 `./modules` 경로에 로컬 모듈로 얹어서 커밋되고 prebuild에도 살아남게 함 (`expo-modules-autolinking`이 자동으로 CocoaPod으로 링크).
   - **미검증**: 이 머신엔 Xcode(Command Line Tools만 있음)와 CocoaPods가 없어 실제 빌드/실행 확인은 못 함. `npx expo prebuild --platform ios --no-install`로 `ios/` 프로젝트 골격이 생성되는 것까지만 확인(생성 후 삭제함 — 실제 pod install/빌드는 다음 세션에서 Xcode+CocoaPods 있는 환경에서 필요).
+- [x] **(신규, 오늘 추가) Kotlin Native Module (Android)** — PRD 9절에서 원래 범위 제외였던 항목을 뒤집고 구현(PRD 갱신 완료). `android/src/main/java/com/storianative/HapticNotifierModule.kt` + `HapticNotifierPackage.kt` — iOS와 대칭되는 클래식 `ReactContextBaseJavaModule`/`ReactPackage` 패턴, 동일한 `NativeModules.HapticNotifier.notify()` 브리지 이름을 노출해 `index.ts`가 플랫폼 분기 없이 호출. `Vibrator`/`VibratorManager`로 진동, `NotificationManagerCompat`으로 알림. `POST_NOTIFICATIONS`(API 33+) 권한은 iOS와 동일하게 첫 알림 시점에 lazy 요청. `expo-module.config.json`을 `"platforms": ["ios", "android"]`로 갱신.
+  - **미검증**: 이 머신엔 Android SDK/에뮬레이터/`kotlinc`가 없어 실제 빌드·링크·동작 확인 못 함 — iOS와 동일한 상황.
 - [x] FCM 원격 푸시 (백엔드 Admin SDK) — **백엔드만** 구현, 클라이언트 SDK 연동은 보류(아래 참고).
   - `firebase-admin` 의존성 추가, `FcmProperties`/`FirebaseConfig`(`FIREBASE_CREDENTIALS_PATH` 서비스 계정 JSON 경로 미설정 시 조용히 비활성화 — `GEMINI_API_KEY` 패턴과 동일), `PushNotificationService#sendNewMessage`.
   - `User.fcmToken` 컬럼 추가, `PUT /api/devices/token`(`DeviceController`/`UserService`)으로 클라이언트가 토큰을 등록.
@@ -64,6 +66,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [ ] 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가, 알림 권한 요청 후 발급받은 토큰을 앱 시작 시 `PUT /api/devices/token`으로 전송하는 API 래퍼 작성(`src/api/devices.ts` 등, `characters.ts`/`conversations.ts` 패턴 참고)
 - [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인
 - [ ] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인
+- [ ] **(신규)** Android SDK/에뮬레이터 있는 환경에서 `npx expo prebuild`/`expo run:android`로 `storia-native`의 Kotlin 모듈이 정상 링크·컴파일되는지, 진동 + 알림(API 33+ 권한 프롬프트 포함)이 뜨는지 확인
 
 ## 5주차 — 음성 통화, "축소판 A안"으로 확장
 
