@@ -26,8 +26,9 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ### 검증 필요 (다음 세션, 로컬 실행 후 — 2주차)
 
-- [ ] `GEMINI_API_KEY` 실제 키 발급 후 스트리밍 청크가 실시간으로 쌓여 타이핑 효과가 보이는지, 완료 시 최종 메시지로 치환되는지 확인 (키 없이는 WS 스트리밍 콘텐츠 자체가 발생하지 않아 미검증)
-- [ ] 백엔드를 내려서 강제로 WS 연결 실패 상황을 만든 뒤 REST 폴백(전체 응답 한 번에 반환)이 정상 동작하는지 확인
+- [x] **(2026-08-24 실행 검증 완료)** 사용자가 실제 `GEMINI_API_KEY` 제공 → 실 스트리밍/REST 왕복 전부 확인. 처음엔 계속 고정 폴백 문구만 왔는데, 원인은 키가 아니라 **`gemini-2.0-flash` 모델이 Google 쪽에서 서비스 종료**(`404 This model ... is no longer available`)된 것이었음 — `gemini-3.6-flash`로 교체(`application.yml`, 커밋 `8fbd6aa`)해서 해결. 헤드리스 STOMP 스크립트로 실제 WS 스트리밍도 확인: `CHUNK` 이벤트 여러 개 → `DONE`, 캐릭터 페르소나에 맞는 진짜 창의적인 응답(예: 렌이 손님에게 책을 파는 짧은 이야기를 즉석에서 지어냄) 도착. REST 경로도 curl/실제 앱 양쪽에서 진짜 AI 응답 수신 확인.
+  - **부수 발견/수정**: `ConversationController.postMessage`의 `.onErrorReturn(...)`이 에러를 로그 한 줄 없이 완전히 삼키고 있어서, 모델 404 에러가 전혀 안 보이고 그냥 폴백 문구만 계속 나와 원인 파악이 어려웠음 — `.doOnError(error -> log.warn(...))` 추가(STOMP 컨트롤러는 이미 하고 있던 패턴, REST도 맞춤). 커밋 `8fbd6aa`.
+- [x] **(2026-08-24 실행 검증 완료)** 백엔드를 내려서 WS 연결 실패 상황을 만든 뒤 재연결이 되는지는 3주차 헤드리스 테스트로 확인(아래 3주차 참고). REST 폴백 자체는 이미 위에서 실제 응답까지 확인됨.
 - [x] `@stomp/stompjs`가 RN(Hermes) 환경에서 별도 폴리필 없이 붙음 — 실제 앱에서 폴리필 관련 크래시 없이 STOMP 핸드셰이크 자체는 정상 동작(curl로 `/ws`에 직접 Upgrade 요청 시 `101` 응답도 별도 확인).
 - [x] **(2026-08-24 신규 발견)** 현재는 화면 진입 시 WS 연결을 1회만 시도하고 세션 내내 그 결과(ws/rest)를 유지하는데, 이 연결 시도에 4초 타임아웃(`CONNECT_TIMEOUT_MS`, `src/api/websocket.ts`)이 걸려있음 — 실제 앱을 콜드 스타트 직후 채팅방에 진입해 첫 메시지를 보낸 세션에서 이 타임아웃을 넘겨 **조용히 REST로 폴백된 것으로 추정**됨(DB에 저장된 응답 문구가 WS 경로의 에러 문구가 아니라 REST 전용 폴백 문구였음). 앱 시작 직후 첫 채팅에서 WS가 예상보다 자주 REST로 떨어질 수 있다는 뜻 — 타임아웃을 늘리거나 원인을 더 조사할 가치가 있어 보임. 스트리밍 도중 연결이 끊기는 시나리오의 재시도/재연결은 3주차 범위.
 
@@ -52,7 +53,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - **이 프로젝트는 `ios/`를 커밋하지 않고 `expo prebuild`로 매번 재생성하는 구조**라서, 네이티브 코드를 `ios/` 안에 직접 넣으면 다음 prebuild 때 사라짐. 대신 Expo가 기본으로 찾는 `./modules` 경로에 로컬 모듈로 얹어서 커밋되고 prebuild에도 살아남게 함 (`expo-modules-autolinking`이 자동으로 CocoaPod으로 링크).
   - **(2026-08-24 실행 검증 완료)** Xcode 26.4.0(전체)+CocoaPods가 이후 이 머신에 설치됨. `npx expo prebuild --platform ios --clean` → `expo run:ios`로 실제 pod install/컴파일/링크/시뮬레이터(iPhone 15 Pro) 실행까지 확인. 앱에서 실제로 어시스턴트 응답을 받을 때마다 `NativeModules.HapticNotifier.notify()`가 호출됐고(에러 로그 없음, JS단에서 정상 호출됨) 크래시 없이 통과 — 다만 실제 햅틱 진동/알림 배너가 화면에 뜨는 것 자체를 스크린샷으로 정확한 타이밍에 캡처하진 못해서 눈으로 직접 확인하진 않음.
 - [x] **(신규, 오늘 추가) Kotlin Native Module (Android)** — PRD 9절에서 원래 범위 제외였던 항목을 뒤집고 구현(PRD 갱신 완료). `android/src/main/java/com/storianative/HapticNotifierModule.kt` + `HapticNotifierPackage.kt` — iOS와 대칭되는 클래식 `ReactContextBaseJavaModule`/`ReactPackage` 패턴, 동일한 `NativeModules.HapticNotifier.notify()` 브리지 이름을 노출해 `index.ts`가 플랫폼 분기 없이 호출. `Vibrator`/`VibratorManager`로 진동, `NotificationManagerCompat`으로 알림. `POST_NOTIFICATIONS`(API 33+) 권한은 iOS와 동일하게 첫 알림 시점에 lazy 요청. `expo-module.config.json`을 `"platforms": ["ios", "android"]`로 갱신.
-  - **미검증**: 이 머신엔 Android SDK/에뮬레이터/`kotlinc`가 없어 실제 빌드·링크·동작 확인 못 함 — iOS와 동일한 상황.
+  - **(2026-08-24 실행 검증 완료)** 사용자가 Android Studio 설치 → `sdkmanager`(cmdline-tools)로 platform-tools/`platforms;android-35`/`build-tools;35.0.0`/`emulator`/`system-images;android-35;google_apis;arm64-v8a` 헤드리스로 설치 → AVD(Pixel 6, API 35) 생성/부팅 → `./gradlew assembleDebug` 실제 빌드 성공(`storia-native`의 Kotlin/CMake 네이티브 빌드 포함, 4분). APK를 에뮬레이터에 설치 후 `adb shell input`(uiautomator dump로 좌표 확인) + 딥링크(`exp+storia://expo-development-client/?url=...`)로 **실제 탭 조작까지 재현**: 캐릭터 목록 로드 → 렌(Ren) 채팅방 진입(크래시 없음, `getMessages` 버그 수정이 Android에서도 유효함 확인) → 메시지 입력 → 전송 → 18초 뒤 실제 Gemini 응답이 캐릭터 페르소나 그대로 채팅 버블에 렌더링되는 것까지 확인. `adb logcat`에 FATAL/AndroidRuntime 크래시 없음, `HapticNotifier.notify()` 호출 관련 에러도 없음(다만 실제 진동/알림 배너를 눈으로 보는 것 자체는 에뮬레이터라 진동은 확인 불가, 알림 배너 노출 여부는 별도 확인 안 함).
 - [x] FCM 원격 푸시 (백엔드 Admin SDK) — **백엔드만** 구현, 클라이언트 SDK 연동은 보류(아래 참고).
   - `firebase-admin` 의존성 추가, `FcmProperties`/`FirebaseConfig`(`FIREBASE_CREDENTIALS_PATH` 서비스 계정 JSON 경로 미설정 시 조용히 비활성화 — `GEMINI_API_KEY` 패턴과 동일), `PushNotificationService#sendNewMessage`.
   - `User.fcmToken` 컬럼 추가, `PUT /api/devices/token`(`DeviceController`/`UserService`)으로 클라이언트가 토큰을 등록.
@@ -66,7 +67,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [ ] 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가, 알림 권한 요청 후 발급받은 토큰을 앱 시작 시 `PUT /api/devices/token`으로 전송하는 API 래퍼 작성(`src/api/devices.ts` 등, `characters.ts`/`conversations.ts` 패턴 참고)
 - [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인
 - [x] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈 링크·컴파일 확인 완료(위 참고). 실제 햅틱 진동/알림 배너가 화면에 뜨는지 눈으로 직접 보는 것만 남음.
-- [ ] **(신규)** Android SDK/에뮬레이터 있는 환경에서 `npx expo prebuild`/`expo run:android`로 `storia-native`의 Kotlin 모듈이 정상 링크·컴파일되는지, 진동 + 알림(API 33+ 권한 프롬프트 포함)이 뜨는지 확인 — 이 머신엔 여전히 Android SDK 없음
+- [x] **(2026-08-24 실행 검증 완료)** Android SDK/에뮬레이터 설치 후 `storia-native`의 Kotlin 모듈 링크·컴파일·실행 확인 완료(위 참고). 남은 건 진동/알림 배너를 실제 기기(에뮬레이터는 진동 체감 불가)에서 눈으로 확인하는 것과 API 33+ 권한 프롬프트 확인뿐.
 
 ## 5주차 — 음성 통화, "축소판 A안"으로 확장
 
