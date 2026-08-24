@@ -36,12 +36,14 @@ class MessageServiceTest {
     }
 
     @Test
-    void synthesizeAudio_delegatesMessageContentToTtsService() {
-        Conversation conversation = new Conversation(new User("device"), new Character());
+    void synthesizeAudio_delegatesMessageContentAndCharacterVoiceToTtsService() {
+        Character character = new Character();
+        character.setTtsVoiceId("ko-KR-Standard-A");
+        Conversation conversation = new Conversation(new User("device"), character);
         Message message = new Message(conversation, Message.Role.ASSISTANT, "안녕하세요");
         byte[] audio = new byte[] {1, 2, 3};
         when(messageRepository.findById(1L)).thenReturn(Optional.of(message));
-        when(ttsService.synthesize("안녕하세요")).thenReturn(audio);
+        when(ttsService.synthesize("안녕하세요", "ko-KR-Standard-A")).thenReturn(audio);
 
         byte[] result = messageService.synthesizeAudio(1L);
 
@@ -53,7 +55,7 @@ class MessageServiceTest {
         Conversation conversation = new Conversation(new User("device"), new Character());
         Message message = new Message(conversation, Message.Role.ASSISTANT, "안녕하세요");
         when(messageRepository.findById(1L)).thenReturn(Optional.of(message));
-        when(ttsService.synthesize(any())).thenReturn(null);
+        when(ttsService.synthesize(any(), any())).thenReturn(null);
 
         assertThat(messageService.synthesizeAudio(1L)).isNull();
     }

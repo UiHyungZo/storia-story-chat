@@ -17,6 +17,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * 대화방 안의 메시지 한 건. createdAt 오름차순으로 조회되어(MessageRepository),
+ * Gemini 호출 시 그대로 대화 히스토리(멀티턴 컨텍스트)로 재사용된다.
+ */
 @Entity
 @Table(indexes = @Index(name = "idx_message_conversation_id", columnList = "conversation_id"))
 @Getter
@@ -25,8 +29,8 @@ import lombok.Setter;
 public class Message {
 
     public enum Role {
-        USER,
-        ASSISTANT
+        USER,      // 유저가 보낸 메시지
+        ASSISTANT  // Gemini가 생성한 응답
     }
 
     @Id

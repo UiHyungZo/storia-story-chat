@@ -20,8 +20,6 @@ erDiagram
         string name
         string concept
         text systemPrompt
-        string avatarUrl
-        text worldviewMetadata
         string ttsVoiceId
         timestamp createdAt
     }

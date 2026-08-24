@@ -17,7 +17,7 @@ const mockedReadCache = readCache as jest.MockedFunction<typeof readCache>;
 const mockedWriteCache = writeCache as jest.MockedFunction<typeof writeCache>;
 
 const CHARACTERS: Character[] = [
-  { id: 1, name: "루나", concept: "따뜻한 상담사", avatarUrl: null, ttsVoiceId: null },
+  { id: 1, name: "루나", concept: "따뜻한 상담사", ttsVoiceId: null },
 ];
 
 describe("useCharacterStore", () => {
@@ -30,7 +30,7 @@ describe("useCharacterStore", () => {
   });
 
   it("hydrates from cache immediately, then overwrites with the fetch result", async () => {
-    mockedReadCache.mockResolvedValue([{ id: 99, name: "cached", concept: "", avatarUrl: null, ttsVoiceId: null }]);
+    mockedReadCache.mockResolvedValue([{ id: 99, name: "cached", concept: "", ttsVoiceId: null }]);
     mockedFetchCharacters.mockResolvedValue(CHARACTERS);
 
     const promise = useCharacterStore.getState().loadCharacters();

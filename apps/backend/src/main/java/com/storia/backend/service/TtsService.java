@@ -26,16 +26,20 @@ public class TtsService {
     private final TtsProperties properties;
     private final ObjectMapper objectMapper;
 
-    public byte[] synthesize(String text) {
+    /** voiceName이 null/빈 값이면 TtsProperties#voiceName(전역 기본값)으로 폴백한다. */
+    public byte[] synthesize(String text, String voiceName) {
         if (!properties.isConfigured()) {
             return null;
         }
+        String resolvedVoiceName = (voiceName == null || voiceName.isBlank())
+                ? properties.voiceName()
+                : voiceName;
 
         Map<String, Object> requestBody = Map.of(
                 "input", Map.of("text", text),
                 "voice", Map.of(
                         "languageCode", properties.languageCode(),
-                        "name", properties.voiceName()),
+                        "name", resolvedVoiceName),
                 "audioConfig", Map.of("audioEncoding", "MP3"));
 
         try {

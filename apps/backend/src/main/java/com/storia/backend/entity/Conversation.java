@@ -15,6 +15,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * 유저-캐릭터 대화방. (user_id, character_id) 유니크 제약으로 "캐릭터당 대화 1개"만 허용한다
+ * — 한 유저가 같은 캐릭터와 여러 대화 세션을 갖는 개념은 이 앱 범위 밖.
+ */
 @Entity
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "character_id"}))
 @Getter

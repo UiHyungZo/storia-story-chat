@@ -5,7 +5,6 @@ type CharacterResponseDto = {
   id: number;
   name: string;
   concept: string;
-  avatarUrl: string | null;
   ttsVoiceId: string | null;
 };
 
@@ -14,7 +13,6 @@ function fromDto(dto: CharacterResponseDto): Character {
     id: dto.id,
     name: dto.name,
     concept: dto.concept,
-    avatarUrl: dto.avatarUrl,
     ttsVoiceId: dto.ttsVoiceId,
   };
 }

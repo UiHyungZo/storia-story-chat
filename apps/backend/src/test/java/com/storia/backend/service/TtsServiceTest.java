@@ -25,7 +25,7 @@ class TtsServiceTest {
         TtsProperties unconfigured = new TtsProperties("", "https://texttospeech.googleapis.com", "ko-KR", "ko-KR-Standard-A");
         TtsService service = new TtsService(ttsWebClient, unconfigured, new ObjectMapper());
 
-        byte[] result = service.synthesize("안녕하세요");
+        byte[] result = service.synthesize("안녕하세요", null);
 
         assertThat(result).isNull();
         verifyNoInteractions(ttsWebClient);
@@ -36,7 +36,7 @@ class TtsServiceTest {
         TtsProperties blankKey = new TtsProperties("   ", "https://texttospeech.googleapis.com", "ko-KR", "ko-KR-Standard-A");
         TtsService service = new TtsService(ttsWebClient, blankKey, new ObjectMapper());
 
-        assertThat(service.synthesize("hello")).isNull();
+        assertThat(service.synthesize("hello", "ko-KR-Standard-B")).isNull();
         verifyNoInteractions(ttsWebClient);
     }
 }

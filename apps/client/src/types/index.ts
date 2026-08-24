@@ -2,7 +2,6 @@ export type Character = {
   id: number;
   name: string;
   concept: string;
-  avatarUrl: string | null;
   ttsVoiceId: string | null;
 };
 
