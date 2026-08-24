@@ -18,6 +18,14 @@ import org.springframework.stereotype.Service;
 public class PushNotificationService {
 
     public void sendNewMessage(String fcmToken, String characterName, String content) {
+        send(fcmToken, characterName, content);
+    }
+
+    public void sendReEngagement(String fcmToken) {
+        send(fcmToken, "Storia", "캐릭터들이 대화를 기다리고 있어요!");
+    }
+
+    private void send(String fcmToken, String title, String body) {
         if (fcmToken == null || fcmToken.isBlank() || FirebaseApp.getApps().isEmpty()) {
             return;
         }
@@ -25,8 +33,8 @@ public class PushNotificationService {
         Message message = Message.builder()
                 .setToken(fcmToken)
                 .setNotification(Notification.builder()
-                        .setTitle(characterName)
-                        .setBody(content)
+                        .setTitle(title)
+                        .setBody(body)
                         .build())
                 .build();
 

@@ -8,6 +8,7 @@ import com.storia.backend.repository.CharacterRepository;
 import com.storia.backend.repository.ConversationRepository;
 import com.storia.backend.repository.MessageRepository;
 import com.storia.backend.repository.UserRepository;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -53,6 +54,8 @@ public class ConversationService {
     private Conversation getOrCreateConversation(String deviceId, Long characterId) {
         User user = userRepository.findByDeviceId(deviceId)
                 .orElseGet(() -> userRepository.save(new User(deviceId)));
+        user.setLastActiveAt(Instant.now());
+        user.setReengagementPushSent(false);
 
         Character character = findCharacterOrThrow(characterId);
 

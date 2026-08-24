@@ -33,6 +33,9 @@ public class User {
     @Column(length = 512)
     private String fcmToken;
 
+    @Column(nullable = false)
+    private boolean reengagementPushSent = false;
+
     public User(String deviceId) {
         this.deviceId = deviceId;
     }
