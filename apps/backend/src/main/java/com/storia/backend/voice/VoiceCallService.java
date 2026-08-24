@@ -50,7 +50,10 @@ public class VoiceCallService {
         String roomName = roomNameFor(deviceId, characterId);
         AccessToken token = new AccessToken(properties.apiKey(), properties.apiSecret());
         token.setIdentity(deviceId);
-        token.addGrants(new RoomJoin(true), new RoomName(roomName), new CanPublish(true), new CanSubscribe(false));
+        // CanSubscribe(true): 축소판 A안 자체는 클라이언트가 room 안의 다른 트랙을 구독할
+        // 필요가 없었지만, apps/python-sidecar(완전한 A안 확장)가 이 room에 봇으로 들어와
+        // TTS 오디오 트랙을 publish하면 클라이언트가 그걸 들으려면 구독 권한이 있어야 함.
+        token.addGrants(new RoomJoin(true), new RoomName(roomName), new CanPublish(true), new CanSubscribe(true));
         return new CallTokenResponse(token.toJwt(), properties.wsUrl(), roomName);
     }
 
