@@ -129,6 +129,22 @@ Content-Type: application/json
 
 ---
 
+## GET /api/messages/{messageId}/audio
+
+저장된 메시지 내용을 TTS로 합성해 오디오(mp3)로 반환한다(5주차, PRD 3.9 음성 통화 B안). 별도 오디오 저장소 없이 **요청이 올 때마다 그때그때 합성**한다(포트폴리오 스코프 트레이드오프 — 반복 요청 시 매번 재합성 비용 발생, ADR-004 갱신 참고).
+
+```text
+GET /api/messages/{messageId}/audio
+```
+
+응답: `200 OK` + `Content-Type: audio/mpeg` (성공), 또는 `404 Not Found`(메시지 없음 / `TTS_API_KEY` 미설정 / 합성 실패).
+
+* 구현: `MessageController` → `MessageService#synthesizeAudio` → `TtsService#synthesize`(Google Cloud TTS REST API, WebClient + `.block()`)
+* 텍스트 채팅과 달리 `X-Device-Id` 헤더를 요구하지 않음 — `messageId`는 민감하지 않은 순번이고, 이 앱 전체가 정식 인증 없이 동작하는 것과 동일한 신뢰 수준(PRD 9절)
+* 클라이언트는 메시지 송수신 자체는 기존 텍스트 채팅 경로(REST `POST /api/conversations/{characterId}/messages`)를 그대로 재사용하고, 응답으로 받은 `assistantMessage.id`로 이 엔드포인트를 호출해 오디오만 별도로 받아온다 — WS 스트리밍 경로는 응답 완료 시점을 기다리지 않으므로 음성 통화에는 쓰지 않음(`useConversationStore#sendMessageViaRest`, `useVoiceCallStore` 참고)
+
+---
+
 # Layer Flow
 
 ```text

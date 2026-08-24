@@ -13,8 +13,10 @@ import {
   View,
 } from "react-native";
 import { MessageBubble } from "../components/MessageBubble";
+import { VoiceCallOverlay } from "../components/VoiceCallOverlay";
 import { useCharacterStore } from "../store/useCharacterStore";
 import { useConversationStore } from "../store/useConversationStore";
+import { useVoiceCallStore } from "../store/useVoiceCallStore";
 import { Message, RootStackParamList } from "../types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChatRoom">;
@@ -32,18 +34,30 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   const loadMessages = useConversationStore((state) => state.loadMessages);
   const disconnect = useConversationStore((state) => state.disconnect);
   const sendMessage = useConversationStore((state) => state.sendMessage);
+  const startCall = useVoiceCallStore((state) => state.startCall);
+  const endCall = useVoiceCallStore((state) => state.endCall);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<{ content: string; message: string } | null>(null);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: character?.name ?? "Chat" });
-  }, [navigation, character]);
+    navigation.setOptions({
+      title: character?.name ?? "Chat",
+      headerRight: () => (
+        <Pressable onPress={() => startCall(characterId)} hitSlop={8}>
+          <Text style={styles.callButtonText}>📞 통화</Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, character, characterId, startCall]);
 
   useEffect(() => {
     loadMessages(characterId);
-    return () => disconnect(characterId);
-  }, [characterId, loadMessages, disconnect]);
+    return () => {
+      disconnect(characterId);
+      endCall();
+    };
+  }, [characterId, loadMessages, disconnect, endCall]);
 
   const displayMessages = useMemo(() => {
     const reversed = [...messages].reverse();
@@ -126,6 +140,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      <VoiceCallOverlay characterId={characterId} characterName={character?.name ?? "Storia"} />
     </SafeAreaView>
   );
 }
@@ -140,6 +155,12 @@ const styles = StyleSheet.create({
   },
   centerBlock: {
     marginTop: 24,
+  },
+  callButtonText: {
+    fontSize: 15,
+    color: "#3B82F6",
+    fontWeight: "600",
+    paddingHorizontal: 4,
   },
   errorBanner: {
     flexDirection: "row",

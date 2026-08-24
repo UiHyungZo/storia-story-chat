@@ -9,13 +9,14 @@
 - **이 머신엔 Docker가 없음**: `docker compose up`으로 MariaDB를 못 띄움 (Homebrew mysql 9.7.1이 이미 로컬 3306 포트를 점유 중이고 MariaDB는 미설치). 3주차 세션에서 이 문제로 DB 관련 실행 검증(히스토리 저장/복원)을 보류함 — 사용자가 명시적으로 이번엔 건너뛰기로 선택. 다음 세션에서 Docker Desktop을 설치하거나 `brew install mariadb`로 포트 3307에 별도 인스턴스를 띄워서 검증할 것.
 - **`GEMINI_API_KEY` 미설정**: 아직 키를 발급받지 않음. 백엔드를 띄우기 전에 `export GEMINI_API_KEY=...` 필요 (없으면 채팅은 되지만 고정 안내 문구만 돌아옴).
 - **Firebase 프로젝트 없음**: 4주차 FCM 푸시는 백엔드 스켈레톤만 구현됨(사용자가 명시적으로 선택). 서비스 계정 JSON/`GoogleService-Info.plist`/APNs 키가 있는 실제 Firebase 프로젝트가 생기기 전까지는 실 발송/클라이언트 SDK 연동 둘 다 불가능.
-- **이 머신엔 Xcode(전체 설치)와 CocoaPods도 없음**: Command Line Tools만 있어 `pod`가 없고 `xcodebuild`도 활성 개발자 디렉토리가 CLT라 동작 안 함. 4주차 Native Module(`modules/storia-native`)은 `npx expo prebuild --platform ios --no-install`로 `ios/` 골격이 생성되는 것까지만 확인했고, 실제 pod install/컴파일/기기 실행은 미검증.
+- **이 머신엔 Xcode(전체 설치)와 CocoaPods도 없음**: Command Line Tools만 있어 `pod`가 없고 `xcodebuild`도 활성 개발자 디렉토리가 CLT라 동작 안 함. 4주차 Native Module(`modules/storia-native`)은 `npx expo prebuild --platform ios --no-install`로 `ios/` 골격이 생성되는 것까지만 확인했고, 실제 pod install/컴파일/기기 실행은 미검증. 5주차 STT(`expo-speech-recognition`)/오디오 재생(`expo-audio`)도 같은 이유로 기기 검증 못 함.
+- **`TTS_API_KEY` 미설정**: Google Cloud TTS 키가 아직 없음. 없어도 `/api/messages/{id}/audio`가 404를 반환하고 클라이언트가 텍스트만 남기고 다음 턴으로 넘어가는 폴백까지는 코드로 확인함 — 실제 음성 합성은 미검증.
 - **`apps/client/node_modules`는 타입체크 검증용으로 로컬에만 설치함**: `.gitignore` 처리되어 커밋엔 영향 없음. 새 환경/재클론 시 `npm install` 다시 필요.
-- 상세 검증 체크리스트는 [`TODO.md`](./TODO.md)의 "검증 필요"/"남은 작업" 섹션(1~4주차 각각) 참고.
+- 상세 검증 체크리스트는 [`TODO.md`](./TODO.md)의 "검증 필요"/"남은 작업" 섹션(1~5주차 각각) 참고.
 
 ## 현재 상태 (2026-08-24 기준)
 
-PRD v3 마일스톤 **1~4주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성 — 3주차는 Docker가 없어 DB 검증을, 4주차는 Xcode/CocoaPods/Firebase 프로젝트가 없어 네이티브 빌드·FCM 실 발송 검증을 각각 사용자가 명시적으로 보류함).
+PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성 — 3주차는 Docker가 없어 DB 검증을, 4주차는 Xcode/CocoaPods/Firebase 프로젝트가 없어 네이티브 빌드·FCM 실 발송 검증을, 5주차는 같은 이유로 STT/오디오 재생 기기 검증과 TTS 키 미발급으로 실 합성 검증을 각각 사용자가 명시적으로 보류함).
 
 - **백엔드**: Spring Boot 3.x + JPA. `User`/`Character`/`Conversation`/`Message` 엔티티, 캐릭터 3종 시딩(`CharacterSeeder`), Swagger UI, `WebConfig`(로컬 개발용 CORS 전체 허용, `/api/**`).
   - REST: `GET /api/characters`, `GET /api/conversations/{characterId}/messages`, `POST /api/conversations/{characterId}/messages`(유저 메시지 저장 + Gemini 동기 호출로 어시스턴트 응답까지 한 번에 반환 — WS 실패 시 폴백 경로).
@@ -32,7 +33,13 @@ PRD v3 마일스톤 **1~4주차 코드 작성 완료, 로컬 실행 검증은 �
   - 이 프로젝트는 `ios/`를 커밋하지 않고 `expo prebuild`로 재생성하는 구조(`.gitignore`의 `/ios`, `/android`)라서, `ios/` 안에 직접 Swift 파일을 넣는 방식은 다음 prebuild 때 사라짐 — 그래서 Expo가 기본으로 찾는 `./modules` 경로에 로컬 모듈로 얹음 (`expo-modules-autolinking`이 자동 발견해서 CocoaPod으로 링크, 별도 config plugin 불필요).
   - Android는 PRD 9절에서 명시적으로 범위 밖(`Android Native Module (Kotlin)` 제외) — `expo-module.config.json`도 `"platforms": ["ios"]`만 선언.
 - **신규(4주차) — FCM 원격 푸시**: **백엔드만** 구현(사용자가 "백엔드 스켈레톤만 먼저" 선택). `firebase-admin` 의존성, `FcmProperties`/`FirebaseConfig`(`FIREBASE_CREDENTIALS_PATH` 미설정 시 조용히 비활성화 — `GEMINI_API_KEY`와 동일한 graceful-degradation 패턴), `PushNotificationService#sendNewMessage`. `User.fcmToken` 컬럼 + `PUT /api/devices/token`(`DeviceController`/`UserService`)으로 토큰 등록. `ConversationService#postAssistantMessage`(WS/REST 두 경로가 공유하는 지점)에서 매 어시스턴트 응답마다 자동 발송 시도. 클라이언트 쪽 `@react-native-firebase` 연동은 실제 Firebase 프로젝트가 생긴 뒤로 보류.
-- **WebRTC/TTS**: 전혀 구현 안 됨 (5~6주차 범위).
+- **신규(5주차) — 음성 통화 B안**: PRD 3.9/ADR-004 그대로 WebRTC 없이 구현.
+  - **백엔드**: `TtsProperties`/`TtsWebClientConfig`/`TtsService`(Google Cloud TTS REST, `TTS_API_KEY` 미설정 시 `null` — 동일한 graceful-degradation 패턴), `MessageService`/`MessageController`의 `GET /api/messages/{id}/audio`가 그 메시지 내용을 그때그때 TTS로 합성해 mp3로 반환(별도 오디오 저장소 없음 — 반복 요청마다 재합성됨, 트레이드오프로 문서화).
+  - **클라이언트**: STT는 `expo-speech-recognition` 사용 — **PRD/ADR-004가 명시한 `@react-native-voice/voice`에서 교체함**, npm이 그 패키지를 deprecated로 표시하고 있어서(`docs/decisions.md` ADR-004 갱신 항목 참고). 오디오 재생은 `expo-audio`(`createAudioPlayer`).
+  - 메시지 송수신 자체는 **새 WS 채널을 만들지 않고 기존 텍스트 채팅 REST 경로를 재사용** — `useConversationStore`에 `sendMessageViaRest`를 추가(WS 스트리밍 경로는 응답 완료를 기다리지 않고 바로 resolve되므로, "언제 오디오를 가져올지" 알 수 없어 음성 통화엔 못 씀).
+  - `useVoiceCallStore`(턴제 상태머신: idle→listening→thinking→speaking, 풀 듀플렉스 아님) + `VoiceCallOverlay`(통화 UI, `Modal`) + `ChatRoomScreen` 헤더의 "📞 통화" 버튼.
+  - `expo-speech-recognition` config plugin을 `app.json`에 등록(마이크/음성 인식 권한 문구 포함) — 다음에 `expo prebuild`를 돌리면 반영됨.
+- **WebRTC**: 전혀 구현 안 됨 (6주차 범위 — C안, TTS 오디오 재생과는 무관한 별도 시그널링 데모).
 
 ## 다음 작업 (바로 이어서 할 것)
 
@@ -48,8 +55,11 @@ PRD v3 마일스톤 **1~4주차 코드 작성 완료, 로컬 실행 검증은 �
 - 백엔드에 전역 예외 처리기가 없어 잘못된 `characterId` 등은 500으로 노출됨 (`docs/api.md` Error Handling Policy 참고) — 계속 범위 밖으로 남겨둠.
 - **(4주차 신규)** Firebase 프로젝트 생성 → 서비스 계정 JSON(`FIREBASE_CREDENTIALS_PATH`) + iOS 앱 등록(`GoogleService-Info.plist`) + APNs Auth Key 준비 → 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가 → 발급받은 토큰을 `PUT /api/devices/token`으로 전송 → 앱 백그라운드/종료 상태에서 실제 FCM 푸시 오는지 확인.
 - **(4주차 신규)** Xcode(전체)+CocoaPods 있는 환경에서 `npx expo prebuild`/`npx expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인.
+- **(5주차 신규)** Google Cloud TTS API 키(`TTS_API_KEY`) 발급 → 백엔드에 주입 → `GET /api/messages/{id}/audio`가 실제로 mp3를 반환하는지 확인 (`ko-KR-Standard-A` 보이스가 유효한지도 함께 — Cloud TTS 콘솔에서 사용 가능한 보이스명 재확인 필요할 수 있음).
+- **(5주차 신규)** Xcode+CocoaPods 있는 환경에서 통화 버튼 → 마이크 권한 요청 → STT로 텍스트 인식 → 응답 생성 → TTS 오디오 재생까지 실제 왕복 확인. `expo-speech-recognition`이 SDK 57 대비 다소 낮은 버전(`56.0.1`, 이 패키지의 npm 최신)으로 설치돼 있어 `expo doctor`/`expo-doctor` 경고가 뜨는지도 확인해볼 것.
+- **(5주차 신규)** TTS 미설정 상태(지금 이 머신 그대로)에서 통화를 걸어, 오디오 없이 텍스트 응답만 오고 자동으로 다음 턴(idle)으로 넘어가는 폴백이 실제로도 매끄러운지 확인.
 
-이후 순서는 [`TODO.md`](./TODO.md) 참고 (5주차: 음성 통화 B안).
+이후 순서는 [`TODO.md`](./TODO.md) 참고 (6주차: WebRTC 최소 데모 C안).
 
 ## 중요한 결정 사항 / 함정
 
@@ -62,7 +72,9 @@ PRD v3 마일스톤 **1~4주차 코드 작성 완료, 로컬 실행 검증은 �
 - **Gemini API 키**: `GEMINI_API_KEY` 환경변수로 주입(`application.yml`의 `gemini.api-key`). 커밋된 파일에는 키가 없음 — 로컬에서 `export GEMINI_API_KEY=...` 하고 백엔드를 띄울 것. 모델명은 `gemini.model`(기본 `gemini-2.0-flash`)로 분리해뒀으니 모델이 바뀌면 `application.yml`만 수정하면 됨.
 - **WebClient는 MVC 앱에 부분 도입**: `spring-boot-starter-webflux`(전체 리액티브 스택) 대신 `spring-webflux` + `reactor-netty-http`만 추가해 WebClient만 사용. 앱은 여전히 Servlet(MVC) 스택 — REST 폴백 컨트롤러에서는 `.block()`으로 동기 변환해서 씀 (포트폴리오 스코프에서 허용 가능한 트레이드오프, `docs/decisions.md` ADR-006 참고).
 - **Native Module은 `ios/`가 아니라 `modules/storia-native`에 둘 것**: 이 프로젝트는 `expo prebuild`로 `ios/`를 매번 재생성하는 continuous native generation 방식이라(`.gitignore`의 `/ios`), `ios/` 안에 직접 넣은 네이티브 코드는 다음 prebuild 때 사라진다. 새 네이티브 코드가 더 필요해지면 반드시 `./modules` 아래 로컬 모듈로 추가할 것 (`expo-modules-autolinking`이 기본으로 찾는 경로 — `apps/client/node_modules/expo-modules-autolinking/build/commands/autolinkingOptions.js`의 기본값 `./modules` 참고).
-- **외부 자격증명 미설정 시 graceful degradation 패턴 통일**: `GEMINI_API_KEY`(Gemini), `FIREBASE_CREDENTIALS_PATH`(FCM) 둘 다 `*Properties#isConfigured()`로 설정 여부를 확인하고, 없으면 예외를 던지지 않고 조용히 비활성화(로그만 남김)하는 동일한 패턴을 따름. 새 외부 연동을 추가할 때도 이 패턴 유지할 것.
+- **외부 자격증명 미설정 시 graceful degradation 패턴 통일**: `GEMINI_API_KEY`(Gemini), `FIREBASE_CREDENTIALS_PATH`(FCM), `TTS_API_KEY`(TTS) 모두 `*Properties#isConfigured()`로 설정 여부를 확인하고, 없으면 예외를 던지지 않고 조용히 비활성화(로그만 남김 / `null` 반환 / 404)하는 동일한 패턴을 따름. 새 외부 연동을 추가할 때도 이 패턴 유지할 것.
+- **음성 통화는 새 실시간 채널을 만들지 않고 기존 REST를 재사용**: WS 스트리밍 경로(`sendMessage`)는 청크 콜백만 있고 "응답이 완전히 끝났다"는 시점을 기다리지 않고 resolve되므로, 오디오를 언제 가져올지 알 수 없어 음성 통화엔 못 씀. 대신 REST 전용 `sendMessageViaRest`를 신설해 재사용 — 새로운 실시간 파이프라인이 필요해 보여도 먼저 REST 재사용이 가능한지 검토할 것 (불필요한 WS 채널 증식 방지).
+- **TTS는 미리 합성해 저장하지 않고 요청 시점에 합성**: `MessageService#synthesizeAudio`는 오디오를 DB/디스크에 캐싱하지 않고 `GET /api/messages/{id}/audio` 호출마다 매번 Google Cloud TTS를 다시 호출한다. 포트폴리오 스코프에서 허용한 트레이드오프(반복 재생 시 비용/지연 증가) — 프로덕션이라면 결과를 캐싱해야 함.
 
 ## 로컬 실행
 

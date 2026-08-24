@@ -51,13 +51,17 @@ Storia 개발 과정에서 내린 주요 기술/설계 결정을 기록한다. �
 **배경**: JD 요구사항인 "WebRTC 기반 음성 통화"를 1인 개발 일정(7주) 내에 증명해야 함. 풀 실시간 WebRTC 파이프라인(A안: 마이크 오디오 → WebRTC → 서버 STT → LLM → TTS → WebRTC 재생)은 난이도가 높아 일정 리스크가 크다.
 
 **결정**:
-- **메인 기능(B안)**: 클라이언트 RN STT(`@react-native-voice/voice`)로 로컬 음성 인식 → 텍스트만 WebSocket 전송 → 서버 LLM → 서버 TTS → 오디오 URL을 클라이언트가 받아 재생. WebRTC 미사용.
+- **메인 기능(B안)**: 클라이언트 RN STT로 로컬 음성 인식 → 텍스트만 서버에 전송 → 서버 LLM → 서버 TTS → 오디오 URL을 클라이언트가 받아 재생. WebRTC 미사용.
 - **자격요건 증명용 최소 데모(C안)**: B안과 별개로 WebRTC 시그널링 서버(Offer/Answer/ICE 교환)와 1:1 P2P 오디오 스트리밍 연결만 별도 데모 화면으로 구현. LLM 파이프라인과 통합될 필요 없음.
 - A안은 시간 여유가 있을 때만 확장 목표로 시도.
 
 **트레이드오프**: B안은 "엄밀히는 WebRTC가 아니므로" JD의 "WebRTC 연동 경험" 요구사항을 부분적으로만 충족한다. C안을 병행해 코드 수준에서 WebRTC 연동 경험 자체는 증명하되, 메인 기능은 현실적인 완성도를 우선한다.
 
 **영향**: 5주차(B안 파이프라인)와 6주차(C안 WebRTC 데모)가 별도 작업으로 분리되어 있음 ([`TODO.md`](../TODO.md)). WebRTC를 처음부터 메인 파이프라인에 통합하려는 설계 변경은 이 결정과 충돌하므로, 변경하려면 이 ADR을 갱신할 것.
+
+**갱신 (5주차 구현 시점)**:
+- **STT 패키지를 `@react-native-voice/voice` → `expo-speech-recognition`으로 변경**. PRD/이 ADR 원문이 명시한 패키지였지만, 5주차에 설치하려던 시점에 npm이 `@react-native-voice/voice@3.2.4`를 "deprecated — use expo-speech-recognition instead"로 표시하고 있어 그대로 채택하지 않음. `expo-speech-recognition`은 활발히 유지보수 중이고 Expo config plugin으로 iOS/Android 권한 설정까지 자동화되어 오히려 더 적합 판단. PRD의 "RN STT" 요구사항 자체는 동일하게 충족.
+- **음성 통화도 별도 WS 채널을 신설하지 않고 기존 텍스트 채팅 파이프라인(REST)을 그대로 재사용**. STT로 얻은 텍스트를 `useConversationStore#sendMessageViaRest`로 보내고(WS 스트리밍 경로는 응답 완료 시점을 기다리지 않으므로 음성 통화의 "응답 오디오 재생 시작 시점 결정"에 부적합해 REST 전용 경로를 신설), 응답이 도착하면 그 메시지 ID로 `GET /api/messages/{id}/audio`를 호출해 오디오를 받아온다. TTS는 오디오를 별도 저장소에 미리 합성해두지 않고 요청이 올 때 그때그때 합성한다(포트폴리오 스코프 트레이드오프 — 재요청마다 재합성 비용 발생, 프로덕션이면 캐싱 필요).
 
 ---
 

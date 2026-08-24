@@ -24,3 +24,9 @@ gemini:
 
 firebase:
   credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+
+tts:
+  api-key: ${TTS_API_KEY:}
+  base-url: https://texttospeech.googleapis.com
+  language-code: ko-KR
+  voice-name: ko-KR-Standard-A

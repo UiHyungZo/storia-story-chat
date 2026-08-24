@@ -67,9 +67,12 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ## 5주차 — 음성 통화 B안
 
-- [ ] RN STT(`@react-native-voice/voice`) 연동
-- [ ] 서버 TTS 연동 (Google Cloud TTS 또는 ElevenLabs 무료 티어)
-- [ ] 오디오 파일 URL 응답 → 클라이언트 재생 파이프라인
+- [x] RN STT 연동 — **ADR-004/PRD가 명시한 `@react-native-voice/voice` 대신 `expo-speech-recognition` 사용**. npm이 `@react-native-voice/voice@3.2.4`를 "deprecated, use expo-speech-recognition instead"로 표시하고 있어(포트폴리오에서 deprecated 패키지 채택은 마이너스) 설치 직후 교체함 (`docs/decisions.md` ADR-004 갱신 참고). `app.json`에 config plugin 등록(마이크/음성 인식 권한 문구 포함).
+- [x] 서버 TTS 연동 — Google Cloud TTS REST API(`texttospeech.googleapis.com/v1/text:synthesize`) 사용. `TtsProperties`/`TtsWebClientConfig`/`TtsService#synthesize`, `TTS_API_KEY` 미설정 시 `null` 반환(그래프풀 디그레이드 — `GEMINI_API_KEY`/`FIREBASE_CREDENTIALS_PATH`와 동일 패턴).
+- [x] 오디오 파일 URL 응답 → 클라이언트 재생 파이프라인 — 새 엔드포인트 없이 **메시지 송수신은 기존 텍스트 채팅 파이프라인 그대로 재사용**(ADR-004 그대로): STT로 텍스트 채운 뒤 `useConversationStore#sendMessageViaRest`(REST 전용, 응답 대기 후 assistantMessage 반환 — WS 경로는 스트리밍이라 응답 완료를 기다리지 않아 음성 통화엔 부적합해서 신설)로 전송. 응답이 오면 `GET /api/messages/{messageId}/audio`(신규 `MessageController`/`MessageService`, TTS를 그때그때 합성 — 별도 오디오 저장소 없음)에서 오디오를 받아 `expo-audio`의 `createAudioPlayer`로 재생.
+  - 클라이언트: `src/api/tts.ts`(오디오 URL + 가용성 HEAD 체크), `src/store/useVoiceCallStore.ts`(턴제 상태머신: idle→listening→thinking→speaking, 풀 듀플렉스 아님 — PRD 3.9 그대로), `src/components/VoiceCallOverlay.tsx`(통화 UI), `ChatRoomScreen` 헤더에 "📞 통화" 버튼.
+  - **미검증**: 이 머신엔 Xcode/CocoaPods가 없어 STT/오디오 재생 네이티브 동작을 전혀 확인 못 함. TTS도 `TTS_API_KEY`가 없어 실제 합성 미검증(다음 세션에서 Google Cloud TTS 키 발급 후 확인 필요) — 키가 없어도 `/audio`가 404를 반환하고 클라이언트가 텍스트만 남기고 넘어가는 폴백 경로까지만 코드로 확인함.
+  - `gradlew compileJava`/`compileTestJava`, `tsc --noEmit` 통과 확인.
 
 ## 6주차 — WebRTC 최소 데모 (C안)
 

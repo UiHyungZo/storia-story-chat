@@ -32,11 +32,31 @@ type ConversationStore = {
   loadMessages: (characterId: number) => Promise<void>;
   disconnect: (characterId: number) => void;
   sendMessage: (characterId: number, content: string) => Promise<void>;
+  /**
+   * Always goes over REST regardless of ws availability, and returns the
+   * assistant reply — used by the voice call flow (useVoiceCallStore), which
+   * needs a deterministic messageId to fetch TTS audio for, rather than the
+   * WS path's fire-and-forget publish (sendMessage resolves before the
+   * streamed reply arrives when using WS).
+   */
+  sendMessageViaRest: (characterId: number, content: string) => Promise<Message>;
 };
 
 let nextLocalId = -1;
 
-export const useConversationStore = create<ConversationStore>((set, get) => ({
+export const useConversationStore = create<ConversationStore>((set, get) => {
+  const sendViaRest = async (characterId: number, content: string): Promise<Message> => {
+    const { userMessage, assistantMessage } = await postMessage(characterId, content);
+    const messages = [...(get().messagesByCharacterId[characterId] ?? []), userMessage, assistantMessage];
+    set((state) => ({
+      messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: messages },
+    }));
+    writeCache(messagesCacheKey(characterId), messages);
+    notifyAssistantReply(characterId, assistantMessage.content);
+    return assistantMessage;
+  };
+
+  return {
   messagesByCharacterId: {},
   streamingByCharacterId: {},
   transportByCharacterId: {},
@@ -159,12 +179,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }));
     }
 
-    const { userMessage, assistantMessage } = await postMessage(characterId, content);
-    const messages = [...(get().messagesByCharacterId[characterId] ?? []), userMessage, assistantMessage];
-    set((state) => ({
-      messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: messages },
-    }));
-    writeCache(messagesCacheKey(characterId), messages);
-    notifyAssistantReply(characterId, assistantMessage.content);
+    await sendViaRest(characterId, content);
   },
-}));
+  sendMessageViaRest: sendViaRest,
+  };
+});
