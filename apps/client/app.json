@@ -10,7 +10,13 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.storia.client",
       "bitcode": false,
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "aps-environment": "development"
+      },
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -31,7 +37,8 @@
         "android.permission.INTERNET",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.WAKE_LOCK",
-        "android.permission.BLUETOOTH"
+        "android.permission.BLUETOOTH",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "package": "com.storia.client"
     },
@@ -42,7 +49,9 @@
       "expo-audio",
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging"
     ]
   }
 }

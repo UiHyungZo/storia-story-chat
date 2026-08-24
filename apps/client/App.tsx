@@ -1,7 +1,9 @@
 import { registerGlobals } from "@livekit/react-native";
 import * as Sentry from "@sentry/react-native";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { registerForPushNotifications } from "./src/push/registerPushToken";
 
 // Must run once, before any LiveKit usage — sets up WebRTC globals for RN.
 registerGlobals();
@@ -16,6 +18,10 @@ Sentry.init({
 });
 
 function App() {
+  useEffect(() => {
+    registerForPushNotifications();
+  }, []);
+
   return (
     <>
       <RootNavigator />
