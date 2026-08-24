@@ -4,13 +4,14 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
-- **git push 안 된 상태**: 로컬 `develop` 브랜치가 origin보다 커밋 여러 개 앞서 있음(1~3주차 작업 전부 미푸시). 이 머신에 GitHub 인증정보/`gh` CLI가 없어 push가 실패했었음 — origin에는 `develop` 브랜치 자체가 아직 없으므로 인증 해결 후 `git push -u origin develop`으로 최초 push 필요.
-- **`docker compose`/`expo start`(실기기·시뮬레이터 실행)는 여전히 검증 전무**: docker compose, `expo start`/`run:ios` 둘 다 아직 실제로 띄워보지 않음. 실제 API 왕복, 화면 동작, WebSocket 스트리밍, 음성 통화 왕복은 전부 미검증.
+- **(갱신) git push 완료됨**: 로컬 `develop`이 `origin/develop`과 동기화됨(`git branch -vv` 확인, SSH 리모트로 push 성공 — `gh` CLI는 여전히 미로그인이지만 push엔 무관했음). 더 이상 블로커 아님.
+- **`docker compose`/`expo start`(실기기·시뮬레이터 실행)는 여전히 검증 전무**: docker compose, `expo start`/`run:ios` 둘 다 아직 실제로 띄워보지 않음. 실제 API 왕복, 화면 동작, WebSocket 스트리밍, 음성 통화 왕복은 전부 미검증. **(갱신) 다만 이걸 막던 환경적 이유(Docker/Xcode 없음)는 아래처럼 해소됨** — 다음 세션에서 바로 시도 가능.
 - **(7주차 신규) `gradlew test`/`npm test`는 이제 실행·통과까지 확인함**: 백엔드 18개(H2 인메모리 DB로 MariaDB 없이도 동작), 클라이언트 17개(`jest-expo`). 다만 이건 단위/슬라이스 테스트 범위라 위의 "실제 API 왕복/화면 동작" 미검증과는 별개 — `gradlew bootRun` 자체를 실제로 띄워본 적은 여전히 없음(테스트가 스프링 컨텍스트를 로드하긴 하지만 `bootRun`과 동일한 경로는 아님).
-- **이 머신엔 Docker가 없음**: `docker compose up`으로 MariaDB를 못 띄움 (Homebrew mysql 9.7.1이 이미 로컬 3306 포트를 점유 중이고 MariaDB는 미설치). 3주차 세션에서 이 문제로 DB 관련 실행 검증(히스토리 저장/복원)을 보류함 — 사용자가 명시적으로 이번엔 건너뛰기로 선택. 다음 세션에서 Docker Desktop을 설치하거나 `brew install mariadb`로 포트 3307에 별도 인스턴스를 띄워서 검증할 것.
+- **(갱신) Docker Desktop은 설치돼 있으나 데몬이 꺼져있음**: 이전엔 "Docker 없음"으로 기록돼 있었지만 지금 확인해보니 `Docker.app`과 `desktop-linux` context가 이미 존재함 — Docker Desktop 앱만 실행하면(데몬 기동) `docker compose up` 시도 가능. Homebrew mysql 9.7.1이 로컬 3306을 점유 중이지만 docker-compose는 3307로 매핑돼 있어 무관. DB 관련 실행 검증(히스토리 저장/복원)은 여전히 미완료 — 다음 세션에서 우선 시도할 것.
 - **`GEMINI_API_KEY` 미설정**: 아직 키를 발급받지 않음. 백엔드를 띄우기 전에 `export GEMINI_API_KEY=...` 필요 (없으면 채팅은 되지만 고정 안내 문구만 돌아옴).
 - **Firebase 프로젝트 없음**: 4주차 FCM 푸시는 백엔드 스켈레톤만 구현됨(사용자가 명시적으로 선택). 서비스 계정 JSON/`GoogleService-Info.plist`/APNs 키가 있는 실제 Firebase 프로젝트가 생기기 전까지는 실 발송/클라이언트 SDK 연동 둘 다 불가능.
-- **이 머신엔 Xcode(전체 설치)와 CocoaPods도 없음**: Command Line Tools만 있어 `pod`가 없고 `xcodebuild`도 활성 개발자 디렉토리가 CLT라 동작 안 함. 4주차 Native Module(`modules/storia-native`)은 `npx expo prebuild --platform ios --no-install`로 `ios/` 골격이 생성되는 것까지만 확인했고, 실제 pod install/컴파일/기기 실행은 미검증. 5주차 LiveKit RN SDK/오디오 재생(`expo-audio`)도 같은 이유로 기기 검증 못 함.
+- **(갱신) Xcode 전체 설치 + CocoaPods 이제 있음**: 이전엔 CLT만 있어 `pod`/`xcodebuild`가 안 됐지만, 지금 확인해보니 Xcode 26.4.0(전체) + CocoaPods(`pod`) 둘 다 설치돼 있음. 4주차 Native Module(`modules/storia-native`)과 5주차 LiveKit RN SDK의 실제 pod install/컴파일/시뮬레이터 실행을 이제 시도할 수 있음 — 아직 실제로 시도는 안 해봄, 다음 세션 우선순위로 남김.
+- **Android SDK/에뮬레이터/`adb`는 여전히 없음**: `$ANDROID_HOME` 미설정, `adb` 없음, SDK 디렉토리 없음. Kotlin Native Module(`android/`)의 빌드·링크·동작 검증은 계속 불가능한 상태.
 - **`TTS_API_KEY`/`STT_API_KEY`/`LIVEKIT_*`/`SENTRY_DSN`/`EXPO_PUBLIC_SENTRY_DSN` 전부 미설정**: Google Cloud TTS/STT 키, LiveKit Cloud 프로젝트, Sentry 프로젝트 어느 것도 아직 없음. `LIVEKIT_*` 없으면 `/api/calls/**`가 즉시 `503`을 반환(음성 통화 자체를 시작 못 함), `TTS_API_KEY` 없으면 `/api/messages/{id}/audio`가 404를 반환하고 클라이언트가 텍스트만 남기고 다음 턴으로 넘어가는 폴백까지는 코드로 확인함 — 그 외 실제 왕복은 전부 미검증.
 - **로컬 개발 시 ngrok 등 터널이 필요함(신규, 5주차)**: LiveKit Cloud(원격 서비스)가 이 백엔드의 `/egress/audio`로 다시 접속해와야 하므로, `LIVEKIT_EGRESS_AUDIO_WS_URL`이 `localhost`면 절대 동작 안 함 — 공인 접근 가능한 주소(ngrok 터널 등)여야 함. 아래 "다음 작업" 참고.
 - **`apps/client/node_modules`는 타입체크 검증용으로 로컬에만 설치함**: `.gitignore` 처리되어 커밋엔 영향 없음. 새 환경/재클론 시 `npm install` 다시 필요.
@@ -18,7 +19,7 @@
 
 ## 현재 상태 (2026-08-24 기준)
 
-PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성 — 3주차는 Docker가 없어 DB 검증을, 4주차는 Xcode/CocoaPods/Firebase 프로젝트가 없어 네이티브 빌드·FCM 실 발송 검증을, 5주차는 같은 이유로 LiveKit/오디오 재생 기기 검증과 LiveKit·STT·TTS 자격증명 미발급으로 실 통화 왕복 검증을 각각 사용자가 명시적으로 보류함). **5주차는 세션 중 사용자와 상의해 범위가 원래 계획(B안만)보다 넓어짐** — 아래 참고.
+PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성 — 3주차는 Docker가 없어 DB 검증을, 4주차는 Xcode/CocoaPods/Firebase 프로젝트가 없어 네이티브 빌드·FCM 실 발송 검증을, 5주차는 같은 이유로 LiveKit/오디오 재생 기기 검증과 LiveKit·STT·TTS 자격증명 미발급으로 실 통화 왕복 검증을 각각 사용자가 명시적으로 보류함 — **단, Docker/Xcode/CocoaPods는 이후 이 머신에 설치돼 더 이상 블로커가 아님, 위 "참고사항" 참고**). **5주차는 세션 중 사용자와 상의해 범위가 원래 계획(B안만)보다 넓어짐** — 아래 참고.
 
 - **백엔드**: Spring Boot 3.x + JPA. `User`/`Character`/`Conversation`/`Message` 엔티티, 캐릭터 3종 시딩(`CharacterSeeder`), Swagger UI, `WebConfig`(로컬 개발용 CORS 전체 허용, `/api/**`).
   - REST: `GET /api/characters`, `GET /api/conversations/{characterId}/messages`, `POST /api/conversations/{characterId}/messages`(유저 메시지 저장 + Gemini 동기 호출로 어시스턴트 응답까지 한 번에 반환 — WS 실패 시 폴백 경로).
@@ -30,7 +31,7 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
   - 로딩/오류/재시도 UI: `CharacterListScreen`/`ChatRoomScreen`에 오류 배너 + "다시 시도" 버튼, 메시지 전송 실패 전용 배너(탭하면 같은 내용 재전송, draft 유실 없음), WS 재연결 중 배너.
   - 로컬 캐시: `src/storage/cache.ts`(AsyncStorage 기반 read/write 래퍼) — 캐릭터 목록/대화별 메시지를 fetch 성공 시 write-through, 로드 시작 시 먼저 캐시로 하이드레이션 후 백그라운드 fetch. 네트워크 실패해도 화면엔 마지막으로 본 데이터가 남아있음.
   - 부수 수정: WS 전송이 연결 끊김으로 중간에 REST로 폴백할 때 낙관적으로 추가했던 로컬 사용자 메시지를 제거하지 않아 REST 응답과 중복 렌더링되던 버그를 고침.
-- **DB**: 로컬 MariaDB(`docker-compose.yml`, 포트 3307). PostgreSQL → MariaDB 마이그레이션 완료 (커밋 `395b2ca` 이후). **이 머신엔 Docker가 없어 3주차 세션에서 DB 관련 검증(히스토리 저장/복원)을 못 함** — 코드 레벨로는 `ConversationService`/`MessageRepository`가 `createdAt` 오름차순으로 저장/조회하는 것만 확인.
+- **DB**: 로컬 MariaDB(`docker-compose.yml`, 포트 3307). PostgreSQL → MariaDB 마이그레이션 완료 (커밋 `395b2ca` 이후). **3주차 세션 당시엔 이 머신에 Docker가 없어 DB 관련 검증(히스토리 저장/복원)을 못 함** — 코드 레벨로는 `ConversationService`/`MessageRepository`가 `createdAt` 오름차순으로 저장/조회하는 것만 확인. **(갱신) Docker Desktop이 지금은 설치돼 있음** (데몬만 켜면 시도 가능) — 위 "참고사항" 참고.
 - **신규(4주차) — Native Module**: `apps/client/modules/storia-native/`에 로컬 Expo 모듈로 추가. 클래식 `RCTBridgeModule` 패턴(`HapticNotifierModule.swift` + `HapticNotifierModule.m`의 `RCT_EXTERN_MODULE`/`RCT_EXTERN_METHOD`) — Expo Modules API(`Module` 클래스)가 아니라 PRD가 명시한 그대로. `NativeModules.HapticNotifier.notify(title, body)`로 노출되며, 호출 시 `UINotificationFeedbackGenerator`로 햅틱 + `UNUserNotificationCenter`로 **포그라운드에서도 보이는** 로컬 알림을 띄움(`UNUserNotificationCenterDelegate.willPresent`에서 `.banner` 옵션 반환). `useConversationStore`가 어시스턴트 응답 도착 지점(WS `onDone`, REST 성공) 두 곳 모두에서 `notifyAssistantReply`를 호출.
   - 이 프로젝트는 `ios/`를 커밋하지 않고 `expo prebuild`로 재생성하는 구조(`.gitignore`의 `/ios`, `/android`)라서, `ios/` 안에 직접 Swift 파일을 넣는 방식은 다음 prebuild 때 사라짐 — 그래서 Expo가 기본으로 찾는 `./modules` 경로에 로컬 모듈로 얹음 (`expo-modules-autolinking`이 자동 발견해서 CocoaPod으로 링크, 별도 config plugin 불필요).
 - **신규(오늘, 2026-08-24) — Android Native Module**: PRD 9절의 "Android Native Module (Kotlin)" 제외 항목을 뒤집고 구현함(PRD도 이번에 같이 갱신). `android/src/main/java/com/storianative/HapticNotifierModule.kt` + `HapticNotifierPackage.kt` — iOS와 대칭되는 클래식 `ReactContextBaseJavaModule`/`ReactPackage` 패턴, 같은 `NativeModules.HapticNotifier.notify()` 브리지 이름을 노출해 `index.ts`가 플랫폼 분기 없이 그대로 호출. `UINotificationFeedbackGenerator` 대신 `Vibrator`/`VibratorManager`, `UNUserNotificationCenter` 대신 `NotificationManagerCompat` 사용. iOS는 포그라운드 알림이 기본 억제돼 delegate로 opt-in해야 했지만, Android는 채널 importance를 `HIGH`로 두면 포그라운드에서도 헤즈업 배너가 기본으로 뜸(반대 방향의 플랫폼 차이). `POST_NOTIFICATIONS` 권한(API 33+)은 iOS의 `requestAuthorizationIfNeeded`와 동일하게 앱 시작 시가 아니라 첫 알림이 필요한 시점에 lazy하게 요청. `expo-module.config.json`도 `"platforms": ["ios", "android"]`로 갱신.
@@ -42,10 +43,11 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
   - **클라이언트 신규**: `@livekit/react-native` + `livekit-client` + `@livekit/react-native-webrtc` + config plugin(`@livekit/react-native-expo-plugin`, `@config-plugins/react-native-webrtc`) — `App.tsx` 최상단에서 `registerGlobals()` 1회 호출. `src/api/calls.ts`(토큰 발급/턴 시작/상태 폴링). `useVoiceCallStore`는 LiveKit `Room`을 직접 다룸(`room.localParticipant.setMicrophoneEnabled()`로 마이크 트랙 publish/unpublish, unpublish가 "턴 종료" 신호) — 예전에 썼던 클라이언트 사이드 STT(`expo-speech-recognition`)는 완전히 제거함(서버가 오디오를 직접 받으므로 불필요해짐). `VoiceCallOverlay`/`ChatRoomScreen`의 "📞 통화" 버튼은 그대로(스토어 인터페이스 유지).
   - 메시지 송수신 자체는 여전히 **새 실시간 채널 없이 기존 텍스트 채팅 REST 경로 재사용**(`useConversationStore#sendMessageViaRest` — WS 스트리밍은 응답 완료를 기다리지 않고 바로 resolve되므로 음성 통화엔 못 씀, 이 결정 자체는 B안 때와 동일하게 유지).
 - **6주차(C안 WebRTC 최소 데모) → 재평가 완료, 별도 데모 없이 종료**: 5주차에서 이미 클라이언트↔서버 실제 WebRTC 연결(LiveKit)을 구현했으므로, C안이 원래 증명하려던 "WebRTC 연동 경험"은 선행 충족됐다고 판단. `react-native-webrtc` 기반 수동 시그널링 데모는 추가로 만들지 않기로 결정(판단 근거는 `docs/decisions.md` ADR-004 갱신 3 참고) — 6주차는 코드 작업 없이 문서 정리로 종료됨.
+- **신규(이어서, 2026-08-24) — 재참여 푸시, 엔티티 정리, 전역 예외 처리기**: `User.lastActiveAt`이 생성 후 갱신되는 곳이 없던 버그를 발견해, REST/WS 채팅 경로가 공유하는 `getOrCreateConversation`에서 매 요청마다 갱신하도록 수정. `ReEngagementScheduler`가 매일 3일 이상 미접속 유저에게 FCM 재참여 푸시를 발송(`User.reengagementPushSent`로 유휴 기간당 최대 1회, 복귀 시 리셋). 캐릭터별 TTS 보이스를 실제 유효한 Google Cloud TTS 값(`ko-KR-Standard-A/C/D`)으로 연결(기존 플레이스홀더는 애초에 유효 값이 아니었음), 죽은 `Character` 필드 제거 + 엔티티 Javadoc 정리. `GlobalExceptionHandler`(`@RestControllerAdvice`)로 잘못된 `characterId` 등이 그대로 500 노출되던 문제를 해결(`docs/error-handling.md` 신규) — 아래 "다음 작업"에 계속 남아있던 항목 하나가 해소됨.
 
 ## 다음 작업 (바로 이어서 할 것)
 
-**아직 실행 검증이 안 됐다** — docker compose up(또는 이 머신처럼 Docker가 없으면 `brew install mariadb`로 포트 3307에 별도 기동), `GEMINI_API_KEY` 환경변수 설정 후 `gradlew bootRun`, `expo start`를 순서대로 띄워서 다음을 확인할 것:
+**아직 실행 검증이 안 됐다** — Docker Desktop 실행(데몬 기동) → `docker compose up`, `GEMINI_API_KEY` 환경변수 설정 후 `gradlew bootRun`, `expo start`를 순서대로 띄워서 다음을 확인할 것:
 
 - 캐릭터 목록 조회 → 채팅방 진입 → 메시지 전송 → 스트리밍 타이핑 효과 → 히스토리 복원까지 왕복.
 - 백엔드를 내려서 WS 연결 실패를 강제한 뒤 REST 폴백(전체 응답 한 번에 반환)이 동작하는지.
@@ -54,14 +56,13 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
 - **(3주차 신규)** 메시지 전송 실패 배너 재시도, 목록/채팅방 로드 실패 배너 재시도가 정상 동작하는지.
 - `@stomp/stompjs`가 RN(Hermes)에서 폴리필 없이 붙는지 (문제 시 `TextEncoder`/`TextDecoder` 폴리필 검토).
 - 실기기 테스트라면 `apps/client/.env`에 `EXPO_PUBLIC_API_BASE_URL=http://<개발머신 LAN IP>:8080` 설정 필요 (WebSocket URL도 이 값에서 `http`→`ws`로 자동 치환됨).
-- 백엔드에 전역 예외 처리기가 없어 잘못된 `characterId` 등은 500으로 노출됨 (`docs/api.md` Error Handling Policy 참고) — 계속 범위 밖으로 남겨둠.
 - **(4주차 신규)** Firebase 프로젝트 생성 → 서비스 계정 JSON(`FIREBASE_CREDENTIALS_PATH`) + iOS 앱 등록(`GoogleService-Info.plist`) + APNs Auth Key 준비 → 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가 → 발급받은 토큰을 `PUT /api/devices/token`으로 전송 → 앱 백그라운드/종료 상태에서 실제 FCM 푸시 오는지 확인.
-- **(4주차 신규)** Xcode(전체)+CocoaPods 있는 환경에서 `npx expo prebuild`/`npx expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인.
+- **(4주차 신규, 이제 이 머신에서 시도 가능)** `npx expo prebuild`/`npx expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인 (Xcode 전체+CocoaPods 설치 완료됨).
 - **(신규, 오늘 추가)** Android SDK/에뮬레이터 있는 환경에서 `npx expo prebuild --platform android`/`npx expo run:android`로 `storia-native`의 Kotlin 모듈이 정상 링크·컴파일되는지, 실제로 진동 + 알림(API 33+에서는 `POST_NOTIFICATIONS` 권한 프롬프트 포함)이 뜨는지 확인.
 - **(5주차 신규)** LiveKit Cloud 프로젝트 생성(무료 티어) → `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 백엔드에 주입.
 - **(5주차 신규)** 로컬 개발용 ngrok 등 터널 준비(LiveKit Cloud가 `localhost`로 못 붙으므로 필수) → 그 공인 주소로 `LIVEKIT_EGRESS_AUDIO_WS_URL` 설정.
 - **(5주차 신규)** Google Cloud STT/TTS API 키(`STT_API_KEY`/`TTS_API_KEY`) 발급 → 백엔드에 주입 → `GET /api/messages/{id}/audio`가 실제로 mp3를 반환하는지 확인(`ko-KR-Standard-A` 보이스가 유효한지도 — Cloud TTS 콘솔에서 재확인 필요할 수 있음).
-- **(5주차 신규)** Xcode+CocoaPods 있는 환경에서 `expo prebuild`/`expo run:ios`로 LiveKit RN SDK(`@livekit/react-native`, `@livekit/react-native-webrtc`)가 정상 링크·컴파일되는지 확인. `expo-doctor`가 "Unsupported on New Architecture" 경고를 띄울 수 있는데, LiveKit 쪽에서 실제로는 동작하는데 메타데이터만 안 맞는 알려진 이슈라고 함 — 실제 동작 여부로 판단할 것.
+- **(5주차 신규, 이제 이 머신에서 시도 가능)** `expo prebuild`/`expo run:ios`로 LiveKit RN SDK(`@livekit/react-native`, `@livekit/react-native-webrtc`)가 정상 링크·컴파일되는지 확인 (Xcode 전체+CocoaPods 설치 완료됨). `expo-doctor`가 "Unsupported on New Architecture" 경고를 띄울 수 있는데, LiveKit 쪽에서 실제로는 동작하는데 메타데이터만 안 맞는 알려진 이슈라고 함 — 실제 동작 여부로 판단할 것.
 - **(5주차 신규)** 실제 통화 왕복: 통화 버튼 → 토큰 발급(`POST /api/calls/{characterId}/token`) → LiveKit room 연결 → 마이크 트랙 publish → `POST /api/calls/{characterId}/turns`로 egress 시작 → 말하고 트랙 unpublish → `GET /api/calls/turns/{turnId}` 폴링 → STT 텍스트 정확도 → TTS 오디오 재생까지 확인.
 - **(5주차 신규)** `livekit-server` SDK 호출부(`VoiceCallService`의 `AccessToken` grant 구성, `EgressServiceClient#startTrackEgress`)가 컴파일은 됐지만(jar를 `javap`으로 시그니처만 확인) 실제 LiveKit 서버와의 런타임 동작은 미검증 — 특히 `CanPublish`/`CanSubscribe` 그랜트가 기대한 대로 동작하는지.
 - **(5주차 신규)** LiveKit/STT/TTS 전부 미설정 상태(지금 이 머신 그대로)에서 통화 버튼을 눌러 `503`이 뜨고 클라이언트가 적절히 에러 처리하는지, TTS만 미설정인 경우 오디오 없이 텍스트 응답만 오고 자동으로 다음 턴(idle)으로 넘어가는 폴백이 매끄러운지 확인.
