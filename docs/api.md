@@ -109,6 +109,26 @@ Content-Type: application/json
 
 ---
 
+## PUT /api/devices/token
+
+FCM 디바이스 토큰 등록(4주차). 새 어시스턴트 메시지가 저장될 때마다 `ConversationService#postAssistantMessage`가 이 토큰으로 푸시를 보낸다 (`PushNotificationService`).
+
+```text
+PUT /api/devices/token
+Header: X-Device-Id: <uuid>
+Content-Type: application/json
+
+{ "token": "<fcm-device-token>" }
+```
+
+응답: `204 No Content`.
+
+* 구현: `DeviceController` → `UserService#updateFcmToken` (`app_user.fcmToken`에 저장, 없으면 유저 생성)
+* `FIREBASE_CREDENTIALS_PATH`(서비스 계정 JSON 경로) 미설정 시 `PushNotificationService`가 조용히 no-op — 토큰은 저장되지만 실제 푸시는 발송되지 않음
+* 클라이언트가 실제 FCM 토큰을 발급받으려면 `@react-native-firebase` SDK + `GoogleService-Info.plist`가 필요한데, 이 프로젝트용 Firebase 프로젝트가 아직 없어 클라이언트 쪽 연동은 보류 상태 (`HANDOFF.md` 참고). 백엔드 경로만 먼저 구현됨.
+
+---
+
 # Layer Flow
 
 ```text
@@ -177,7 +197,7 @@ Server --publish--> /topic/conversation/{characterId}   StreamEvent (CHUNK* → 
 * 구현: `WebSocketConfig`(STOMP 브로커 등록, `/topic` 심플 브로커 + `/app` prefix) → `ConversationStompController`(`@MessageMapping("/conversation/{characterId}/send")`) → `GeminiService#streamReply`(WebClient + SSE) → `SimpMessagingTemplate`으로 발행
 * 클라이언트 헤더(`X-Device-Id`)는 STOMP SEND 프레임의 네이티브 헤더로 전송하고, 서버는 `@Header("X-Device-Id")`로 읽는다 (CONNECT 프레임 헤더가 아니라 매 SEND마다 개별 헤더로 보냄 — 세션 속성 전파에 의존하지 않기 위함)
 * 유저 메시지는 스트리밍 시작 전에 먼저 저장(`ConversationService#postMessage`)하고, 스트림이 끝나면 누적된 전체 텍스트를 어시스턴트 메시지로 저장(`postAssistantMessage`)한 뒤 `DONE` 이벤트로 실제 `messageId`/`createdAt`을 전달
-* 연결 실패/타임아웃 시 클라이언트는 REST(`POST /api/conversations/{characterId}/messages`)로 폴백 — 현재 클라이언트는 채팅방 진입 시 1회만 연결을 시도하고, 실패하면 그 화면 세션 동안 REST만 사용 (재연결 정책은 3주차 범위, [`TODO.md`](../TODO.md))
+* 연결 실패/타임아웃 시 클라이언트는 REST(`POST /api/conversations/{characterId}/messages`)로 폴백 — 채팅방 진입 시 최초 연결은 1회만 시도(실패하면 그 화면 세션 동안 REST만 사용)하지만, **일단 연결된 뒤 끊기는 경우(3주차 구현)** 클라이언트가 stompjs의 지수 백오프로 자동 재연결하고 재연결마다 구독을 다시 검. 재연결 대기 중 전송은 그때그때 REST로 개별 폴백되고, 재연결되면 다음 전송부터 다시 스트리밍 (`apps/client/src/api/websocket.ts`)
 
 ---
 

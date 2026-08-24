@@ -27,6 +27,7 @@ dependencies {
 	// Servlet stack — needed to call Gemini's streaming API from an MVC app.
 	implementation 'org.springframework:spring-webflux'
 	implementation 'io.projectreactor.netty:reactor-netty-http'
+	implementation 'com.google.firebase:firebase-admin:9.4.3'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
 	annotationProcessor 'org.projectlombok:lombok'

@@ -49,8 +49,21 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ## 4주차 — Native Module & 푸시
 
-- [ ] Swift Native Module (Haptic + 로컬 알림)
-- [ ] FCM 원격 푸시 (백엔드 Admin SDK)
+- [x] Swift Native Module (Haptic + 로컬 알림) — `apps/client/modules/storia-native/`에 로컬 Expo 모듈로 추가(클래식 `RCTBridgeModule` 패턴: `HapticNotifierModule.swift` + `HapticNotifierModule.m`의 `RCT_EXTERN_MODULE`/`RCT_EXTERN_METHOD`). `NativeModules.HapticNotifier.notify(title, body)`로 노출되고, 호출 시 `UINotificationFeedbackGenerator`로 햅틱 + `UNUserNotificationCenter`로 포그라운드에서도 보이는 로컬 알림(배너)을 띄움. `useConversationStore`가 어시스턴트 응답이 도착하는 두 지점(WS `onDone`, REST `postMessage` 성공) 모두에서 호출.
+  - **이 프로젝트는 `ios/`를 커밋하지 않고 `expo prebuild`로 매번 재생성하는 구조**라서, 네이티브 코드를 `ios/` 안에 직접 넣으면 다음 prebuild 때 사라짐. 대신 Expo가 기본으로 찾는 `./modules` 경로에 로컬 모듈로 얹어서 커밋되고 prebuild에도 살아남게 함 (`expo-modules-autolinking`이 자동으로 CocoaPod으로 링크).
+  - **미검증**: 이 머신엔 Xcode(Command Line Tools만 있음)와 CocoaPods가 없어 실제 빌드/실행 확인은 못 함. `npx expo prebuild --platform ios --no-install`로 `ios/` 프로젝트 골격이 생성되는 것까지만 확인(생성 후 삭제함 — 실제 pod install/빌드는 다음 세션에서 Xcode+CocoaPods 있는 환경에서 필요).
+- [x] FCM 원격 푸시 (백엔드 Admin SDK) — **백엔드만** 구현, 클라이언트 SDK 연동은 보류(아래 참고).
+  - `firebase-admin` 의존성 추가, `FcmProperties`/`FirebaseConfig`(`FIREBASE_CREDENTIALS_PATH` 서비스 계정 JSON 경로 미설정 시 조용히 비활성화 — `GEMINI_API_KEY` 패턴과 동일), `PushNotificationService#sendNewMessage`.
+  - `User.fcmToken` 컬럼 추가, `PUT /api/devices/token`(`DeviceController`/`UserService`)으로 클라이언트가 토큰을 등록.
+  - `ConversationService#postAssistantMessage`(WS `DONE`/REST 응답 두 경로가 공유하는 지점)에서 매 어시스턴트 응답마다 자동으로 푸시 발송 시도.
+  - `gradlew compileJava`/`compileTestJava` 통과 확인. Firebase 프로젝트가 없어 실제 발송은 미검증.
+
+### 남은 작업 (다음 세션 — Firebase 프로젝트 준비된 뒤)
+
+- [ ] Firebase 프로젝트 생성 → 서비스 계정 JSON 발급(`FIREBASE_CREDENTIALS_PATH`로 백엔드에 주입) + iOS 앱 등록(`GoogleService-Info.plist`) + APNs Auth Key 업로드
+- [ ] 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가, 알림 권한 요청 후 발급받은 토큰을 앱 시작 시 `PUT /api/devices/token`으로 전송하는 API 래퍼 작성(`src/api/devices.ts` 등, `characters.ts`/`conversations.ts` 패턴 참고)
+- [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인
+- [ ] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인
 
 ## 5주차 — 음성 통화 B안
 

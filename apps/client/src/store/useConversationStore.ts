@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { notifyNewMessage } from "../../modules/storia-native";
 import { fetchMessages, postMessage } from "../api/conversations";
 import {
   connectConversationSocket,
@@ -7,7 +8,13 @@ import {
   sendConversationMessage,
 } from "../api/websocket";
 import { messagesCacheKey, readCache, writeCache } from "../storage/cache";
+import { useCharacterStore } from "./useCharacterStore";
 import { Message } from "../types";
+
+function notifyAssistantReply(characterId: number, content: string): void {
+  const name = useCharacterStore.getState().getCharacterById(characterId)?.name ?? "Storia";
+  notifyNewMessage(name, content);
+}
 
 type Transport = "ws" | "rest";
 type ConnectionStatus = "connected" | "reconnecting";
@@ -96,6 +103,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
               streamingByCharacterId: { ...state.streamingByCharacterId, [characterId]: undefined },
             }));
             writeCache(messagesCacheKey(characterId), messages);
+            notifyAssistantReply(characterId, assistantMessage.content);
           },
           onError: (message) =>
             set((state) => ({
@@ -157,5 +165,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: messages },
     }));
     writeCache(messagesCacheKey(characterId), messages);
+    notifyAssistantReply(characterId, assistantMessage.content);
   },
 }));

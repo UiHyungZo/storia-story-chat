@@ -30,6 +30,9 @@ public class User {
 
     private Instant lastActiveAt = Instant.now();
 
+    @Column(length = 512)
+    private String fcmToken;
+
     public User(String deviceId) {
         this.deviceId = deviceId;
     }

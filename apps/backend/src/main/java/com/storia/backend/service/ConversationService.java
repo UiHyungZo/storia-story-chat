@@ -21,6 +21,7 @@ public class ConversationService {
     private final CharacterRepository characterRepository;
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
+    private final PushNotificationService pushNotificationService;
 
     @Transactional
     public List<Message> getMessages(String deviceId, Long characterId) {
@@ -39,7 +40,10 @@ public class ConversationService {
     public Message postAssistantMessage(String deviceId, Long characterId, String content) {
         Conversation conversation = getOrCreateConversation(deviceId, characterId);
         Message message = new Message(conversation, Message.Role.ASSISTANT, content);
-        return messageRepository.save(message);
+        Message saved = messageRepository.save(message);
+        pushNotificationService.sendNewMessage(
+                conversation.getUser().getFcmToken(), conversation.getCharacter().getName(), content);
+        return saved;
     }
 
     public String getSystemPrompt(Long characterId) {

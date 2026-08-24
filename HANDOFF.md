@@ -8,12 +8,14 @@
 - **이번 세션들은 코드만 작성, 실행 검증 전무**: docker compose, `gradlew bootRun`, `expo start` 중 아무것도 실제로 띄워보지 않음. 확인한 건 `gradlew compileJava`/`compileTestJava`와 `tsc --noEmit` 통과뿐 — 실제 API 왕복, 화면 동작, WebSocket 스트리밍은 전부 미검증.
 - **이 머신엔 Docker가 없음**: `docker compose up`으로 MariaDB를 못 띄움 (Homebrew mysql 9.7.1이 이미 로컬 3306 포트를 점유 중이고 MariaDB는 미설치). 3주차 세션에서 이 문제로 DB 관련 실행 검증(히스토리 저장/복원)을 보류함 — 사용자가 명시적으로 이번엔 건너뛰기로 선택. 다음 세션에서 Docker Desktop을 설치하거나 `brew install mariadb`로 포트 3307에 별도 인스턴스를 띄워서 검증할 것.
 - **`GEMINI_API_KEY` 미설정**: 아직 키를 발급받지 않음. 백엔드를 띄우기 전에 `export GEMINI_API_KEY=...` 필요 (없으면 채팅은 되지만 고정 안내 문구만 돌아옴).
+- **Firebase 프로젝트 없음**: 4주차 FCM 푸시는 백엔드 스켈레톤만 구현됨(사용자가 명시적으로 선택). 서비스 계정 JSON/`GoogleService-Info.plist`/APNs 키가 있는 실제 Firebase 프로젝트가 생기기 전까지는 실 발송/클라이언트 SDK 연동 둘 다 불가능.
+- **이 머신엔 Xcode(전체 설치)와 CocoaPods도 없음**: Command Line Tools만 있어 `pod`가 없고 `xcodebuild`도 활성 개발자 디렉토리가 CLT라 동작 안 함. 4주차 Native Module(`modules/storia-native`)은 `npx expo prebuild --platform ios --no-install`로 `ios/` 골격이 생성되는 것까지만 확인했고, 실제 pod install/컴파일/기기 실행은 미검증.
 - **`apps/client/node_modules`는 타입체크 검증용으로 로컬에만 설치함**: `.gitignore` 처리되어 커밋엔 영향 없음. 새 환경/재클론 시 `npm install` 다시 필요.
-- 상세 검증 체크리스트는 [`TODO.md`](./TODO.md)의 "검증 필요" 섹션(1주차/2주차/3주차 각각) 참고.
+- 상세 검증 체크리스트는 [`TODO.md`](./TODO.md)의 "검증 필요"/"남은 작업" 섹션(1~4주차 각각) 참고.
 
 ## 현재 상태 (2026-08-24 기준)
 
-PRD v3 마일스톤 **1~3주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성 — 3주차는 이 머신에 Docker가 없어 DB 검증을 사용자가 명시적으로 보류함).
+PRD v3 마일스톤 **1~4주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성 — 3주차는 Docker가 없어 DB 검증을, 4주차는 Xcode/CocoaPods/Firebase 프로젝트가 없어 네이티브 빌드·FCM 실 발송 검증을 각각 사용자가 명시적으로 보류함).
 
 - **백엔드**: Spring Boot 3.x + JPA. `User`/`Character`/`Conversation`/`Message` 엔티티, 캐릭터 3종 시딩(`CharacterSeeder`), Swagger UI, `WebConfig`(로컬 개발용 CORS 전체 허용, `/api/**`).
   - REST: `GET /api/characters`, `GET /api/conversations/{characterId}/messages`, `POST /api/conversations/{characterId}/messages`(유저 메시지 저장 + Gemini 동기 호출로 어시스턴트 응답까지 한 번에 반환 — WS 실패 시 폴백 경로).
@@ -26,6 +28,10 @@ PRD v3 마일스톤 **1~3주차 코드 작성 완료, 로컬 실행 검증은 �
   - 로컬 캐시: `src/storage/cache.ts`(AsyncStorage 기반 read/write 래퍼) — 캐릭터 목록/대화별 메시지를 fetch 성공 시 write-through, 로드 시작 시 먼저 캐시로 하이드레이션 후 백그라운드 fetch. 네트워크 실패해도 화면엔 마지막으로 본 데이터가 남아있음.
   - 부수 수정: WS 전송이 연결 끊김으로 중간에 REST로 폴백할 때 낙관적으로 추가했던 로컬 사용자 메시지를 제거하지 않아 REST 응답과 중복 렌더링되던 버그를 고침.
 - **DB**: 로컬 MariaDB(`docker-compose.yml`, 포트 3307). PostgreSQL → MariaDB 마이그레이션 완료 (커밋 `395b2ca` 이후). **이 머신엔 Docker가 없어 3주차 세션에서 DB 관련 검증(히스토리 저장/복원)을 못 함** — 코드 레벨로는 `ConversationService`/`MessageRepository`가 `createdAt` 오름차순으로 저장/조회하는 것만 확인.
+- **신규(4주차) — Native Module**: `apps/client/modules/storia-native/`에 로컬 Expo 모듈로 추가. 클래식 `RCTBridgeModule` 패턴(`HapticNotifierModule.swift` + `HapticNotifierModule.m`의 `RCT_EXTERN_MODULE`/`RCT_EXTERN_METHOD`) — Expo Modules API(`Module` 클래스)가 아니라 PRD가 명시한 그대로. `NativeModules.HapticNotifier.notify(title, body)`로 노출되며, 호출 시 `UINotificationFeedbackGenerator`로 햅틱 + `UNUserNotificationCenter`로 **포그라운드에서도 보이는** 로컬 알림을 띄움(`UNUserNotificationCenterDelegate.willPresent`에서 `.banner` 옵션 반환). `useConversationStore`가 어시스턴트 응답 도착 지점(WS `onDone`, REST 성공) 두 곳 모두에서 `notifyAssistantReply`를 호출.
+  - 이 프로젝트는 `ios/`를 커밋하지 않고 `expo prebuild`로 재생성하는 구조(`.gitignore`의 `/ios`, `/android`)라서, `ios/` 안에 직접 Swift 파일을 넣는 방식은 다음 prebuild 때 사라짐 — 그래서 Expo가 기본으로 찾는 `./modules` 경로에 로컬 모듈로 얹음 (`expo-modules-autolinking`이 자동 발견해서 CocoaPod으로 링크, 별도 config plugin 불필요).
+  - Android는 PRD 9절에서 명시적으로 범위 밖(`Android Native Module (Kotlin)` 제외) — `expo-module.config.json`도 `"platforms": ["ios"]`만 선언.
+- **신규(4주차) — FCM 원격 푸시**: **백엔드만** 구현(사용자가 "백엔드 스켈레톤만 먼저" 선택). `firebase-admin` 의존성, `FcmProperties`/`FirebaseConfig`(`FIREBASE_CREDENTIALS_PATH` 미설정 시 조용히 비활성화 — `GEMINI_API_KEY`와 동일한 graceful-degradation 패턴), `PushNotificationService#sendNewMessage`. `User.fcmToken` 컬럼 + `PUT /api/devices/token`(`DeviceController`/`UserService`)으로 토큰 등록. `ConversationService#postAssistantMessage`(WS/REST 두 경로가 공유하는 지점)에서 매 어시스턴트 응답마다 자동 발송 시도. 클라이언트 쪽 `@react-native-firebase` 연동은 실제 Firebase 프로젝트가 생긴 뒤로 보류.
 - **WebRTC/TTS**: 전혀 구현 안 됨 (5~6주차 범위).
 
 ## 다음 작업 (바로 이어서 할 것)
@@ -40,8 +46,10 @@ PRD v3 마일스톤 **1~3주차 코드 작성 완료, 로컬 실행 검증은 �
 - `@stomp/stompjs`가 RN(Hermes)에서 폴리필 없이 붙는지 (문제 시 `TextEncoder`/`TextDecoder` 폴리필 검토).
 - 실기기 테스트라면 `apps/client/.env`에 `EXPO_PUBLIC_API_BASE_URL=http://<개발머신 LAN IP>:8080` 설정 필요 (WebSocket URL도 이 값에서 `http`→`ws`로 자동 치환됨).
 - 백엔드에 전역 예외 처리기가 없어 잘못된 `characterId` 등은 500으로 노출됨 (`docs/api.md` Error Handling Policy 참고) — 계속 범위 밖으로 남겨둠.
+- **(4주차 신규)** Firebase 프로젝트 생성 → 서비스 계정 JSON(`FIREBASE_CREDENTIALS_PATH`) + iOS 앱 등록(`GoogleService-Info.plist`) + APNs Auth Key 준비 → 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가 → 발급받은 토큰을 `PUT /api/devices/token`으로 전송 → 앱 백그라운드/종료 상태에서 실제 FCM 푸시 오는지 확인.
+- **(4주차 신규)** Xcode(전체)+CocoaPods 있는 환경에서 `npx expo prebuild`/`npx expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인.
 
-이후 순서는 [`TODO.md`](./TODO.md) 참고 (4주차: Native Module & 푸시).
+이후 순서는 [`TODO.md`](./TODO.md) 참고 (5주차: 음성 통화 B안).
 
 ## 중요한 결정 사항 / 함정
 
@@ -53,6 +61,8 @@ PRD v3 마일스톤 **1~3주차 코드 작성 완료, 로컬 실행 검증은 �
 - **음성 통화 기능 범위**: PRD 3.9 참고, B안(RN STT + 서버 LLM/TTS, WebRTC 미사용) + C안(WebRTC 시그널링 최소 데모) 조합이 기본 전략. A안(풀 WebRTC 파이프라인)은 시간 여유 시 확장 목표 — 처음부터 A안으로 설계하지 말 것.
 - **Gemini API 키**: `GEMINI_API_KEY` 환경변수로 주입(`application.yml`의 `gemini.api-key`). 커밋된 파일에는 키가 없음 — 로컬에서 `export GEMINI_API_KEY=...` 하고 백엔드를 띄울 것. 모델명은 `gemini.model`(기본 `gemini-2.0-flash`)로 분리해뒀으니 모델이 바뀌면 `application.yml`만 수정하면 됨.
 - **WebClient는 MVC 앱에 부분 도입**: `spring-boot-starter-webflux`(전체 리액티브 스택) 대신 `spring-webflux` + `reactor-netty-http`만 추가해 WebClient만 사용. 앱은 여전히 Servlet(MVC) 스택 — REST 폴백 컨트롤러에서는 `.block()`으로 동기 변환해서 씀 (포트폴리오 스코프에서 허용 가능한 트레이드오프, `docs/decisions.md` ADR-006 참고).
+- **Native Module은 `ios/`가 아니라 `modules/storia-native`에 둘 것**: 이 프로젝트는 `expo prebuild`로 `ios/`를 매번 재생성하는 continuous native generation 방식이라(`.gitignore`의 `/ios`), `ios/` 안에 직접 넣은 네이티브 코드는 다음 prebuild 때 사라진다. 새 네이티브 코드가 더 필요해지면 반드시 `./modules` 아래 로컬 모듈로 추가할 것 (`expo-modules-autolinking`이 기본으로 찾는 경로 — `apps/client/node_modules/expo-modules-autolinking/build/commands/autolinkingOptions.js`의 기본값 `./modules` 참고).
+- **외부 자격증명 미설정 시 graceful degradation 패턴 통일**: `GEMINI_API_KEY`(Gemini), `FIREBASE_CREDENTIALS_PATH`(FCM) 둘 다 `*Properties#isConfigured()`로 설정 여부를 확인하고, 없으면 예외를 던지지 않고 조용히 비활성화(로그만 남김)하는 동일한 패턴을 따름. 새 외부 연동을 추가할 때도 이 패턴 유지할 것.
 
 ## 로컬 실행
 
