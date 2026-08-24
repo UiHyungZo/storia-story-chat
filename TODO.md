@@ -54,18 +54,21 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - **(2026-08-24 실행 검증 완료)** Xcode 26.4.0(전체)+CocoaPods가 이후 이 머신에 설치됨. `npx expo prebuild --platform ios --clean` → `expo run:ios`로 실제 pod install/컴파일/링크/시뮬레이터(iPhone 15 Pro) 실행까지 확인. 앱에서 실제로 어시스턴트 응답을 받을 때마다 `NativeModules.HapticNotifier.notify()`가 호출됐고(에러 로그 없음, JS단에서 정상 호출됨) 크래시 없이 통과 — 다만 실제 햅틱 진동/알림 배너가 화면에 뜨는 것 자체를 스크린샷으로 정확한 타이밍에 캡처하진 못해서 눈으로 직접 확인하진 않음.
 - [x] **(신규, 오늘 추가) Kotlin Native Module (Android)** — PRD 9절에서 원래 범위 제외였던 항목을 뒤집고 구현(PRD 갱신 완료). `android/src/main/java/com/storianative/HapticNotifierModule.kt` + `HapticNotifierPackage.kt` — iOS와 대칭되는 클래식 `ReactContextBaseJavaModule`/`ReactPackage` 패턴, 동일한 `NativeModules.HapticNotifier.notify()` 브리지 이름을 노출해 `index.ts`가 플랫폼 분기 없이 호출. `Vibrator`/`VibratorManager`로 진동, `NotificationManagerCompat`으로 알림. `POST_NOTIFICATIONS`(API 33+) 권한은 iOS와 동일하게 첫 알림 시점에 lazy 요청. `expo-module.config.json`을 `"platforms": ["ios", "android"]`로 갱신.
   - **(2026-08-24 실행 검증 완료)** 사용자가 Android Studio 설치 → `sdkmanager`(cmdline-tools)로 platform-tools/`platforms;android-35`/`build-tools;35.0.0`/`emulator`/`system-images;android-35;google_apis;arm64-v8a` 헤드리스로 설치 → AVD(Pixel 6, API 35) 생성/부팅 → `./gradlew assembleDebug` 실제 빌드 성공(`storia-native`의 Kotlin/CMake 네이티브 빌드 포함, 4분). APK를 에뮬레이터에 설치 후 `adb shell input`(uiautomator dump로 좌표 확인) + 딥링크(`exp+storia://expo-development-client/?url=...`)로 **실제 탭 조작까지 재현**: 캐릭터 목록 로드 → 렌(Ren) 채팅방 진입(크래시 없음, `getMessages` 버그 수정이 Android에서도 유효함 확인) → 메시지 입력 → 전송 → 18초 뒤 실제 Gemini 응답이 캐릭터 페르소나 그대로 채팅 버블에 렌더링되는 것까지 확인. `adb logcat`에 FATAL/AndroidRuntime 크래시 없음, `HapticNotifier.notify()` 호출 관련 에러도 없음(다만 실제 진동/알림 배너를 눈으로 보는 것 자체는 에뮬레이터라 진동은 확인 불가, 알림 배너 노출 여부는 별도 확인 안 함).
-- [x] FCM 원격 푸시 (백엔드 Admin SDK) — **백엔드만** 구현, 클라이언트 SDK 연동은 보류(아래 참고).
+- [x] FCM 원격 푸시 (백엔드 Admin SDK) — 처음엔 **백엔드만** 구현하고 클라이언트 SDK 연동은 보류했었으나, **(2026-08-24) 클라이언트 SDK 연동도 완료**(아래 "남은 작업" 참고, 서비스 계정 JSON만 남음).
   - `firebase-admin` 의존성 추가, `FcmProperties`/`FirebaseConfig`(`FIREBASE_CREDENTIALS_PATH` 서비스 계정 JSON 경로 미설정 시 조용히 비활성화 — `GEMINI_API_KEY` 패턴과 동일), `PushNotificationService#sendNewMessage`.
   - `User.fcmToken` 컬럼 추가, `PUT /api/devices/token`(`DeviceController`/`UserService`)으로 클라이언트가 토큰을 등록.
   - `ConversationService#postAssistantMessage`(WS `DONE`/REST 응답 두 경로가 공유하는 지점)에서 매 어시스턴트 응답마다 자동으로 푸시 발송 시도.
   - `gradlew compileJava`/`compileTestJava` 통과 확인. Firebase 프로젝트가 없어 실제 발송은 미검증.
 - [x] **(신규) `lastActiveAt` 트래킹 + 일일 재참여 푸시** — `User.lastActiveAt`이 엔티티엔 있었지만 생성 후 갱신되는 곳이 없던 버그를 발견, REST/WS 채팅 경로가 공유하는 `getOrCreateConversation`에서 매 요청마다 갱신하도록 수정. `ReEngagementScheduler`가 매일 3일 이상 미접속 유저에게 FCM 재참여 푸시를 발송, `User.reengagementPushSent`로 유휴 기간당 최대 1회만 보내고 유저가 돌아오면 다시 `false`로 리셋.
 
-### 남은 작업 (다음 세션 — Firebase 프로젝트 준비된 뒤)
+### 남은 작업
 
-- [ ] Firebase 프로젝트 생성 → 서비스 계정 JSON 발급(`FIREBASE_CREDENTIALS_PATH`로 백엔드에 주입) + iOS 앱 등록(`GoogleService-Info.plist`) + APNs Auth Key 업로드
-- [ ] 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가, 알림 권한 요청 후 발급받은 토큰을 앱 시작 시 `PUT /api/devices/token`으로 전송하는 API 래퍼 작성(`src/api/devices.ts` 등, `characters.ts`/`conversations.ts` 패턴 참고)
-- [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인
+- [x] **(2026-08-24 진행)** Firebase 프로젝트 생성 → iOS/Android 앱 등록해서 `GoogleService-Info.plist`/`google-services.json` 발급받음(`com.storia.client`로 확인) → `apps/client/`에 배치, `.gitignore` 처리, `app.json`의 `googleServicesFile`로 연결. **서비스 계정 JSON(`FIREBASE_CREDENTIALS_PATH`용, 백엔드가 실제 발송하는 데 필요)과 APNs Auth Key는 아직 미발급** — 남은 항목으로 아래 유지.
+- [x] **(2026-08-24 실행 검증 완료)** 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가(커밋 `1144f90`). `src/push/registerPushToken.ts`가 권한 요청 → 토큰 발급 → `PUT /api/devices/token`(`src/api/devices.ts`, `client.ts`에 `apiPut` 신규) 전송, 앱 시작 시 1회 호출(`App.tsx`). iOS는 `app.json`에 `aps-environment` entitlement + `UIBackgroundModes: ["remote-notification"]` 수동 추가 필요했음(`@react-native-firebase/messaging` 플러그인은 Android 알림 아이콘 설정만 하고 iOS는 안 건드림). **Android 에뮬레이터에서 실제 토큰 발급 → DB `app_user.fcm_token`에 진짜 FCM 토큰(`fDDC1I...`) 저장되는 것까지 확인** — 에뮬레이터 Play Services가 오래돼서 `SERVICE_VERSION_UPDATE_REQUIRED` 경고가 logcat에 떴지만 토큰 발급 자체는 성공.
+- [ ] **서비스 계정 JSON 발급** → `FIREBASE_CREDENTIALS_PATH`로 백엔드에 주입 → 실제 발송(`PushNotificationService`) 확인
+- [ ] iOS에서도 위와 동일하게 토큰 발급/등록 확인 — iOS 시뮬레이터는 실제 APNs 토큰을 못 받는 경우가 많아 실기기가 필요할 수 있음
+- [ ] APNs Auth Key(.p8, Apple Developer 계정) 발급 → Firebase 콘솔 Cloud Messaging 탭에 업로드 (iOS 실제 원격 푸시 수신에 필요)
+- [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인 (서비스 계정 JSON 필요)
 - [x] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈 링크·컴파일 확인 완료(위 참고). 실제 햅틱 진동/알림 배너가 화면에 뜨는지 눈으로 직접 보는 것만 남음.
 - [x] **(2026-08-24 실행 검증 완료)** Android SDK/에뮬레이터 설치 후 `storia-native`의 Kotlin 모듈 링크·컴파일·실행 확인 완료(위 참고). 남은 건 진동/알림 배너를 실제 기기(에뮬레이터는 진동 체감 불가)에서 눈으로 확인하는 것과 API 33+ 권한 프롬프트 확인뿐.
 
