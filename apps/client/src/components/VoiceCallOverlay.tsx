@@ -9,7 +9,7 @@ type Props = {
 
 const PHASE_LABEL: Record<string, string> = {
   idle: "마이크를 눌러 말해보세요",
-  listening: "듣고 있어요…",
+  listening: "듣고 있어요… 다 말했으면 다시 눌러주세요",
   thinking: "생각하는 중…",
   speaking: "말하는 중…",
   error: "문제가 발생했어요",
@@ -18,7 +18,6 @@ const PHASE_LABEL: Record<string, string> = {
 export function VoiceCallOverlay({ characterId, characterName }: Props) {
   const isCallActive = useVoiceCallStore((state) => state.isCallActive);
   const phase = useVoiceCallStore((state) => state.phase);
-  const transcript = useVoiceCallStore((state) => state.transcript);
   const errorMessage = useVoiceCallStore((state) => state.errorMessage);
   const startListening = useVoiceCallStore((state) => state.startListening);
   const stopListening = useVoiceCallStore((state) => state.stopListening);
@@ -30,11 +29,6 @@ export function VoiceCallOverlay({ characterId, characterName }: Props) {
         <View style={[styles.avatar, { backgroundColor: avatarColorFor(characterId) }]} />
         <Text style={styles.name}>{characterName}</Text>
         <Text style={styles.status}>{errorMessage ?? PHASE_LABEL[phase]}</Text>
-        {phase === "listening" && transcript.length > 0 && (
-          <Text style={styles.transcript} numberOfLines={3}>
-            "{transcript}"
-          </Text>
-        )}
         {(phase === "thinking" || phase === "speaking") && (
           <ActivityIndicator style={styles.spinner} color="#FFFFFF" />
         )}
@@ -78,13 +72,6 @@ const styles = StyleSheet.create({
   status: {
     fontSize: 15,
     color: "#D1D5DB",
-  },
-  transcript: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    fontStyle: "italic",
-    textAlign: "center",
-    paddingHorizontal: 32,
   },
   spinner: {
     marginTop: 8,

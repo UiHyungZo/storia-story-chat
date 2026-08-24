@@ -24,14 +24,8 @@
     },
     "plugins": [
       "expo-audio",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "캐릭터와 음성으로 대화하려면 마이크 접근 권한이 필요해요.",
-          "speechRecognitionPermission": "음성을 텍스트로 변환하려면 음성 인식 권한이 필요해요.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
-        }
-      ]
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc"
     ]
   }
 }

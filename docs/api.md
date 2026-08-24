@@ -2,7 +2,7 @@
 
 ## Goal
 
-Storia 백엔드는 REST(1주차) → WebSocket(STOMP, 2주차 — 구현됨) → WebRTC 시그널링(6주차) 순으로 확장된다. 계층 간 책임을 명확히 나눠, 실시간 채널이 추가되어도 기존 REST 경로가 폴백으로 계속 동작하도록 유지한다.
+Storia 백엔드는 REST(1주차) → WebSocket(STOMP, 2주차 — 구현됨) → LiveKit 기반 WebRTC 음성 통화("축소판 A안", 5주차 — 구현됨) 순으로 확장된다. 계층 간 책임을 명확히 나눠, 실시간 채널이 추가되어도 기존 REST 경로가 폴백으로 계속 동작하도록 유지한다.
 
 목표:
 
@@ -145,6 +145,66 @@ GET /api/messages/{messageId}/audio
 
 ---
 
+## POST /api/calls/{characterId}/token
+
+음성 통화 "축소판 A안"(5주차, PRD 3.9, ADR-004 갱신 2) — LiveKit room 참여용 토큰 발급. `docs/architecture/README.md`의 시퀀스 다이어그램 참고.
+
+```text
+POST /api/calls/{characterId}/token
+Header: X-Device-Id: <uuid>
+```
+
+응답(`200 OK`): `{ "token": "<JWT>", "url": "wss://<livekit-host>", "roomName": "call-<deviceId>-<characterId>" }`. LiveKit 미설정 시(`LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/`LIVEKIT_EGRESS_AUDIO_WS_URL` 중 하나라도 없으면) `503 Service Unavailable`.
+
+* 구현: `VoiceCallController` → `VoiceCallService#createToken` (`io.livekit:livekit-server`의 `AccessToken` — `RoomJoin`/`RoomName`/`CanPublish(true)`/`CanSubscribe(false)` 그랜트)
+* 룸 이름은 `deviceId`+`characterId`로 결정적으로 생성 — 별도 룸 생성 API 호출 없이 클라이언트가 join하는 순간 LiveKit이 자동 생성
+
+## POST /api/calls/{characterId}/turns
+
+클라이언트가 로컬에서 마이크 트랙을 publish한 직후 호출 — 그 트랙의 LiveKit Track Egress를 시작시킨다.
+
+```text
+POST /api/calls/{characterId}/turns
+Header: X-Device-Id: <uuid>
+Content-Type: application/json
+
+{ "roomName": "call-...", "trackSid": "TR_..." }
+```
+
+응답(`200 OK`): `{ "turnId": "<uuid>" }`. LiveKit 미설정 시 `503`.
+
+* 구현: `VoiceCallService#startTurn` → `EgressServiceClient#startTrackEgress(roomName, wsUrl, trackSid)` — `wsUrl`은 이 백엔드 자신의 `/egress/audio?turnId=...` (아래 참고)
+* 턴 상태는 DB가 아니라 인메모리(`VoiceTurnRegistry`)에서만 관리 — 최종 결과(유저 발화/어시스턴트 응답)만 기존과 동일하게 `Message`로 영속화됨
+
+## GET /api/calls/turns/{turnId}
+
+클라이언트가 마이크 트랙을 unpublish한 뒤 폴링해서 처리 상태를 확인한다.
+
+```text
+GET /api/calls/turns/{turnId}
+```
+
+응답(`200 OK`): `{ "status": "recording" | "processing" | "done" | "error", "assistantMessageId": number | null, "errorMessage": string | null }`. `done`이면 `assistantMessageId`로 `GET /api/messages/{id}/audio`를 호출해 재생.
+
+* 구현: `VoiceCallController` → `VoiceCallService#getStatus`
+
+---
+
+## WS /egress/audio (STOMP 아님 — raw WebSocket)
+
+LiveKit Track Egress가 접속해오는 전용 엔드포인트. `/ws`(STOMP)와는 별개 핸들러(`VoiceEgressWebSocketConfig`)로 등록됨.
+
+```text
+ws://<host>:8080/egress/audio?turnId=<uuid>
+```
+
+* LiveKit이 binary 프레임으로 raw PCM(`pcm_s16le`, 보통 48kHz)을 스트리밍 — `VoiceEgressWebSocketHandler`가 `turnId`로 어느 `VoiceTurnSession`에 쌓을지 결정
+* 트랙이 unpublish되면 LiveKit이 이 연결을 닫음 → `afterConnectionClosed`에서 `VoiceCallService#completeTurn` 트리거(배치 STT → Gemini → `postAssistantMessage`, `@Async`로 실행)
+* 이 WS 연결 자체엔 인증이 없음(LiveKit 자체 제약) — `turnId`(UUID)가 추측 불가능한 값이라는 것으로 최소한의 방어만 함
+* **로컬 개발 시**: LiveKit Cloud(원격)가 이 엔드포인트로 다시 접속해야 하므로, `LIVEKIT_EGRESS_AUDIO_WS_URL`은 `localhost`가 아니라 ngrok 등으로 터널링한 공인 주소여야 함 — `HANDOFF.md` 참고
+
+---
+
 # Layer Flow
 
 ```text
@@ -217,14 +277,14 @@ Server --publish--> /topic/conversation/{characterId}   StreamEvent (CHUNK* → 
 
 ---
 
-# WebRTC Signaling Policy (6주차 — 미구현)
+# WebRTC / LiveKit Policy (5주차 — 구현됨, "축소판 A안")
 
-PRD 3.9, 3.10 참고. B안(WebRTC 미사용, RN STT + 서버 TTS 오디오 URL) + C안(WebRTC 최소 데모) 조합이 기본 전략이며, 처음부터 풀 WebRTC 파이프라인(A안)으로 설계하지 않는다.
+PRD 3.9, 3.10, `docs/decisions.md` ADR-004 갱신 2 참고. 원래 계획(B안: WebRTC 미사용 + C안: 별도 WebRTC 최소 데모)에서, 세션 중 리서치 스파이크로 실현 가능성/비용을 확인한 뒤 범위를 넓혀 "축소판 A안"으로 구현함 — 클라이언트↔LiveKit 구간은 실제 WebRTC, 서버는 WebRTC 미디어를 직접 다루지 않고 Track Egress로 오디오만 받아 기존 배치 STT/TTS 파이프라인(B안)에 흘려보냄. 상세 흐름은 `docs/architecture/README.md` 시퀀스 다이어그램, 엔드포인트는 위 `POST /api/calls/...`/`WS /egress/audio` 참고.
 
-계획:
-
-* Offer/Answer/ICE Candidate 교환은 기존 WebSocket(STOMP) 채널로 중계 (별도 시그널링 프로토콜 신설 안 함)
-* STUN은 공개 Google STUN 서버 사용, TURN은 범위 밖 (PRD 9절)
+* Offer/Answer/ICE 협상은 LiveKit이 대신 처리 — 이 백엔드가 시그널링 프로토콜을 직접 구현하지 않음(자체 WebSocket(STOMP) 채널로 중계하는 방식은 채택 안 함)
+* STUN/TURN도 LiveKit(Cloud)이 관리 — 직접 STUN 서버 설정 불필요
+* 서버가 합성한 TTS 응답을 다시 WebRTC로 실시간 되쏘는 완전한 양방향(원래 정의의 A안)은 여전히 범위 밖 — 시간 여유 시 확장 목표(`TODO.md` 5주차 "남은 작업" 참고)
+* 6주차(C안: WebRTC 시그널링 최소 데모)는 이미 상당 부분 선행 충족됨 — 재평가 예정
 
 ---
 

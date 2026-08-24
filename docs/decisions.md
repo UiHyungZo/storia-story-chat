@@ -59,9 +59,20 @@ Storia 개발 과정에서 내린 주요 기술/설계 결정을 기록한다. �
 
 **영향**: 5주차(B안 파이프라인)와 6주차(C안 WebRTC 데모)가 별도 작업으로 분리되어 있음 ([`TODO.md`](../TODO.md)). WebRTC를 처음부터 메인 파이프라인에 통합하려는 설계 변경은 이 결정과 충돌하므로, 변경하려면 이 ADR을 갱신할 것.
 
-**갱신 (5주차 구현 시점)**:
-- **STT 패키지를 `@react-native-voice/voice` → `expo-speech-recognition`으로 변경**. PRD/이 ADR 원문이 명시한 패키지였지만, 5주차에 설치하려던 시점에 npm이 `@react-native-voice/voice@3.2.4`를 "deprecated — use expo-speech-recognition instead"로 표시하고 있어 그대로 채택하지 않음. `expo-speech-recognition`은 활발히 유지보수 중이고 Expo config plugin으로 iOS/Android 권한 설정까지 자동화되어 오히려 더 적합 판단. PRD의 "RN STT" 요구사항 자체는 동일하게 충족.
-- **음성 통화도 별도 WS 채널을 신설하지 않고 기존 텍스트 채팅 파이프라인(REST)을 그대로 재사용**. STT로 얻은 텍스트를 `useConversationStore#sendMessageViaRest`로 보내고(WS 스트리밍 경로는 응답 완료 시점을 기다리지 않으므로 음성 통화의 "응답 오디오 재생 시작 시점 결정"에 부적합해 REST 전용 경로를 신설), 응답이 도착하면 그 메시지 ID로 `GET /api/messages/{id}/audio`를 호출해 오디오를 받아온다. TTS는 오디오를 별도 저장소에 미리 합성해두지 않고 요청이 올 때 그때그때 합성한다(포트폴리오 스코프 트레이드오프 — 재요청마다 재합성 비용 발생, 프로덕션이면 캐싱 필요).
+**갱신 1 (5주차 구현 초반)**:
+- **STT 패키지를 `@react-native-voice/voice` → `expo-speech-recognition`으로 변경 시도**. PRD/이 ADR 원문이 명시한 패키지였지만, 설치하려던 시점에 npm이 `@react-native-voice/voice@3.2.4`를 "deprecated — use expo-speech-recognition instead"로 표시하고 있어 그대로 채택하지 않음. (→ 갱신 2에서 클라이언트 STT 자체를 서버 사이드로 옮기면서 이 패키지도 결국 제거됨.)
+- **음성 통화는 별도 WS 채널을 신설하지 않고 기존 텍스트 채팅 파이프라인(REST)을 재사용**하기로 함 — 이 결정은 갱신 2 이후에도 유지됨. `useConversationStore#sendMessageViaRest`(REST 전용, 응답 완료까지 대기 후 assistantMessage 반환 — WS 스트리밍 경로는 응답 완료 시점을 기다리지 않고 바로 resolve되므로 "오디오를 언제 가져올지" 결정할 수 없어 음성 통화엔 못 씀)를 신설. TTS는 오디오를 별도 저장소에 미리 합성해두지 않고 요청이 올 때 그때그때 합성(`GET /api/messages/{id}/audio`) — 포트폴리오 스코프 트레이드오프(재요청마다 재합성 비용, 프로덕션이면 캐싱 필요).
+
+**갱신 2 (5주차 구현 중 — B안에서 "축소판 A안"으로 범위 확장)**:
+사용자가 "이 김에 A안(WebRTC)까지 가면 더 빠르지 않나?"라고 제안, 완전한 양방향 실시간 A안은 서버 쪽 WebRTC 미디어 처리가 JVM에 마땅한 라이브러리가 없어 일정 리스크가 크다고 판단해(리서치 스파이크로 확인) 아래처럼 축소한 중간 지점으로 합의:
+
+- 클라이언트 ↔ **LiveKit**(Cloud, 무료 티어로 충분) 구간은 진짜 WebRTC로 마이크 오디오 전송 — 이력서에 "WebRTC 연동 경험"이라고 쓸 수 있는 실제 근거가 됨.
+- 서버는 WebRTC 미디어를 직접 다루지 않고, **LiveKit Track Egress → WebSocket**(raw PCM, `pcm_s16le`)으로 오디오를 받아 갱신 1에서 만든 배치 STT/Gemini/TTS 파이프라인에 그대로 흘려보냄. Egress를 S3 등 클라우드 스토리지로 보내는 대신 **WebSocket 직접 스트리밍 옵션**을 씀 — 별도 스토리지 계정/비용이 아예 필요 없어짐(리서치로 확인).
+- 이 결과 **클라이언트 사이드 STT(`expo-speech-recognition`)는 완전히 제거**하고 서버 사이드 배치 STT(Google Cloud Speech-to-Text)로 대체됨 — 오디오가 어차피 서버까지 오므로 클라이언트에서 따로 인식할 필요가 없어짐.
+- 서버가 합성한 TTS 응답을 다시 WebRTC로 실시간 되쏘는 것(완전한 A안)은 여전히 범위 밖 — 응답은 갱신 1과 동일하게 오디오 URL로 반환.
+- 부수 효과: 6주차 C안(WebRTC 시그널링 최소 데모)이 사실상 상당 부분 선행 충족됨 — 6주차는 검증/재평가 위주로 가벼워질 전망.
+
+**영향(갱신)**: `LiveKitProperties`/`SttProperties` 등 새 자격증명이 필요해짐(LiveKit Cloud 프로젝트, Google Cloud STT 키) — `HANDOFF.md`/`TODO.md`에 다음 세션 준비물로 정리됨. 로컬 개발 시 LiveKit Cloud가 이 백엔드의 `/egress/audio`로 다시 접속해와야 하므로 ngrok 등 터널이 필요하다는 제약도 새로 생김.
 
 ---
 

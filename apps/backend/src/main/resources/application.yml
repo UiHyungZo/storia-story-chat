@@ -30,3 +30,17 @@ tts:
   base-url: https://texttospeech.googleapis.com
   language-code: ko-KR
   voice-name: ko-KR-Standard-A
+
+stt:
+  api-key: ${STT_API_KEY:}
+  base-url: https://speech.googleapis.com
+  language-code: ko-KR
+  sample-rate-hertz: 48000
+
+livekit:
+  host: ${LIVEKIT_HOST:}
+  api-key: ${LIVEKIT_API_KEY:}
+  api-secret: ${LIVEKIT_API_SECRET:}
+  # 로컬 개발 시엔 LiveKit Cloud가 이 백엔드로 다시 접속해야 하므로 공인 접근 가능한
+  # 주소가 필요함(예: ngrok 등 터널) — HANDOFF.md 참고.
+  egress-audio-ws-url: ${LIVEKIT_EGRESS_AUDIO_WS_URL:}

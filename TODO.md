@@ -65,20 +65,38 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인
 - [ ] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인
 
-## 5주차 — 음성 통화 B안
+## 5주차 — 음성 통화, "축소판 A안"으로 확장
 
-- [x] RN STT 연동 — **ADR-004/PRD가 명시한 `@react-native-voice/voice` 대신 `expo-speech-recognition` 사용**. npm이 `@react-native-voice/voice@3.2.4`를 "deprecated, use expo-speech-recognition instead"로 표시하고 있어(포트폴리오에서 deprecated 패키지 채택은 마이너스) 설치 직후 교체함 (`docs/decisions.md` ADR-004 갱신 참고). `app.json`에 config plugin 등록(마이크/음성 인식 권한 문구 포함).
-- [x] 서버 TTS 연동 — Google Cloud TTS REST API(`texttospeech.googleapis.com/v1/text:synthesize`) 사용. `TtsProperties`/`TtsWebClientConfig`/`TtsService#synthesize`, `TTS_API_KEY` 미설정 시 `null` 반환(그래프풀 디그레이드 — `GEMINI_API_KEY`/`FIREBASE_CREDENTIALS_PATH`와 동일 패턴).
-- [x] 오디오 파일 URL 응답 → 클라이언트 재생 파이프라인 — 새 엔드포인트 없이 **메시지 송수신은 기존 텍스트 채팅 파이프라인 그대로 재사용**(ADR-004 그대로): STT로 텍스트 채운 뒤 `useConversationStore#sendMessageViaRest`(REST 전용, 응답 대기 후 assistantMessage 반환 — WS 경로는 스트리밍이라 응답 완료를 기다리지 않아 음성 통화엔 부적합해서 신설)로 전송. 응답이 오면 `GET /api/messages/{messageId}/audio`(신규 `MessageController`/`MessageService`, TTS를 그때그때 합성 — 별도 오디오 저장소 없음)에서 오디오를 받아 `expo-audio`의 `createAudioPlayer`로 재생.
-  - 클라이언트: `src/api/tts.ts`(오디오 URL + 가용성 HEAD 체크), `src/store/useVoiceCallStore.ts`(턴제 상태머신: idle→listening→thinking→speaking, 풀 듀플렉스 아님 — PRD 3.9 그대로), `src/components/VoiceCallOverlay.tsx`(통화 UI), `ChatRoomScreen` 헤더에 "📞 통화" 버튼.
-  - **미검증**: 이 머신엔 Xcode/CocoaPods가 없어 STT/오디오 재생 네이티브 동작을 전혀 확인 못 함. TTS도 `TTS_API_KEY`가 없어 실제 합성 미검증(다음 세션에서 Google Cloud TTS 키 발급 후 확인 필요) — 키가 없어도 `/audio`가 404를 반환하고 클라이언트가 텍스트만 남기고 넘어가는 폴백 경로까지만 코드로 확인함.
-  - `gradlew compileJava`/`compileTestJava`, `tsc --noEmit` 통과 확인.
+세션 중 사용자와 상의해 원래 계획(B안만)보다 범위를 넓힘: 진짜 WebRTC 연결까지 포함한
+"축소판 A안"을 이번 주에 하고, 완전한 양방향 실시간(TTS를 다시 WebRTC로 되쏘는 것)은
+시간이 남으면 확장하기로 함 — 리서치 스파이크로 실현 가능성/비용을 먼저 확인(무료로
+가능, 비용 세부는 `docs/decisions.md` ADR-004 갱신 항목 참고).
+
+- [x] **B안 (원래 계획)**: RN STT + 서버 TTS + 오디오 URL 재생 파이프라인. STT는 PRD/ADR-004가 명시한 `@react-native-voice/voice` 대신 `expo-speech-recognition`으로 시작했다가, **축소판 A안으로 대체하면서 서버 사이드 배치 STT로 전환** — 클라이언트 STT 관련 코드/패키지는 모두 제거함(아래 참고).
+- [x] **서버 TTS**: Google Cloud TTS REST API(`texttospeech.googleapis.com/v1/text:synthesize`). `TtsProperties`/`TtsWebClientConfig`/`TtsService#synthesize`, `TTS_API_KEY` 미설정 시 `null` 반환(그레이스풀 디그레이드 — `GEMINI_API_KEY`/`FIREBASE_CREDENTIALS_PATH`와 동일 패턴). `GET /api/messages/{messageId}/audio`(`MessageController`/`MessageService`)에서 그때그때 합성해 반환 — 별도 오디오 저장소 없음.
+- [x] **축소판 A안 — 실제 WebRTC 연결**: 클라이언트↔LiveKit(Cloud) 구간은 진짜 WebRTC로 마이크 오디오 전송. 백엔드는 WebRTC 미디어를 직접 다루지 않고 LiveKit **Track Egress → WebSocket(raw PCM)**로 오디오를 받아, 기존 B안의 배치 STT→Gemini→TTS 파이프라인에 그대로 흘려보냄. 상세 흐름은 [`docs/architecture/README.md`](./docs/architecture/README.md) 시퀀스 다이어그램 참고.
+  - **백엔드**: `io.livekit:livekit-server:0.15.0` 의존성(실제 jar를 `javap`으로 디컴파일해 API 시그니처 확인 후 작성 — 문서화가 얇은 SDK라 웹 검색만으로는 부족했음). `LiveKitProperties`(host/apiKey/apiSecret/egressAudioWsUrl, `LIVEKIT_*` 미설정 시 비활성화), `voice/` 패키지(`VoiceCallService`, `VoiceTurnSession`/`VoiceTurnRegistry` — 턴별 오디오 버퍼는 DB 아닌 인메모리), `VoiceEgressWebSocketHandler`(STOMP와 별개인 raw WebSocket, `/egress/audio` — LiveKit이 여기로 접속해 PCM 프레임을 보냄), `SttProperties`/`SttService`(Google Cloud Speech-to-Text 배치 인식, `STT_API_KEY` 미설정 시 `null`), `VoiceCallController`(`POST /api/calls/{characterId}/token`, `POST /api/calls/{characterId}/turns`, `GET /api/calls/turns/{turnId}`).
+  - **클라이언트**: `@livekit/react-native` + `livekit-client` + `@livekit/react-native-webrtc` + config plugin들(`@livekit/react-native-expo-plugin`, `@config-plugins/react-native-webrtc`) 설치. `src/api/calls.ts`(토큰 발급/턴 시작/상태 폴링), `useVoiceCallStore`를 LiveKit 기반으로 재작성(`room.localParticipant.setMicrophoneEnabled()`로 마이크 트랙 publish/unpublish, unpublish가 곧 "턴 종료" 신호). `VoiceCallOverlay`/`ChatRoomScreen`은 그대로(스토어 인터페이스 유지).
+  - **왜 S3/클라우드 스토리지가 필요 없는가**: LiveKit Track Egress가 파일 저장 없이 **WebSocket으로 raw PCM을 직접 스트리밍**해주는 옵션을 지원해서(`pcm_s16le`, 보통 48kHz), 백엔드가 그 WS를 직접 받아 처리 — 별도 클라우드 스토리지 계정 불필요.
+  - **미검증 (다음 세션)**: 이 머신엔 Xcode/CocoaPods가 없어 LiveKit RN SDK/오디오 재생 네이티브 동작 전혀 확인 못 함. `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 전부 미설정이라 실제 통화 왕복도 미검증. `gradlew compileJava`/`compileTestJava`(livekit-server jar를 `javap`으로 실제 확인하며 작성해 1회 컴파일에 성공), `tsc --noEmit` 통과만 확인.
+
+### 남은 작업 (다음 세션 — 자격증명/환경 준비된 뒤)
+
+- [ ] LiveKit Cloud 프로젝트 생성(무료 티어) → `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 백엔드에 주입
+- [ ] 로컬 개발용 공인 접근 가능한 터널(예: ngrok) 준비 → `LIVEKIT_EGRESS_AUDIO_WS_URL`을 그 터널 주소로 설정 (LiveKit Cloud가 `localhost`로 못 붙기 때문 — HANDOFF.md 참고)
+- [ ] Google Cloud STT/TTS API 키 발급 → `STT_API_KEY`/`TTS_API_KEY` 설정
+- [ ] Xcode+CocoaPods 있는 환경에서 `expo prebuild`/`expo run:ios`로 LiveKit RN SDK가 정상 링크되는지 확인
+- [ ] 실제 통화 왕복: 통화 버튼 → 토큰 발급 → room 연결 → 마이크 publish → egress 시작 → 말하고 unpublish → 폴링 → STT 텍스트 정확도 → TTS 오디오 재생까지 확인
+- [ ] `livekit-server` SDK의 `startTrackEgress`/`AccessToken` grant 구성이 실제 LiveKit 서버 응답과 맞는지(`javap`로 시그니처만 확인했고 런타임 동작은 미검증) 확인
+- [ ] 시간이 남으면: 서버가 합성한 TTS 응답을 WebRTC로 직접 되쏘는 완전한 양방향 실시간(A안) 확장 검토
 
 ## 6주차 — WebRTC 최소 데모 (C안)
 
-- [ ] WebRTC 시그널링 서버 (Offer/Answer/ICE, WebSocket 채널로 중계)
-- [ ] `react-native-webrtc` 1:1 P2P 오디오 스트리밍 최소 데모
-- [ ] B안과의 통합 여부 판단 (시간 여유 시 A안 확장 검토)
+5주차에서 LiveKit으로 클라이언트↔서버 실제 WebRTC 연결을 이미 구현해서, C안이 원래 증명하려던 "WebRTC 연동 경험" 자체는 상당 부분 충족됨. 아래는 남은 걸 재평가해서 필요한 만큼만.
+
+- [ ] 5주차 결과로 C안 요구사항이 충분히 충족되는지 재검토 (부족하면 아래 항목 추가 진행)
+- [ ] (필요시) `react-native-webrtc` 기반 1:1 P2P 오디오 스트리밍 최소 데모 — LiveKit을 안 거치는 순수 WebRTC 시그널링 경험을 별도로 증명하고 싶다면
+- [ ] B안/축소판 A안과의 통합 상태 문서화, 시간 여유 시 완전한 A안 확장
 
 ## 7주차 — 모니터링 & 배포
 

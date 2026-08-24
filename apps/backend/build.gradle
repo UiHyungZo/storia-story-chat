@@ -28,6 +28,7 @@ dependencies {
 	implementation 'org.springframework:spring-webflux'
 	implementation 'io.projectreactor.netty:reactor-netty-http'
 	implementation 'com.google.firebase:firebase-admin:9.4.3'
+	implementation 'io.livekit:livekit-server:0.15.0'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
 	annotationProcessor 'org.projectlombok:lombok'

@@ -1,10 +1,11 @@
 import { AudioPlayer, createAudioPlayer } from "expo-audio";
-import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
+import { Room } from "livekit-client";
 import { create } from "zustand";
+import { getTurnStatus, requestCallToken, startTurnEgress } from "../api/calls";
 import { getMessageAudioUrl, isMessageAudioAvailable } from "../api/tts";
-import { useConversationStore } from "./useConversationStore";
 
-const SPEECH_LOCALE = "ko-KR";
+const POLL_INTERVAL_MS = 600;
+const POLL_TIMEOUT_MS = 20000;
 
 export type CallPhase = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -12,16 +13,17 @@ type VoiceCallStore = {
   isCallActive: boolean;
   characterId: number | null;
   phase: CallPhase;
-  transcript: string;
   errorMessage: string | null;
   startCall: (characterId: number) => Promise<void>;
   endCall: () => void;
-  startListening: () => void;
-  stopListening: () => void;
+  startListening: () => Promise<void>;
+  stopListening: () => Promise<void>;
 };
 
+let room: Room | null = null;
+let roomName: string | null = null;
+let currentTurnId: string | null = null;
 let player: AudioPlayer | null = null;
-let listenersAttached = false;
 
 function stopAndReleasePlayer(): void {
   if (!player) return;
@@ -30,65 +32,27 @@ function stopAndReleasePlayer(): void {
   player = null;
 }
 
+function teardownRoom(): void {
+  room?.disconnect();
+  room = null;
+  roomName = null;
+  currentTurnId = null;
+}
+
 /**
- * Turn-based voice call (PRD 3.9 B안 — no WebRTC): on-device STT fills the
- * turn's text, which goes through the same REST send path text chat uses
- * (`sendMessageViaRest`), then the assistant reply is played back via TTS
- * audio fetched from the backend. Not full-duplex — the mic only reopens
- * when the user taps it again after playback finishes.
+ * "축소판 A안" (docs/decisions.md ADR-004 갱신 항목): 클라이언트가 LiveKit으로 실제
+ * WebRTC 오디오를 서버까지 보내고(마이크 트랙 publish → 백엔드가 Track Egress 시작),
+ * 서버가 그 오디오를 배치 STT → 기존 Gemini/TTS 파이프라인(B안)에 흘려보낸다. 응답은
+ * B안과 동일하게 오디오 URL로 돌아옴 — 서버가 합성 음성을 WebRTC로 직접 되쏘는 완전한
+ * 양방향 실시간은 범위 밖. 턴제(풀 듀플렉스 아님): idle → listening → thinking →
+ * speaking, 재생이 끝나야 다음 턴을 들을 수 있음.
  */
 export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
-  function attachListenersOnce(): void {
-    if (listenersAttached) return;
-    listenersAttached = true;
-
-    ExpoSpeechRecognitionModule.addListener("result", (event) => {
-      const transcript = event.results[0]?.transcript ?? "";
-      set({ transcript });
-      if (event.isFinal && transcript.trim() && get().phase === "listening") {
-        void submitTranscript();
-      }
-    });
-
-    ExpoSpeechRecognitionModule.addListener("error", (event) => {
-      if (event.error === "no-speech" || event.error === "aborted") {
-        set((state) => (state.isCallActive ? { phase: "idle" } : state));
-        return;
-      }
-      set({ phase: "error", errorMessage: event.message });
-    });
-
-    ExpoSpeechRecognitionModule.addListener("end", () => {
-      // Recognition can end without a final result (silence timeout) — go back
-      // to idle so the mic button is tappable again instead of stuck "listening".
-      set((state) => (state.phase === "listening" ? { phase: "idle" } : state));
-    });
-  }
-
-  async function submitTranscript(): Promise<void> {
-    const { characterId, transcript } = get();
-    const content = transcript.trim();
-    if (!characterId || !content) {
-      set({ phase: "idle" });
-      return;
-    }
-
-    set({ phase: "thinking" });
-    try {
-      const assistantMessage = await useConversationStore
-        .getState()
-        .sendMessageViaRest(characterId, content);
-      await playAssistantAudio(assistantMessage.id);
-    } catch (error) {
-      set({ phase: "error", errorMessage: error instanceof Error ? error.message : String(error) });
-    }
-  }
-
   async function playAssistantAudio(messageId: number): Promise<void> {
     const available = await isMessageAudioAvailable(messageId);
     if (!available) {
-      // TTS not configured/failed on the backend — reply text is already in the
-      // chat history, just skip straight back to idle for the next turn.
+      // TTS not configured/failed — reply text is already in the chat history,
+      // just return to idle so the user can start the next turn.
       set((state) => (state.isCallActive ? { phase: "idle" } : state));
       return;
     }
@@ -111,47 +75,79 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     set((state) => (state.isCallActive ? { phase: "idle" } : state));
   }
 
+  async function pollTurn(turnId: string): Promise<void> {
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if (!get().isCallActive || currentTurnId !== null) {
+        // Call ended, or a newer turn started — abandon this poll silently.
+        return;
+      }
+      const status = await getTurnStatus(turnId);
+      if (status.status === "done" && status.assistantMessageId != null) {
+        await playAssistantAudio(status.assistantMessageId);
+        return;
+      }
+      if (status.status === "error") {
+        set({ phase: "error", errorMessage: status.errorMessage ?? "응답 생성에 실패했습니다." });
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+    set((state) => (state.isCallActive ? { phase: "error", errorMessage: "응답이 너무 오래 걸려요." } : state));
+  }
+
   return {
     isCallActive: false,
     characterId: null,
     phase: "idle",
-    transcript: "",
     errorMessage: null,
 
     startCall: async (characterId) => {
-      attachListenersOnce();
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permission.granted) {
-        set({
-          isCallActive: true,
-          characterId,
-          phase: "error",
-          errorMessage: "마이크/음성 인식 권한이 필요해요.",
-        });
-        return;
+      set({ isCallActive: true, characterId, phase: "idle", errorMessage: null });
+      try {
+        const tokenResponse = await requestCallToken(characterId);
+        roomName = tokenResponse.roomName;
+        room = new Room();
+        await room.connect(tokenResponse.url, tokenResponse.token);
+      } catch (error) {
+        set({ phase: "error", errorMessage: error instanceof Error ? error.message : String(error) });
       }
-      set({ isCallActive: true, characterId, phase: "idle", transcript: "", errorMessage: null });
     },
 
     endCall: () => {
-      ExpoSpeechRecognitionModule.abort();
       stopAndReleasePlayer();
-      set({ isCallActive: false, characterId: null, phase: "idle", transcript: "", errorMessage: null });
+      teardownRoom();
+      set({ isCallActive: false, characterId: null, phase: "idle", errorMessage: null });
     },
 
-    startListening: () => {
-      if (!get().isCallActive || get().phase === "listening") return;
-      set({ phase: "listening", transcript: "", errorMessage: null });
-      ExpoSpeechRecognitionModule.start({
-        lang: SPEECH_LOCALE,
-        interimResults: true,
-        continuous: false,
-      });
+    startListening: async () => {
+      const { isCallActive, characterId, phase } = get();
+      if (!isCallActive || !room || !roomName || !characterId || phase === "listening") return;
+
+      set({ phase: "listening", errorMessage: null });
+      try {
+        const publication = await room.localParticipant.setMicrophoneEnabled(true);
+        if (!publication?.trackSid) {
+          throw new Error("마이크 트랙을 시작하지 못했어요.");
+        }
+        const { turnId } = await startTurnEgress(characterId, roomName, publication.trackSid);
+        currentTurnId = turnId;
+      } catch (error) {
+        set({ phase: "error", errorMessage: error instanceof Error ? error.message : String(error) });
+      }
     },
 
-    stopListening: () => {
-      if (get().phase !== "listening") return;
-      ExpoSpeechRecognitionModule.stop();
+    stopListening: async () => {
+      if (get().phase !== "listening" || !room) return;
+      set({ phase: "thinking" });
+      // Unpublishing (not just muting) the track ends the LiveKit egress connection
+      // on the backend, which is what signals "this turn's audio is complete".
+      await room.localParticipant.setMicrophoneEnabled(false);
+      const turnId = currentTurnId;
+      currentTurnId = null;
+      if (turnId) {
+        await pollTurn(turnId);
+      }
     },
   };
 });
