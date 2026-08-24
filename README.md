@@ -50,6 +50,12 @@ export STT_API_KEY=your-google-cloud-key
 export TTS_API_KEY=your-google-cloud-key
 ```
 
+Sentry(에러 모니터링)는 선택 사항입니다 (없으면 SDK가 조용히 비활성화됨):
+
+```bash
+export SENTRY_DSN=your-sentry-dsn
+```
+
 ```bash
 cd apps/backend
 ./gradlew bootRun
@@ -65,6 +71,12 @@ cd apps/backend
 cd apps/client
 npx expo run:ios   # 최초 1회 (Development Build 생성)
 npx expo start     # 이후 개발 시
+```
+
+Sentry(선택 사항, 없으면 비활성화):
+
+```bash
+export EXPO_PUBLIC_SENTRY_DSN=your-sentry-dsn
 ```
 
 Expo Go는 지원하지 않습니다 (커스텀 Native Module 사용 예정 — Development Build 필수).

@@ -44,3 +44,10 @@ livekit:
   # 로컬 개발 시엔 LiveKit Cloud가 이 백엔드로 다시 접속해야 하므로 공인 접근 가능한
   # 주소가 필요함(예: ngrok 등 터널) — HANDOFF.md 참고.
   egress-audio-ws-url: ${LIVEKIT_EGRESS_AUDIO_WS_URL:}
+
+sentry:
+  # 비어있으면 SDK가 스스로 비활성화됨(이벤트 전송 안 함, 예외도 안 던짐) — 다른 외부
+  # 연동과 동일한 graceful-degradation, 별도 isConfigured() 가드 불필요.
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:local}
+  traces-sample-rate: 1.0

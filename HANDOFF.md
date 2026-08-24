@@ -11,7 +11,7 @@
 - **`GEMINI_API_KEY` 미설정**: 아직 키를 발급받지 않음. 백엔드를 띄우기 전에 `export GEMINI_API_KEY=...` 필요 (없으면 채팅은 되지만 고정 안내 문구만 돌아옴).
 - **Firebase 프로젝트 없음**: 4주차 FCM 푸시는 백엔드 스켈레톤만 구현됨(사용자가 명시적으로 선택). 서비스 계정 JSON/`GoogleService-Info.plist`/APNs 키가 있는 실제 Firebase 프로젝트가 생기기 전까지는 실 발송/클라이언트 SDK 연동 둘 다 불가능.
 - **이 머신엔 Xcode(전체 설치)와 CocoaPods도 없음**: Command Line Tools만 있어 `pod`가 없고 `xcodebuild`도 활성 개발자 디렉토리가 CLT라 동작 안 함. 4주차 Native Module(`modules/storia-native`)은 `npx expo prebuild --platform ios --no-install`로 `ios/` 골격이 생성되는 것까지만 확인했고, 실제 pod install/컴파일/기기 실행은 미검증. 5주차 LiveKit RN SDK/오디오 재생(`expo-audio`)도 같은 이유로 기기 검증 못 함.
-- **`TTS_API_KEY`/`STT_API_KEY`/`LIVEKIT_*` 전부 미설정**: Google Cloud TTS/STT 키, LiveKit Cloud 프로젝트 어느 것도 아직 없음. `LIVEKIT_*` 없으면 `/api/calls/**`가 즉시 `503`을 반환(음성 통화 자체를 시작 못 함), `TTS_API_KEY` 없으면 `/api/messages/{id}/audio`가 404를 반환하고 클라이언트가 텍스트만 남기고 다음 턴으로 넘어가는 폴백까지는 코드로 확인함 — 그 외 실제 왕복은 전부 미검증.
+- **`TTS_API_KEY`/`STT_API_KEY`/`LIVEKIT_*`/`SENTRY_DSN`/`EXPO_PUBLIC_SENTRY_DSN` 전부 미설정**: Google Cloud TTS/STT 키, LiveKit Cloud 프로젝트, Sentry 프로젝트 어느 것도 아직 없음. `LIVEKIT_*` 없으면 `/api/calls/**`가 즉시 `503`을 반환(음성 통화 자체를 시작 못 함), `TTS_API_KEY` 없으면 `/api/messages/{id}/audio`가 404를 반환하고 클라이언트가 텍스트만 남기고 다음 턴으로 넘어가는 폴백까지는 코드로 확인함 — 그 외 실제 왕복은 전부 미검증.
 - **로컬 개발 시 ngrok 등 터널이 필요함(신규, 5주차)**: LiveKit Cloud(원격 서비스)가 이 백엔드의 `/egress/audio`로 다시 접속해와야 하므로, `LIVEKIT_EGRESS_AUDIO_WS_URL`이 `localhost`면 절대 동작 안 함 — 공인 접근 가능한 주소(ngrok 터널 등)여야 함. 아래 "다음 작업" 참고.
 - **`apps/client/node_modules`는 타입체크 검증용으로 로컬에만 설치함**: `.gitignore` 처리되어 커밋엔 영향 없음. 새 환경/재클론 시 `npm install` 다시 필요.
 - 상세 검증 체크리스트는 [`TODO.md`](./TODO.md)의 "검증 필요"/"남은 작업" 섹션(1~5주차 각각) 참고.
@@ -68,6 +68,8 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
 
 **7주차 착수 — 테스트 코드부터 시작함(외부 자원 없이 이 머신에서 바로 실행 가능해서 우선순위를 높게 잡음)**: 백엔드 18개(`./gradlew test`)/클라이언트 17개(`npm test`) 전부 실제로 통과 확인함. 그 과정에서 **`ObjectMapper` 빈 부재로 `gradlew bootRun`이 애초에 기동조차 못 했을 실제 버그**를 발견해 고침(`config/JacksonConfig.java` 신규) — Spring Boot 4의 모듈화 스타터 구성 때문에 classic Jackson `ObjectMapper` 자동 빈 생성이 안 되고 있었음. 클라이언트는 `jest-expo`를 신규 도입했고, 3주차에서 고쳤던 두 버그(WS 폴백 시 메시지 중복, `disconnect()` 후 transport 미초기화)에 대한 회귀 테스트도 새로 작성함. 상세는 `TODO.md` 7주차 참고.
 
+이어서 **Sentry 연동**(클라이언트 + 백엔드)도 완료. DSN 미설정 시 SDK가 스스로 비활성화되는 게 표준 동작이라 다른 외부 연동과 동일한 graceful-degradation 패턴을 그대로 따름 — 새 가드 코드 불필요. 백엔드는 Spring Boot 4 전용 아티팩트(`io.sentry:sentry-spring-boot-4`, 구버전 가이드의 `sentry-spring-boot-starter-jakarta`는 Spring Boot 3용이라 안 맞음)를 웹 검색으로 확인 후 사용. 클라이언트는 설치 시점에 `@sentry/react-native`의 Expo SDK 57 호환성 이슈(GitHub #6384)가 열려있는 걸 먼저 확인했지만, 실제 설치·타입체크·테스트가 전부 문제없이 통과해 그대로 채택함. 실제 Sentry 프로젝트/DSN이 없어 이벤트 도착 자체는 미검증.
+
 ## 중요한 결정 사항 / 함정
 
 - **MariaDB 예약어 회피**: `User` → `app_user` 테이블, `Character` → `story_character` 테이블로 매핑. 새 엔티티 추가 시 MariaDB/MySQL 예약어(`USER`, `CHARACTER`, `GROUP`, `ORDER` 등)와 충돌하는 이름은 `@Table(name = ...)`로 명시적으로 회피할 것.
@@ -81,7 +83,7 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
 - **Gemini API 키**: `GEMINI_API_KEY` 환경변수로 주입(`application.yml`의 `gemini.api-key`). 커밋된 파일에는 키가 없음 — 로컬에서 `export GEMINI_API_KEY=...` 하고 백엔드를 띄울 것. 모델명은 `gemini.model`(기본 `gemini-2.0-flash`)로 분리해뒀으니 모델이 바뀌면 `application.yml`만 수정하면 됨.
 - **WebClient는 MVC 앱에 부분 도입**: `spring-boot-starter-webflux`(전체 리액티브 스택) 대신 `spring-webflux` + `reactor-netty-http`만 추가해 WebClient만 사용. 앱은 여전히 Servlet(MVC) 스택 — REST 폴백 컨트롤러에서는 `.block()`으로 동기 변환해서 씀 (포트폴리오 스코프에서 허용 가능한 트레이드오프, `docs/decisions.md` ADR-006 참고).
 - **Native Module은 `ios/`가 아니라 `modules/storia-native`에 둘 것**: 이 프로젝트는 `expo prebuild`로 `ios/`를 매번 재생성하는 continuous native generation 방식이라(`.gitignore`의 `/ios`), `ios/` 안에 직접 넣은 네이티브 코드는 다음 prebuild 때 사라진다. 새 네이티브 코드가 더 필요해지면 반드시 `./modules` 아래 로컬 모듈로 추가할 것 (`expo-modules-autolinking`이 기본으로 찾는 경로 — `apps/client/node_modules/expo-modules-autolinking/build/commands/autolinkingOptions.js`의 기본값 `./modules` 참고).
-- **외부 자격증명 미설정 시 graceful degradation 패턴 통일**: `GEMINI_API_KEY`(Gemini), `FIREBASE_CREDENTIALS_PATH`(FCM), `TTS_API_KEY`(TTS), `STT_API_KEY`(STT) 모두 `*Properties#isConfigured()`로 설정 여부를 확인하고, 없으면 예외를 던지지 않고 조용히 비활성화(로그만 남김 / `null` 반환 / 404)하는 동일한 패턴을 따름. `LIVEKIT_*`만 예외 — 음성 통화 자체가 LiveKit 없이는 성립하지 않아서 `VoiceCallController`가 `503`을 명시적으로 반환함(조용히 no-op이 아니라 클라이언트가 즉시 알 수 있게). 새 외부 연동을 추가할 때도 "기능이 부분적으로 대체 가능하면 graceful degrade, 아예 불가능하면 명시적 에러"라는 기준을 유지할 것.
+- **외부 자격증명 미설정 시 graceful degradation 패턴 통일**: `GEMINI_API_KEY`(Gemini), `FIREBASE_CREDENTIALS_PATH`(FCM), `TTS_API_KEY`(TTS), `STT_API_KEY`(STT) 모두 `*Properties#isConfigured()`로 설정 여부를 확인하고, 없으면 예외를 던지지 않고 조용히 비활성화(로그만 남김 / `null` 반환 / 404)하는 동일한 패턴을 따름. `SENTRY_DSN`/`EXPO_PUBLIC_SENTRY_DSN`(Sentry, 7주차)은 SDK 자체가 DSN 미설정 시 스스로 비활성화하는 게 표준 동작이라 별도 `isConfigured()` 코드 없이도 같은 결과. `LIVEKIT_*`만 예외 — 음성 통화 자체가 LiveKit 없이는 성립하지 않아서 `VoiceCallController`가 `503`을 명시적으로 반환함(조용히 no-op이 아니라 클라이언트가 즉시 알 수 있게). 새 외부 연동을 추가할 때도 "기능이 부분적으로 대체 가능하면 graceful degrade, 아예 불가능하면 명시적 에러"라는 기준을 유지할 것.
 - **음성 통화는 새 실시간 채널을 만들지 않고 기존 REST를 재사용**: WS 스트리밍 경로(`sendMessage`)는 청크 콜백만 있고 "응답이 완전히 끝났다"는 시점을 기다리지 않고 resolve되므로, 오디오를 언제 가져올지 알 수 없어 음성 통화엔 못 씀. 대신 REST 전용 `sendMessageViaRest`를 신설해 재사용 — 새로운 실시간 파이프라인이 필요해 보여도 먼저 REST 재사용이 가능한지 검토할 것 (불필요한 WS 채널 증식 방지).
 - **TTS는 미리 합성해 저장하지 않고 요청 시점에 합성**: `MessageService#synthesizeAudio`는 오디오를 DB/디스크에 캐싱하지 않고 `GET /api/messages/{id}/audio` 호출마다 매번 Google Cloud TTS를 다시 호출한다. 포트폴리오 스코프에서 허용한 트레이드오프(반복 재생 시 비용/지연 증가) — 프로덕션이라면 결과를 캐싱해야 함.
 
