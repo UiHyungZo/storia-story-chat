@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- API 33+(Android 13)부터 알림 게시에 런타임 권한이 필요함. 여기서 선언하면
+         라이브러리 매니페스트가 앱 매니페스트에 자동 머지되고, 실제 요청(requestPermissions)은
+         HapticNotifierModule.notify() 호출 시점에 lazy하게 이 모듈 안에서 처리함
+         (iOS HapticNotifierModule.swift의 requestAuthorizationIfNeeded와 동일 타이밍). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+</manifest>

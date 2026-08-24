@@ -1,7 +1,7 @@
 {
   "name": "storia-native",
   "version": "1.0.0",
-  "description": "Local iOS native module (Swift, RCTBridgeModule): haptic feedback + foreground local notification when a new assistant message arrives.",
+  "description": "Local native module (iOS: Swift RCTBridgeModule, Android: Kotlin ReactContextBaseJavaModule): haptic feedback + local notification when a new assistant message arrives.",
   "main": "index.ts",
   "private": true
 }
