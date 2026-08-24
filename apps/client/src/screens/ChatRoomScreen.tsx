@@ -26,6 +26,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   const character = useCharacterStore((state) => state.getCharacterById(characterId));
   const messages = useConversationStore((state) => state.getMessages(characterId));
   const streamingContent = useConversationStore((state) => state.getStreamingContent(characterId));
+  const connectionStatus = useConversationStore((state) => state.getConnectionStatus(characterId));
   const isLoading = useConversationStore((state) => state.isLoading);
   const error = useConversationStore((state) => state.error);
   const loadMessages = useConversationStore((state) => state.loadMessages);
@@ -33,6 +34,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   const sendMessage = useConversationStore((state) => state.sendMessage);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<{ content: string; message: string } | null>(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: character?.name ?? "Chat" });
@@ -57,13 +59,16 @@ export function ChatRoomScreen({ route, navigation }: Props) {
     return reversed;
   }, [messages, streamingContent]);
 
-  const handleSend = async () => {
-    const trimmed = draft.trim();
+  const handleSend = async (retryContent?: string) => {
+    const trimmed = (retryContent ?? draft).trim();
     if (!trimmed || isSending) return;
-    setDraft("");
+    if (!retryContent) setDraft("");
+    setSendError(null);
     setIsSending(true);
     try {
       await sendMessage(characterId, trimmed);
+    } catch (err) {
+      setSendError({ content: trimmed, message: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsSending(false);
     }
@@ -77,7 +82,22 @@ export function ChatRoomScreen({ route, navigation }: Props) {
         keyboardVerticalOffset={80}
       >
         {isLoading && messages.length === 0 && <ActivityIndicator style={styles.centerBlock} />}
-        {error && <Text style={styles.error}>{error}</Text>}
+        {error && (
+          <Pressable
+            style={styles.errorBanner}
+            onPress={() => loadMessages(characterId)}
+            disabled={isLoading}
+          >
+            <Text style={styles.error}>{error}</Text>
+            <Text style={styles.retryText}>{isLoading ? "재시도 중…" : "다시 시도"}</Text>
+          </Pressable>
+        )}
+        {connectionStatus === "reconnecting" && (
+          <View style={styles.statusBanner}>
+            <ActivityIndicator size="small" color="#92400E" />
+            <Text style={styles.statusText}>연결이 끊겨 재연결 중입니다… (그동안 메시지는 일반 방식으로 전송돼요)</Text>
+          </View>
+        )}
         <FlatList
           style={styles.flex}
           data={displayMessages}
@@ -85,6 +105,14 @@ export function ChatRoomScreen({ route, navigation }: Props) {
           inverted
           renderItem={({ item }) => <MessageBubble message={item} />}
         />
+        {sendError && (
+          <Pressable style={styles.sendErrorBanner} onPress={() => handleSend(sendError.content)}>
+            <Text style={styles.error} numberOfLines={2}>
+              메시지 전송 실패: {sendError.message}
+            </Text>
+            <Text style={styles.retryText}>다시 시도</Text>
+          </Pressable>
+        )}
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
@@ -93,7 +121,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
             placeholder="메시지를 입력하세요"
             multiline
           />
-          <Pressable style={styles.sendButton} onPress={handleSend} disabled={isSending}>
+          <Pressable style={styles.sendButton} onPress={() => handleSend()} disabled={isSending}>
             <Text style={styles.sendButtonText}>전송</Text>
           </Pressable>
         </View>
@@ -113,10 +141,52 @@ const styles = StyleSheet.create({
   centerBlock: {
     marginTop: 24,
   },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#FEE2E2",
+  },
+  sendErrorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#FEE2E2",
+  },
   error: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flex: 1,
     color: "#DC2626",
+  },
+  retryText: {
+    marginLeft: 12,
+    color: "#B91C1C",
+    fontWeight: "600",
+  },
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#FEF3C7",
+  },
+  statusText: {
+    flex: 1,
+    color: "#92400E",
+    fontSize: 13,
   },
   inputRow: {
     flexDirection: "row",

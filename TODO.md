@@ -34,10 +34,18 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ## 3주차 — 안정성 & 동기화
 
-- [ ] 로딩/오류/재시도 UI
-- [ ] WebSocket 재연결 로직
-- [ ] DB 히스토리 저장/복원 검증
-- [ ] 로컬 캐시(AsyncStorage) 동기화
+- [x] 로딩/오류/재시도 UI — `CharacterListScreen`/`ChatRoomScreen`에 오류 배너 + "다시 시도" 버튼 추가(각각 `loadCharacters`/`loadMessages` 재호출). 메시지 전송 실패는 별도 배너로 표시하고 탭하면 같은 내용으로 재전송(`sendError` 상태), draft 유실 방지.
+- [x] WebSocket 재연결 로직 — `src/api/websocket.ts`가 `@stomp/stompjs`의 `reconnectDelay`/`maxReconnectDelay`/`reconnectTimeMode: EXPONENTIAL`로 드롭 후 지수 백오프 재연결을 켜고, 재연결마다 구독을 다시 검. `onConnectionStateChange`로 connected/reconnecting을 store에 반영해 `ChatRoomScreen`에 "재연결 중" 배너 표시. 재연결 대기 중에는 메시지 전송이 그때그때 REST로 개별 폴백하고, 소켓이 살아나면 다음 전송부터 자동으로 다시 WS 사용(캐시된 transport 대신 매 전송마다 실제 연결 상태를 확인하도록 변경). 화면 재진입 시에도 WS를 다시 시도하도록 `disconnect` 시 `transportByCharacterId` 초기화(이전엔 앱 생애주기 동안 한 번 rest로 굳어지면 다시 시도 안 하던 버그).
+  - 부수적으로 발견/수정: WS 전송이 연결 끊김으로 실패해 REST로 폴백할 때 낙관적으로 추가해둔 로컬 사용자 메시지를 지우지 않아 REST 응답의 사용자 메시지와 중복 렌더링되던 버그 수정.
+- [ ] DB 히스토리 저장/복원 검증 — **여전히 미검증** (이 머신에 Docker 없음, 사용자가 이번 세션에서 실행 검증 보류 선택). 코드 레벨 점검은 함: `ConversationService`/`MessageRepository`가 `createdAt` 오름차순으로 저장/조회해 클라이언트 기대(오름차순 응답을 화면에서 역순 렌더링)와 일치. 실제 왕복은 다음 세션에서 DB 기동 후 확인 필요.
+- [x] 로컬 캐시(AsyncStorage) 동기화 — `src/storage/cache.ts` 추가. `useCharacterStore`/`useConversationStore`가 로드 시작 시 캐시를 먼저 하이드레이션(즉시 렌더) 후 백그라운드로 fetch하고, 성공 시 캐시에 write-through(스트리밍 완료/REST 전송 성공 시점 포함). 네트워크 실패 시에도 캐시된 데이터는 화면에 남아 있음.
+
+### 검증 필요 (다음 세션 — 3주차, DB 기동 가능한 환경에서)
+
+- [ ] 이 머신엔 Docker가 없어 MariaDB를 못 띄웠음 — Homebrew로 MariaDB 설치 후 포트 3307로 별도 기동하거나 Docker Desktop 설치 후 `docker compose up`으로 DB 히스토리 저장/복원을 실제로 확인할 것
+- [ ] WS 재연결: 백엔드를 잠깐 내렸다 올려서 스트리밍 도중 연결이 끊겼을 때 "재연결 중" 배너가 뜨고, 그동안 전송은 REST로 개별 폴백되며, 재연결 성공 후 다음 전송부터 다시 스트리밍되는지 확인
+- [ ] 메시지 전송 실패 배너를 탭했을 때 동일 내용으로 재전송되는지, 목록/채팅방 오류 배너의 "다시 시도"가 정상 동작하는지 확인
+- [ ] 오프라인 상태로 앱을 재시작해 캐릭터 목록/채팅 히스토리가 AsyncStorage 캐시로부터 즉시 보이는지 확인
 
 ## 4주차 — Native Module & 푸시
 

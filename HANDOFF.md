@@ -2,29 +2,46 @@
 
 다음 세션(또는 다른 작업자)이 이 프로젝트를 이어받을 때 필요한 현재 상태 요약. 요구사항 전체는 [`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md), 구조는 [`docs/architecture/README.md`](./docs/architecture/README.md) 참고.
 
+## 참고사항 (재개 전 반드시 확인)
+
+- **git push 안 된 상태**: 로컬 `develop` 브랜치가 origin보다 커밋 여러 개 앞서 있음(1~3주차 작업 전부 미푸시). 이 머신에 GitHub 인증정보/`gh` CLI가 없어 push가 실패했었음 — origin에는 `develop` 브랜치 자체가 아직 없으므로 인증 해결 후 `git push -u origin develop`으로 최초 push 필요.
+- **이번 세션들은 코드만 작성, 실행 검증 전무**: docker compose, `gradlew bootRun`, `expo start` 중 아무것도 실제로 띄워보지 않음. 확인한 건 `gradlew compileJava`/`compileTestJava`와 `tsc --noEmit` 통과뿐 — 실제 API 왕복, 화면 동작, WebSocket 스트리밍은 전부 미검증.
+- **이 머신엔 Docker가 없음**: `docker compose up`으로 MariaDB를 못 띄움 (Homebrew mysql 9.7.1이 이미 로컬 3306 포트를 점유 중이고 MariaDB는 미설치). 3주차 세션에서 이 문제로 DB 관련 실행 검증(히스토리 저장/복원)을 보류함 — 사용자가 명시적으로 이번엔 건너뛰기로 선택. 다음 세션에서 Docker Desktop을 설치하거나 `brew install mariadb`로 포트 3307에 별도 인스턴스를 띄워서 검증할 것.
+- **`GEMINI_API_KEY` 미설정**: 아직 키를 발급받지 않음. 백엔드를 띄우기 전에 `export GEMINI_API_KEY=...` 필요 (없으면 채팅은 되지만 고정 안내 문구만 돌아옴).
+- **`apps/client/node_modules`는 타입체크 검증용으로 로컬에만 설치함**: `.gitignore` 처리되어 커밋엔 영향 없음. 새 환경/재클론 시 `npm install` 다시 필요.
+- 상세 검증 체크리스트는 [`TODO.md`](./TODO.md)의 "검증 필요" 섹션(1주차/2주차/3주차 각각) 참고.
+
 ## 현재 상태 (2026-08-24 기준)
 
-PRD v3 마일스톤 **1~2주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성).
+PRD v3 마일스톤 **1~3주차 코드 작성 완료, 로컬 실행 검증은 아직 안 함** (이번 세션들은 docker/서버 기동 없이 코드만 작성 — 3주차는 이 머신에 Docker가 없어 DB 검증을 사용자가 명시적으로 보류함).
 
 - **백엔드**: Spring Boot 3.x + JPA. `User`/`Character`/`Conversation`/`Message` 엔티티, 캐릭터 3종 시딩(`CharacterSeeder`), Swagger UI, `WebConfig`(로컬 개발용 CORS 전체 허용, `/api/**`).
   - REST: `GET /api/characters`, `GET /api/conversations/{characterId}/messages`, `POST /api/conversations/{characterId}/messages`(유저 메시지 저장 + Gemini 동기 호출로 어시스턴트 응답까지 한 번에 반환 — WS 실패 시 폴백 경로).
-  - **신규(2주차)**: WebSocket(STOMP) — `WebSocketConfig`(`/ws` 엔드포인트, SockJS 없이 raw STOMP), `ConversationStompController`(`/app/conversation/{characterId}/send` 수신 → Gemini 스트리밍 청크를 `/topic/conversation/{characterId}`로 발행). `GeminiService`가 WebClient(SSE)로 Gemini `streamGenerateContent` 호출 — `GEMINI_API_KEY` 환경변수 필요, 없으면 WS는 ERROR 이벤트, REST는 고정 안내 문구로 우아하게 저하됨.
-- **클라이언트**: 캐릭터 목록/채팅방 화면이 실제 백엔드를 호출. `src/api/`: `config.ts`(base URL 자동 분기), `deviceId.ts`(AsyncStorage UUID), `client.ts`(fetch 래퍼), `characters.ts`/`conversations.ts`(REST DTO 매핑), **신규** `websocket.ts`(`@stomp/stompjs` 기반 STOMP 클라이언트, 연결/구독/발행/해제). `useConversationStore`는 화면 진입 시 WS 연결을 1회 시도해 성공하면 스트리밍(`streamingByCharacterId`로 타이핑 효과 렌더링), 실패하면 그 세션 동안 REST(`postMessage`, 논스트리밍 전체 응답)로 전환. `ChatRoomScreen`은 화면 이탈 시 소켓을 정리(`disconnect`).
-- **DB**: 로컬 MariaDB(`docker-compose.yml`, 포트 3307). PostgreSQL → MariaDB 마이그레이션 완료 (커밋 `395b2ca` 이후).
+  - WebSocket(STOMP) — `WebSocketConfig`(`/ws` 엔드포인트, SockJS 없이 raw STOMP), `ConversationStompController`(`/app/conversation/{characterId}/send` 수신 → Gemini 스트리밍 청크를 `/topic/conversation/{characterId}`로 발행). `GeminiService`가 WebClient(SSE)로 Gemini `streamGenerateContent` 호출 — `GEMINI_API_KEY` 환경변수 필요, 없으면 WS는 ERROR 이벤트, REST는 고정 안내 문구로 우아하게 저하됨.
+  - 3주차에 백엔드 변경 없음 (안정성/동기화 작업은 전부 클라이언트 범위).
+- **클라이언트**: 캐릭터 목록/채팅방 화면이 실제 백엔드를 호출. `src/api/`: `config.ts`(base URL 자동 분기), `deviceId.ts`(AsyncStorage UUID), `client.ts`(fetch 래퍼), `characters.ts`/`conversations.ts`(REST DTO 매핑), `websocket.ts`(`@stomp/stompjs` 기반 STOMP 클라이언트).
+  - **신규(3주차)**: `websocket.ts`가 stompjs 내장 재연결(`reconnectDelay`/`maxReconnectDelay`/`reconnectTimeMode: EXPONENTIAL`)을 켜서, 연결이 살아있다가 끊기면 지수 백오프로 자동 재연결하고 재연결마다 구독을 다시 검. `onConnectionStateChange` 콜백으로 connected/reconnecting 상태를 노출.
+  - `useConversationStore`가 화면 진입 시 WS 연결을 1회 시도(기존과 동일)하지만, 전송할 때마다 캐시된 transport 값이 아니라 `isSocketConnected()`로 실제 연결 상태를 확인해 결정 — 재연결 대기 중엔 그 메시지만 REST로 개별 폴백하고, 소켓이 살아나면 다음 전송부터 자동으로 다시 스트리밍. `disconnect` 시 `transportByCharacterId`도 초기화해 다음 화면 진입 때 WS를 다시 시도함 (이전엔 앱 생애주기 동안 한 번 rest로 굳어지면 다시 시도 안 하던 버그였음).
+  - 로딩/오류/재시도 UI: `CharacterListScreen`/`ChatRoomScreen`에 오류 배너 + "다시 시도" 버튼, 메시지 전송 실패 전용 배너(탭하면 같은 내용 재전송, draft 유실 없음), WS 재연결 중 배너.
+  - 로컬 캐시: `src/storage/cache.ts`(AsyncStorage 기반 read/write 래퍼) — 캐릭터 목록/대화별 메시지를 fetch 성공 시 write-through, 로드 시작 시 먼저 캐시로 하이드레이션 후 백그라운드 fetch. 네트워크 실패해도 화면엔 마지막으로 본 데이터가 남아있음.
+  - 부수 수정: WS 전송이 연결 끊김으로 중간에 REST로 폴백할 때 낙관적으로 추가했던 로컬 사용자 메시지를 제거하지 않아 REST 응답과 중복 렌더링되던 버그를 고침.
+- **DB**: 로컬 MariaDB(`docker-compose.yml`, 포트 3307). PostgreSQL → MariaDB 마이그레이션 완료 (커밋 `395b2ca` 이후). **이 머신엔 Docker가 없어 3주차 세션에서 DB 관련 검증(히스토리 저장/복원)을 못 함** — 코드 레벨로는 `ConversationService`/`MessageRepository`가 `createdAt` 오름차순으로 저장/조회하는 것만 확인.
 - **WebRTC/TTS**: 전혀 구현 안 됨 (5~6주차 범위).
 
 ## 다음 작업 (바로 이어서 할 것)
 
-**아직 실행 검증이 안 됐다** — docker compose up, `GEMINI_API_KEY` 환경변수 설정 후 `gradlew bootRun`, `expo start`를 순서대로 띄워서 다음을 확인할 것:
+**아직 실행 검증이 안 됐다** — docker compose up(또는 이 머신처럼 Docker가 없으면 `brew install mariadb`로 포트 3307에 별도 기동), `GEMINI_API_KEY` 환경변수 설정 후 `gradlew bootRun`, `expo start`를 순서대로 띄워서 다음을 확인할 것:
 
 - 캐릭터 목록 조회 → 채팅방 진입 → 메시지 전송 → 스트리밍 타이핑 효과 → 히스토리 복원까지 왕복.
 - 백엔드를 내려서 WS 연결 실패를 강제한 뒤 REST 폴백(전체 응답 한 번에 반환)이 동작하는지.
+- **(3주차 신규)** 채팅 도중 백엔드를 잠깐 내렸다 올려서, 재연결 중 배너가 뜨고 그동안 전송이 REST로 개별 폴백되며, 재연결 성공 후 다시 스트리밍되는지.
+- **(3주차 신규)** 오프라인으로 앱을 재시작해 AsyncStorage 캐시로부터 캐릭터 목록/채팅 히스토리가 즉시 보이는지.
+- **(3주차 신규)** 메시지 전송 실패 배너 재시도, 목록/채팅방 로드 실패 배너 재시도가 정상 동작하는지.
 - `@stomp/stompjs`가 RN(Hermes)에서 폴리필 없이 붙는지 (문제 시 `TextEncoder`/`TextDecoder` 폴리필 검토).
 - 실기기 테스트라면 `apps/client/.env`에 `EXPO_PUBLIC_API_BASE_URL=http://<개발머신 LAN IP>:8080` 설정 필요 (WebSocket URL도 이 값에서 `http`→`ws`로 자동 치환됨).
 - 백엔드에 전역 예외 처리기가 없어 잘못된 `characterId` 등은 500으로 노출됨 (`docs/api.md` Error Handling Policy 참고) — 계속 범위 밖으로 남겨둠.
-- WS 스트리밍 도중 연결이 끊기는 시나리오의 재연결/재시도 로직은 3주차 범위로 남겨둠 (현재는 화면 진입 시 1회만 연결 시도).
 
-이후 순서는 [`TODO.md`](./TODO.md) 참고 (3주차: 안정성 & 동기화 — 로딩/오류/재시도 UI, WebSocket 재연결).
+이후 순서는 [`TODO.md`](./TODO.md) 참고 (4주차: Native Module & 푸시).
 
 ## 중요한 결정 사항 / 함정
 

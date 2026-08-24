@@ -60,4 +60,4 @@ Expo Go는 지원하지 않습니다 (커스텀 Native Module 사용 예정 — 
 
 ## 개발 현황
 
-Week 2 코드 작성 완료(실행 검증 전): RN 클라이언트(캐릭터 목록/채팅방 UI, REST + WebSocket 스트리밍 연동) + Spring Boot 백엔드(REST API, STOMP WebSocket, Gemini 스트리밍 연동, DB 스키마, 캐릭터 시딩, CORS). 상세 현황은 [HANDOFF](./HANDOFF.md) 참고.
+Week 3 코드 작성 완료(실행 검증 전): RN 클라이언트(캐릭터 목록/채팅방 UI, REST + WebSocket 스트리밍 연동, WebSocket 재연결, 로딩/오류/재시도 UI, AsyncStorage 로컬 캐시) + Spring Boot 백엔드(REST API, STOMP WebSocket, Gemini 스트리밍 연동, DB 스키마, 캐릭터 시딩, CORS). 상세 현황은 [HANDOFF](./HANDOFF.md) 참고.

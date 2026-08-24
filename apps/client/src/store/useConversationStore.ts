@@ -3,20 +3,25 @@ import { fetchMessages, postMessage } from "../api/conversations";
 import {
   connectConversationSocket,
   disconnectConversationSocket,
+  isSocketConnected,
   sendConversationMessage,
 } from "../api/websocket";
+import { messagesCacheKey, readCache, writeCache } from "../storage/cache";
 import { Message } from "../types";
 
-type Transport = "connecting" | "ws" | "rest";
+type Transport = "ws" | "rest";
+type ConnectionStatus = "connected" | "reconnecting";
 
 type ConversationStore = {
   messagesByCharacterId: Record<number, Message[]>;
   streamingByCharacterId: Record<number, string | undefined>;
   transportByCharacterId: Record<number, Transport | undefined>;
+  connectionStatusByCharacterId: Record<number, ConnectionStatus | undefined>;
   isLoading: boolean;
   error: string | null;
   getMessages: (characterId: number) => Message[];
   getStreamingContent: (characterId: number) => string | undefined;
+  getConnectionStatus: (characterId: number) => ConnectionStatus | undefined;
   loadMessages: (characterId: number) => Promise<void>;
   disconnect: (characterId: number) => void;
   sendMessage: (characterId: number, content: string) => Promise<void>;
@@ -28,11 +33,23 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   messagesByCharacterId: {},
   streamingByCharacterId: {},
   transportByCharacterId: {},
+  connectionStatusByCharacterId: {},
   isLoading: false,
   error: null,
   getMessages: (characterId) => get().messagesByCharacterId[characterId] ?? [],
   getStreamingContent: (characterId) => get().streamingByCharacterId[characterId],
+  getConnectionStatus: (characterId) => get().connectionStatusByCharacterId[characterId],
   loadMessages: async (characterId) => {
+    if (!get().messagesByCharacterId[characterId]) {
+      const cached = await readCache<Message[]>(messagesCacheKey(characterId));
+      // Guard against a fetch that already landed while we were reading the cache.
+      if (cached && !get().messagesByCharacterId[characterId]) {
+        set((state) => ({
+          messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: cached },
+        }));
+      }
+    }
+
     set({ isLoading: true, error: null });
     try {
       const messages = await fetchMessages(characterId);
@@ -40,6 +57,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: messages },
         isLoading: false,
       }));
+      writeCache(messagesCacheKey(characterId), messages);
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error), isLoading: false });
     }
@@ -47,16 +65,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   disconnect: (characterId) => {
     disconnectConversationSocket(characterId);
     set((state) => ({
+      connectionStatusByCharacterId: { ...state.connectionStatusByCharacterId, [characterId]: undefined },
+      // Re-decide ws-vs-rest on the next screen visit instead of sticking with
+      // whatever this session landed on for the app's whole lifetime.
       transportByCharacterId: { ...state.transportByCharacterId, [characterId]: undefined },
     }));
   },
   sendMessage: async (characterId, content) => {
-    let transport = get().transportByCharacterId[characterId];
-
-    if (!transport) {
-      set((state) => ({
-        transportByCharacterId: { ...state.transportByCharacterId, [characterId]: "connecting" },
-      }));
+    if (!get().transportByCharacterId[characterId]) {
+      let transport: Transport;
       try {
         await connectConversationSocket(characterId, {
           onChunk: (chunk) =>
@@ -66,21 +83,28 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                 [characterId]: (state.streamingByCharacterId[characterId] ?? "") + chunk,
               },
             })),
-          onDone: (message) =>
+          onDone: (message) => {
+            const assistantMessage: Message = {
+              id: message.id,
+              role: "assistant",
+              content: message.content,
+              createdAt: message.createdAt,
+            };
+            const messages = [...(get().messagesByCharacterId[characterId] ?? []), assistantMessage];
             set((state) => ({
-              messagesByCharacterId: {
-                ...state.messagesByCharacterId,
-                [characterId]: [
-                  ...(state.messagesByCharacterId[characterId] ?? []),
-                  { id: message.id, role: "assistant", content: message.content, createdAt: message.createdAt },
-                ],
-              },
+              messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: messages },
               streamingByCharacterId: { ...state.streamingByCharacterId, [characterId]: undefined },
-            })),
+            }));
+            writeCache(messagesCacheKey(characterId), messages);
+          },
           onError: (message) =>
             set((state) => ({
               error: message,
               streamingByCharacterId: { ...state.streamingByCharacterId, [characterId]: undefined },
+            })),
+          onConnectionStateChange: (status) =>
+            set((state) => ({
+              connectionStatusByCharacterId: { ...state.connectionStatusByCharacterId, [characterId]: status },
             })),
         });
         transport = "ws";
@@ -92,9 +116,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }));
     }
 
-    if (transport === "ws") {
+    // Re-check live socket state on every send rather than trusting the cached
+    // transport value — a WS session that dropped mid-stream and is now
+    // reconnecting in the background should fall back to REST per-message until
+    // it's actually back, then resume streaming on its own once it reconnects.
+    const useWs = get().transportByCharacterId[characterId] === "ws" && isSocketConnected(characterId);
+
+    if (useWs) {
+      const localId = nextLocalId--;
       const localMessage: Message = {
-        id: nextLocalId--,
+        id: localId,
         role: "user",
         content,
         createdAt: new Date().toISOString(),
@@ -109,16 +140,22 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const sent = await sendConversationMessage(characterId, content);
       if (sent) return;
 
-      // Socket dropped between connect and send — this one message falls back to REST.
-      transport = "rest";
+      // Socket dropped between the check above and the publish call — drop the
+      // optimistic bubble and fall through to REST so it isn't rendered twice
+      // once the REST call returns its own copy of the user message.
+      set((state) => ({
+        messagesByCharacterId: {
+          ...state.messagesByCharacterId,
+          [characterId]: (state.messagesByCharacterId[characterId] ?? []).filter((m) => m.id !== localId),
+        },
+      }));
     }
 
     const { userMessage, assistantMessage } = await postMessage(characterId, content);
+    const messages = [...(get().messagesByCharacterId[characterId] ?? []), userMessage, assistantMessage];
     set((state) => ({
-      messagesByCharacterId: {
-        ...state.messagesByCharacterId,
-        [characterId]: [...(state.messagesByCharacterId[characterId] ?? []), userMessage, assistantMessage],
-      },
+      messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: messages },
     }));
+    writeCache(messagesCacheKey(characterId), messages);
   },
 }));
