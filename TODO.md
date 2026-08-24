@@ -8,12 +8,12 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [x] 클라이언트 디바이스 ID 생성 및 영속화 (AsyncStorage) — `src/api/deviceId.ts`, `X-Device-Id` 헤더로 전송
 - [x] 메시지 전송용 REST 엔드포인트 추가 (`POST /api/conversations/{characterId}/messages`) — `ConversationService#postMessage` + 컨트롤러 매핑
 - [x] 백엔드 CORS 설정 — `WebConfig`(`/api/**` 전체 허용, 로컬 개발 전용)
-- [ ] **아직 코드만 작성, 실기기/에뮬레이터 확인 안 됨** — 다음 세션에서 docker compose up → gradlew bootRun → expo start로 실제 동작 검증 필요 (아래 "검증 필요" 참고)
+- [x] **(2026-08-24 실행 검증 완료)** Docker Desktop 실행 → `docker compose up` → `gradlew bootRun` → `expo run:ios`(iOS 시뮬레이터, iPhone 15 Pro)까지 이 프로젝트 최초로 실제 기동 확인. 과정에서 실제 버그 하나 발견/수정(아래 참고).
 
 ### 검증 필요 (다음 세션, 로컬 실행 후)
 
-- [ ] Android 에뮬레이터는 `10.0.2.2`, iOS 시뮬레이터는 `localhost`로 자동 분기(`src/api/config.ts`) — 실기기 테스트 시 `EXPO_PUBLIC_API_BASE_URL` 환경변수로 개발 머신 LAN IP를 넣어야 함 (자동 감지 불가)
-- [ ] 캐릭터 목록 → 채팅방 진입 → 메시지 전송 → 새로고침 후 히스토리 복원까지 실제 왕복 확인
+- [ ] Android 에뮬레이터는 `10.0.2.2`, iOS 시뮬레이터는 `localhost`로 자동 분기(`src/api/config.ts`) — 실기기 테스트 시 `EXPO_PUBLIC_API_BASE_URL` 환경변수로 개발 머신 LAN IP를 넣어야 함 (자동 감지 불가). iOS 시뮬레이터 기준(`localhost`)은 검증됨, LAN IP 경로는 미검증.
+- [x] **캐릭터 목록 → 채팅방 진입 → 메시지 전송 → 히스토리 복원까지 실제 왕복 확인함** (iOS 시뮬레이터). 이 과정에서 `useConversationStore.getMessages()`가 메시지 없을 때 `?? []`로 매번 새 배열을 반환해 Zustand 셀렉터 참조가 불안정해지고, 채팅방 진입 시 "Maximum update depth exceeded"로 **거의 항상 크래시하는 실제 버그**를 발견 — `EMPTY_MESSAGES` 상수로 고침(커밋 `e0ec8cb`). 앱 완전 종료 후 재시작 + 백엔드 완전 종료 후 재시작 두 경우 모두 DB에서 메시지가 정상 복원되는 것도 확인.
 - [ ] CORS 설정이 실제로 필요했는지(RN 네이티브는 CORS 영향 없음, Expo 웹/브라우저 디버깅 시나리오만 해당) 확인 후 불필요하면 제거 검토
 
 ## 2주차 — Gemini 연동 & WebSocket
@@ -22,28 +22,27 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [x] WebSocket(STOMP) 채널 구축 — `/app/conversation/{characterId}/send` → `/topic/conversation/{characterId}` (`WebSocketConfig`, `ConversationStompController`)
 - [x] 클라이언트 WebSocket 클라이언트 연동 + 스트리밍 청크 렌더링(타이핑 효과) — `src/api/websocket.ts`, `useConversationStore`의 `streamingByCharacterId`
 - [x] REST 폴백 경로 구현 (WebSocket 실패 시) — `POST /api/conversations/{characterId}/messages`도 Gemini를 동기 호출해 (논스트리밍) 응답을 반환하도록 변경, 클라이언트는 캐릭터별로 화면 진입 시 WS 연결을 1회 시도하고 실패하면 그 세션 동안 REST로 전환
-- [ ] **아직 코드만 작성, 실행 검증 안 됨** — 아래 "검증 필요" 참고
+- [x] **(2026-08-24 부분 검증)** `GEMINI_API_KEY` 미설정 상태로 `gradlew bootRun` 실행 확인 — REST(`postMessage`)는 고정 안내 문구로 정상 폴백하는 것을 curl과 실제 앱 둘 다에서 확인. WS `ERROR` 이벤트 자체(`ConversationStompController`가 빈 응답 시 `StreamEvent.error(...)` 발행)는 코드로만 확인, 실제 이벤트 수신은 미검증 — 아래 참고.
 
 ### 검증 필요 (다음 세션, 로컬 실행 후 — 2주차)
 
-- [ ] `GEMINI_API_KEY` 환경변수 발급/설정 후 `gradlew bootRun` — 키 없으면 WS는 ERROR 이벤트, REST는 고정 안내 문구로 폴백하는지 확인
-- [ ] 채팅방 진입 → 메시지 전송 → 청크가 실시간으로 쌓여 타이핑 효과가 보이는지, 완료 시 최종 메시지로 치환되는지 확인
+- [ ] `GEMINI_API_KEY` 실제 키 발급 후 스트리밍 청크가 실시간으로 쌓여 타이핑 효과가 보이는지, 완료 시 최종 메시지로 치환되는지 확인 (키 없이는 WS 스트리밍 콘텐츠 자체가 발생하지 않아 미검증)
 - [ ] 백엔드를 내려서 강제로 WS 연결 실패 상황을 만든 뒤 REST 폴백(전체 응답 한 번에 반환)이 정상 동작하는지 확인
-- [ ] `@stomp/stompjs`가 RN(Hermes) 환경에서 별도 폴리필 없이 붙는지 확인 — 문제 있으면 `TextEncoder`/`TextDecoder` 폴리필 필요할 수 있음
-- [ ] 현재는 화면 진입 시 WS 연결을 1회만 시도하고 세션 내내 그 결과(ws/rest)를 유지함 — 스트리밍 도중 연결이 끊기는 시나리오의 재시도/재연결은 3주차 범위로 남겨둠
+- [x] `@stomp/stompjs`가 RN(Hermes) 환경에서 별도 폴리필 없이 붙음 — 실제 앱에서 폴리필 관련 크래시 없이 STOMP 핸드셰이크 자체는 정상 동작(curl로 `/ws`에 직접 Upgrade 요청 시 `101` 응답도 별도 확인).
+- [x] **(2026-08-24 신규 발견)** 현재는 화면 진입 시 WS 연결을 1회만 시도하고 세션 내내 그 결과(ws/rest)를 유지하는데, 이 연결 시도에 4초 타임아웃(`CONNECT_TIMEOUT_MS`, `src/api/websocket.ts`)이 걸려있음 — 실제 앱을 콜드 스타트 직후 채팅방에 진입해 첫 메시지를 보낸 세션에서 이 타임아웃을 넘겨 **조용히 REST로 폴백된 것으로 추정**됨(DB에 저장된 응답 문구가 WS 경로의 에러 문구가 아니라 REST 전용 폴백 문구였음). 앱 시작 직후 첫 채팅에서 WS가 예상보다 자주 REST로 떨어질 수 있다는 뜻 — 타임아웃을 늘리거나 원인을 더 조사할 가치가 있어 보임. 스트리밍 도중 연결이 끊기는 시나리오의 재시도/재연결은 3주차 범위.
 
 ## 3주차 — 안정성 & 동기화
 
 - [x] 로딩/오류/재시도 UI — `CharacterListScreen`/`ChatRoomScreen`에 오류 배너 + "다시 시도" 버튼 추가(각각 `loadCharacters`/`loadMessages` 재호출). 메시지 전송 실패는 별도 배너로 표시하고 탭하면 같은 내용으로 재전송(`sendError` 상태), draft 유실 방지.
 - [x] WebSocket 재연결 로직 — `src/api/websocket.ts`가 `@stomp/stompjs`의 `reconnectDelay`/`maxReconnectDelay`/`reconnectTimeMode: EXPONENTIAL`로 드롭 후 지수 백오프 재연결을 켜고, 재연결마다 구독을 다시 검. `onConnectionStateChange`로 connected/reconnecting을 store에 반영해 `ChatRoomScreen`에 "재연결 중" 배너 표시. 재연결 대기 중에는 메시지 전송이 그때그때 REST로 개별 폴백하고, 소켓이 살아나면 다음 전송부터 자동으로 다시 WS 사용(캐시된 transport 대신 매 전송마다 실제 연결 상태를 확인하도록 변경). 화면 재진입 시에도 WS를 다시 시도하도록 `disconnect` 시 `transportByCharacterId` 초기화(이전엔 앱 생애주기 동안 한 번 rest로 굳어지면 다시 시도 안 하던 버그).
   - 부수적으로 발견/수정: WS 전송이 연결 끊김으로 실패해 REST로 폴백할 때 낙관적으로 추가해둔 로컬 사용자 메시지를 지우지 않아 REST 응답의 사용자 메시지와 중복 렌더링되던 버그 수정.
-- [ ] DB 히스토리 저장/복원 검증 — **여전히 미검증** (이 머신에 Docker 없음, 사용자가 이번 세션에서 실행 검증 보류 선택). 코드 레벨 점검은 함: `ConversationService`/`MessageRepository`가 `createdAt` 오름차순으로 저장/조회해 클라이언트 기대(오름차순 응답을 화면에서 역순 렌더링)와 일치. 실제 왕복은 다음 세션에서 DB 기동 후 확인 필요.
+- [x] **(2026-08-24 실행 검증 완료)** DB 히스토리 저장/복원 — Docker Desktop 설치 후 `docker compose up`으로 MariaDB 기동, 앱에서 실제로 보낸 메시지가 `createdAt` 오름차순으로 저장/조회되는 것을 DB 직접 쿼리 + `GET /api/conversations/{id}/messages` 양쪽으로 확인. **백엔드 프로세스를 완전히 껐다 켠 뒤에도, 앱을 완전히 종료 후 재시작한 뒤에도** 히스토리가 그대로 살아있는 것까지 확인.
 - [x] 로컬 캐시(AsyncStorage) 동기화 — `src/storage/cache.ts` 추가. `useCharacterStore`/`useConversationStore`가 로드 시작 시 캐시를 먼저 하이드레이션(즉시 렌더) 후 백그라운드로 fetch하고, 성공 시 캐시에 write-through(스트리밍 완료/REST 전송 성공 시점 포함). 네트워크 실패 시에도 캐시된 데이터는 화면에 남아 있음.
 
 ### 검증 필요 (다음 세션 — 3주차, DB 기동 가능한 환경에서)
 
-- [ ] 이 머신엔 Docker가 없어 MariaDB를 못 띄웠음 — Homebrew로 MariaDB 설치 후 포트 3307로 별도 기동하거나 Docker Desktop 설치 후 `docker compose up`으로 DB 히스토리 저장/복원을 실제로 확인할 것
-- [ ] WS 재연결: 백엔드를 잠깐 내렸다 올려서 스트리밍 도중 연결이 끊겼을 때 "재연결 중" 배너가 뜨고, 그동안 전송은 REST로 개별 폴백되며, 재연결 성공 후 다음 전송부터 다시 스트리밍되는지 확인
+- [x] Docker Desktop 설치 후 `docker compose up`으로 DB 히스토리 저장/복원 실제 확인 완료(위 참고).
+- [ ] WS 재연결 배너: 이번 세션엔 테스트 대상 세션이 애초에 WS가 아니라 REST를 쓰고 있었던 것으로 추정돼(위 2주차 신규 발견 참고) 배너 자체는 못 띄워봄 — 실제로 WS 연결이 살아있는 상태에서 백엔드를 내렸다 올렸을 때 "재연결 중" 배너가 뜨고, 그동안 전송은 REST로 개별 폴백되며, 재연결 성공 후 다음 전송부터 다시 스트리밍되는지는 여전히 미검증.
 - [ ] 메시지 전송 실패 배너를 탭했을 때 동일 내용으로 재전송되는지, 목록/채팅방 오류 배너의 "다시 시도"가 정상 동작하는지 확인
 - [ ] 오프라인 상태로 앱을 재시작해 캐릭터 목록/채팅 히스토리가 AsyncStorage 캐시로부터 즉시 보이는지 확인
 
@@ -51,7 +50,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 - [x] Swift Native Module (Haptic + 로컬 알림) — `apps/client/modules/storia-native/`에 로컬 Expo 모듈로 추가(클래식 `RCTBridgeModule` 패턴: `HapticNotifierModule.swift` + `HapticNotifierModule.m`의 `RCT_EXTERN_MODULE`/`RCT_EXTERN_METHOD`). `NativeModules.HapticNotifier.notify(title, body)`로 노출되고, 호출 시 `UINotificationFeedbackGenerator`로 햅틱 + `UNUserNotificationCenter`로 포그라운드에서도 보이는 로컬 알림(배너)을 띄움. `useConversationStore`가 어시스턴트 응답이 도착하는 두 지점(WS `onDone`, REST `postMessage` 성공) 모두에서 호출.
   - **이 프로젝트는 `ios/`를 커밋하지 않고 `expo prebuild`로 매번 재생성하는 구조**라서, 네이티브 코드를 `ios/` 안에 직접 넣으면 다음 prebuild 때 사라짐. 대신 Expo가 기본으로 찾는 `./modules` 경로에 로컬 모듈로 얹어서 커밋되고 prebuild에도 살아남게 함 (`expo-modules-autolinking`이 자동으로 CocoaPod으로 링크).
-  - **미검증**: 이 머신엔 Xcode(Command Line Tools만 있음)와 CocoaPods가 없어 실제 빌드/실행 확인은 못 함. `npx expo prebuild --platform ios --no-install`로 `ios/` 프로젝트 골격이 생성되는 것까지만 확인(생성 후 삭제함 — 실제 pod install/빌드는 다음 세션에서 Xcode+CocoaPods 있는 환경에서 필요).
+  - **(2026-08-24 실행 검증 완료)** Xcode 26.4.0(전체)+CocoaPods가 이후 이 머신에 설치됨. `npx expo prebuild --platform ios --clean` → `expo run:ios`로 실제 pod install/컴파일/링크/시뮬레이터(iPhone 15 Pro) 실행까지 확인. 앱에서 실제로 어시스턴트 응답을 받을 때마다 `NativeModules.HapticNotifier.notify()`가 호출됐고(에러 로그 없음, JS단에서 정상 호출됨) 크래시 없이 통과 — 다만 실제 햅틱 진동/알림 배너가 화면에 뜨는 것 자체를 스크린샷으로 정확한 타이밍에 캡처하진 못해서 눈으로 직접 확인하진 않음.
 - [x] **(신규, 오늘 추가) Kotlin Native Module (Android)** — PRD 9절에서 원래 범위 제외였던 항목을 뒤집고 구현(PRD 갱신 완료). `android/src/main/java/com/storianative/HapticNotifierModule.kt` + `HapticNotifierPackage.kt` — iOS와 대칭되는 클래식 `ReactContextBaseJavaModule`/`ReactPackage` 패턴, 동일한 `NativeModules.HapticNotifier.notify()` 브리지 이름을 노출해 `index.ts`가 플랫폼 분기 없이 호출. `Vibrator`/`VibratorManager`로 진동, `NotificationManagerCompat`으로 알림. `POST_NOTIFICATIONS`(API 33+) 권한은 iOS와 동일하게 첫 알림 시점에 lazy 요청. `expo-module.config.json`을 `"platforms": ["ios", "android"]`로 갱신.
   - **미검증**: 이 머신엔 Android SDK/에뮬레이터/`kotlinc`가 없어 실제 빌드·링크·동작 확인 못 함 — iOS와 동일한 상황.
 - [x] FCM 원격 푸시 (백엔드 Admin SDK) — **백엔드만** 구현, 클라이언트 SDK 연동은 보류(아래 참고).
@@ -66,8 +65,8 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [ ] Firebase 프로젝트 생성 → 서비스 계정 JSON 발급(`FIREBASE_CREDENTIALS_PATH`로 백엔드에 주입) + iOS 앱 등록(`GoogleService-Info.plist`) + APNs Auth Key 업로드
 - [ ] 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가, 알림 권한 요청 후 발급받은 토큰을 앱 시작 시 `PUT /api/devices/token`으로 전송하는 API 래퍼 작성(`src/api/devices.ts` 등, `characters.ts`/`conversations.ts` 패턴 참고)
 - [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인
-- [ ] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈이 정상 링크·컴파일되는지, 실제로 Haptic + 포그라운드 로컬 알림이 뜨는지 확인
-- [ ] **(신규)** Android SDK/에뮬레이터 있는 환경에서 `npx expo prebuild`/`expo run:android`로 `storia-native`의 Kotlin 모듈이 정상 링크·컴파일되는지, 진동 + 알림(API 33+ 권한 프롬프트 포함)이 뜨는지 확인
+- [x] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈 링크·컴파일 확인 완료(위 참고). 실제 햅틱 진동/알림 배너가 화면에 뜨는지 눈으로 직접 보는 것만 남음.
+- [ ] **(신규)** Android SDK/에뮬레이터 있는 환경에서 `npx expo prebuild`/`expo run:android`로 `storia-native`의 Kotlin 모듈이 정상 링크·컴파일되는지, 진동 + 알림(API 33+ 권한 프롬프트 포함)이 뜨는지 확인 — 이 머신엔 여전히 Android SDK 없음
 
 ## 5주차 — 음성 통화, "축소판 A안"으로 확장
 
@@ -83,14 +82,14 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - **백엔드**: `io.livekit:livekit-server:0.15.0` 의존성(실제 jar를 `javap`으로 디컴파일해 API 시그니처 확인 후 작성 — 문서화가 얇은 SDK라 웹 검색만으로는 부족했음). `LiveKitProperties`(host/apiKey/apiSecret/egressAudioWsUrl, `LIVEKIT_*` 미설정 시 비활성화), `voice/` 패키지(`VoiceCallService`, `VoiceTurnSession`/`VoiceTurnRegistry` — 턴별 오디오 버퍼는 DB 아닌 인메모리), `VoiceEgressWebSocketHandler`(STOMP와 별개인 raw WebSocket, `/egress/audio` — LiveKit이 여기로 접속해 PCM 프레임을 보냄), `SttProperties`/`SttService`(Google Cloud Speech-to-Text 배치 인식, `STT_API_KEY` 미설정 시 `null`), `VoiceCallController`(`POST /api/calls/{characterId}/token`, `POST /api/calls/{characterId}/turns`, `GET /api/calls/turns/{turnId}`).
   - **클라이언트**: `@livekit/react-native` + `livekit-client` + `@livekit/react-native-webrtc` + config plugin들(`@livekit/react-native-expo-plugin`, `@config-plugins/react-native-webrtc`) 설치. `src/api/calls.ts`(토큰 발급/턴 시작/상태 폴링), `useVoiceCallStore`를 LiveKit 기반으로 재작성(`room.localParticipant.setMicrophoneEnabled()`로 마이크 트랙 publish/unpublish, unpublish가 곧 "턴 종료" 신호). `VoiceCallOverlay`/`ChatRoomScreen`은 그대로(스토어 인터페이스 유지).
   - **왜 S3/클라우드 스토리지가 필요 없는가**: LiveKit Track Egress가 파일 저장 없이 **WebSocket으로 raw PCM을 직접 스트리밍**해주는 옵션을 지원해서(`pcm_s16le`, 보통 48kHz), 백엔드가 그 WS를 직접 받아 처리 — 별도 클라우드 스토리지 계정 불필요.
-  - **미검증 (다음 세션)**: 이 머신엔 Xcode/CocoaPods가 없어 LiveKit RN SDK/오디오 재생 네이티브 동작 전혀 확인 못 함. `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 전부 미설정이라 실제 통화 왕복도 미검증. `gradlew compileJava`/`compileTestJava`(livekit-server jar를 `javap`으로 실제 확인하며 작성해 1회 컴파일에 성공), `tsc --noEmit` 통과만 확인.
+  - **(2026-08-24 부분 검증)** Xcode+CocoaPods가 이후 이 머신에 설치돼 LiveKit RN SDK(`@livekit/react-native`, `@livekit/react-native-webrtc`, `LiveKitExpoPlugin`)가 `expo run:ios` 빌드에서 실제로 정상 링크·컴파일되는 것까지 확인함(앱 자체가 정상 기동). `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 전부 여전히 미설정이라 실제 통화 왕복(토큰 발급~room 연결~STT~TTS)은 여전히 미검증. `gradlew compileJava`/`compileTestJava`(livekit-server jar를 `javap`으로 실제 확인하며 작성해 1회 컴파일에 성공), `tsc --noEmit` 통과만 확인.
 
 ### 남은 작업 (다음 세션 — 자격증명/환경 준비된 뒤)
 
 - [ ] LiveKit Cloud 프로젝트 생성(무료 티어) → `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 백엔드에 주입
 - [ ] 로컬 개발용 공인 접근 가능한 터널(예: ngrok) 준비 → `LIVEKIT_EGRESS_AUDIO_WS_URL`을 그 터널 주소로 설정 (LiveKit Cloud가 `localhost`로 못 붙기 때문 — HANDOFF.md 참고)
 - [ ] Google Cloud STT/TTS API 키 발급 → `STT_API_KEY`/`TTS_API_KEY` 설정
-- [ ] Xcode+CocoaPods 있는 환경에서 `expo prebuild`/`expo run:ios`로 LiveKit RN SDK가 정상 링크되는지 확인
+- [x] Xcode+CocoaPods 있는 환경에서 `expo prebuild`/`expo run:ios`로 LiveKit RN SDK가 정상 링크·컴파일되는 것 확인 완료(위 참고)
 - [ ] 실제 통화 왕복: 통화 버튼 → 토큰 발급 → room 연결 → 마이크 publish → egress 시작 → 말하고 unpublish → 폴링 → STT 텍스트 정확도 → TTS 오디오 재생까지 확인
 - [ ] `livekit-server` SDK의 `startTrackEgress`/`AccessToken` grant 구성이 실제 LiveKit 서버 응답과 맞는지(`javap`로 시그니처만 확인했고 런타임 동작은 미검증) 확인
 - [ ] **시간이 남으면 — 완전한 양방향 실시간(원래 정의의 A안) 확장**: 지금 축소판은 응답을 오디오 URL로 반환하고 클라이언트가 별도로 재생하는데, 이걸 서버가 합성한 TTS를 그 LiveKit 세션에 오디오 트랙으로 다시 publish해서 실시간으로 들려주는 것까지 가는 확장. 리서치 스파이크에서 확인한 핵심 리스크: 이 "서버가 라이브 세션에 오디오 되쏘기" 부분은 LiveKit도 보통 Python/Node **Agent SDK**로 처리하고, 순수 JVM(Spring Boot)에서 하는 표준 경로가 없음. 시도한다면:
@@ -116,7 +115,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - **백엔드**: `io.sentry:sentry-spring-boot-4:8.50.1` — Spring Boot 4 전용 아티팩트로, 구버전 가이드에 나오는 `sentry-spring-boot-starter-jakarta`(Spring Boot 3용)를 그대로 쓰면 안 됨(웹 검색으로 확인). `application.yml`에 `sentry.dsn`(`SENTRY_DSN` 환경변수)/`sentry.environment`(`SENTRY_ENVIRONMENT`, 기본 `local`)/`sentry.traces-sample-rate` 추가.
   - **클라이언트**: `npx expo install @sentry/react-native`로 SDK 57 호환 버전(`~7.11.0`) 설치 — 설치 시점에 Expo SDK 57 호환성 관련 GitHub 이슈(#6384)가 열려있는 걸 먼저 확인했으나, 실제 설치·`tsc --noEmit`·`npm test` 전부 문제없이 통과해 그대로 채택. `app.json` plugins에 `@sentry/react-native` 자동 추가됨(`expo install`이 처리). `App.tsx`에서 `Sentry.init({ dsn, enabled: Boolean(dsn) })` 호출 + `Sentry.wrap(App)`으로 루트 컴포넌트 감싸 자동 계측(터치/네비게이션) 활성화. DSN은 `EXPO_PUBLIC_SENTRY_DSN` 환경변수.
   - **미검증**: 실제 Sentry 프로젝트/DSN이 없어 이벤트가 실제로 대시보드에 도착하는지는 확인 못 함 — 다음 세션에서 Sentry 프로젝트 생성 후 확인 필요.
-- [x] **(신규) 전역 REST 예외 처리기** — `GlobalExceptionHandler`(`@RestControllerAdvice`)로 잘못된 `characterId` 등 처리 안 된 예외가 그대로 500으로 노출되던 문제 해결(아래 참고용으로 HANDOFF.md에 "범위 밖"으로 남아있던 항목이었음). `ResourceNotFoundException` 등을 상태 코드 + `{code, message}` 구조화된 응답으로 매핑, `docs/error-handling.md`에 엔드포인트별 에러 케이스 문서화. `GlobalExceptionHandlerTest` 추가.
+- [x] **(신규) 전역 REST 예외 처리기** — `GlobalExceptionHandler`(`@RestControllerAdvice`)로 잘못된 `characterId` 등 처리 안 된 예외가 그대로 500으로 노출되던 문제 해결(아래 참고용으로 HANDOFF.md에 "범위 밖"으로 남아있던 항목이었음). `ResourceNotFoundException` 등을 상태 코드 + `{code, message}` 구조화된 응답으로 매핑, `docs/error-handling.md`에 엔드포인트별 에러 케이스 문서화. `GlobalExceptionHandlerTest` 추가. **(2026-08-24 실행 검증 완료)** curl로 실제 확인: 잘못된 characterId → `404 {"code":"NOT_FOUND",...}`, `X-Device-Id` 헤더 누락 → `400 {"code":"MISSING_HEADER",...}`, 유효성 검증 실패 → `400 {"code":"VALIDATION_ERROR",...}` — 전부 구조화된 응답으로 정상 동작.
 - [ ] 에러 시나리오 검증 (WebRTC 연결 실패 포함 — LiveKit room 연결 실패, Track Egress WebSocket 끊김, 턴 타임아웃 등 5주차에서 새로 생긴 실패 지점 포함)
 - [x] **테스트 코드 (백엔드 JUnit5+Spring Boot Test, 클라이언트 Jest) — 외부 자원(Docker/Xcode/계정) 없이 이 머신에서 실제로 실행·통과까지 확인함.**
   - **백엔드(18개, `./gradlew test`)**: `MessageRepositoryTest`(`@DataJpaTest` + H2 인메모리 — 3주차부터 미검증으로 남아있던 "메시지가 `createdAt` 오름차순으로 저장/조회되는지"를 처음으로 실제 실행 검증함), `ConversationServiceTest`/`CharacterServiceTest`/`MessageServiceTest`(Mockito 단위 테스트), `TtsServiceTest`/`SttServiceTest`(자격증명 미설정 시 WebClient를 아예 호출하지 않고 graceful degrade하는지 검증), `CharacterControllerTest`(`@WebMvcTest` + `@MockitoBean` — Spring Boot 4에서 `@MockBean`이 제거되고 `org.springframework.test.context.bean.override.mockito.MockitoBean`으로 바뀜, `javap`로 확인 후 사용). `com.h2database:h2`를 `testRuntimeOnly`로 추가하고 `src/test/resources/application.yml`로 테스트 시 datasource를 H2로 자동 오버라이드(테스트 클래스패스가 메인보다 우선순위가 높아 별도 프로파일 지정 없이 적용됨) — 로컬에 MariaDB가 없어도 전체 테스트 스위트가 항상 돌아가게 함(7주차 CI 파이프라인에도 그대로 재사용 가능).
