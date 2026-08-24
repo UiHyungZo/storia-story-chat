@@ -28,6 +28,13 @@ public class ConversationService {
         return messageRepository.findByConversationIdOrderByCreatedAtAsc(conversation.getId());
     }
 
+    @Transactional
+    public Message postMessage(String deviceId, Long characterId, String content) {
+        Conversation conversation = getOrCreateConversation(deviceId, characterId);
+        Message message = new Message(conversation, Message.Role.USER, content);
+        return messageRepository.save(message);
+    }
+
     private Conversation getOrCreateConversation(String deviceId, Long characterId) {
         User user = userRepository.findByDeviceId(deviceId)
                 .orElseGet(() -> userRepository.save(new User(deviceId)));

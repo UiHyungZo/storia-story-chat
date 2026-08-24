@@ -1,17 +1,15 @@
 export type Character = {
-  id: string;
+  id: number;
   name: string;
   concept: string;
-  avatarColor: string;
-  lastMessagePreview?: string;
-  lastMessageAt?: string;
+  avatarUrl: string | null;
+  ttsVoiceId: string | null;
 };
 
 export type MessageRole = "user" | "assistant";
 
 export type Message = {
-  id: string;
-  conversationId: string;
+  id: number;
   role: MessageRole;
   content: string;
   createdAt: string;
@@ -19,5 +17,5 @@ export type Message = {
 
 export type RootStackParamList = {
   CharacterList: undefined;
-  ChatRoom: { characterId: string };
+  ChatRoom: { characterId: number };
 };

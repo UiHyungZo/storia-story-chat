@@ -17,6 +17,11 @@ docs/           # ERD, API 명세, 아키텍처 다이어그램
 
 - [아키텍처](./docs/architecture/README.md) — 현재 구현 상태 및 목표 아키텍처(WebSocket/WebRTC)
 - [ERD](./docs/erd/README.md)
+- [API](./docs/api.md) — REST 엔드포인트, 레이어 흐름, WebSocket/WebRTC 연동 정책
+- [의사결정 기록(ADR)](./docs/decisions.md)
+- [테스트 정책](./docs/testing.md)
+- [HANDOFF](./HANDOFF.md) — 현재 진행 상태 및 인계 사항
+- [TODO](./TODO.md) — 남은 작업 목록
 
 ## 로컬 실행
 
@@ -48,4 +53,4 @@ Expo Go는 지원하지 않습니다 (커스텀 Native Module 사용 예정 — 
 
 ## 개발 현황
 
-Week 1 완료: RN 클라이언트(캐릭터 목록/채팅방 UI, 더미 데이터) + Spring Boot 백엔드(REST API, DB 스키마, 캐릭터 시딩) 스캐폴딩.
+Week 1 완료: RN 클라이언트(캐릭터 목록/채팅방 UI, 백엔드 REST API 연동) + Spring Boot 백엔드(REST API 조회/전송, DB 스키마, 캐릭터 시딩, CORS) 스캐폴딩. 상세 현황은 [HANDOFF](./HANDOFF.md) 참고.

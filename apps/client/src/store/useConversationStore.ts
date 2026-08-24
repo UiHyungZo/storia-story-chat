@@ -1,28 +1,39 @@
 import { create } from "zustand";
-import { DUMMY_MESSAGES } from "../constants/dummyCharacters";
+import { fetchMessages, postMessage } from "../api/conversations";
 import { Message } from "../types";
 
 type ConversationStore = {
-  messagesByConversationId: Record<string, Message[]>;
-  getMessages: (conversationId: string) => Message[];
-  sendMessage: (conversationId: string, content: string) => void;
+  messagesByCharacterId: Record<number, Message[]>;
+  isLoading: boolean;
+  error: string | null;
+  getMessages: (characterId: number) => Message[];
+  loadMessages: (characterId: number) => Promise<void>;
+  sendMessage: (characterId: number, content: string) => Promise<void>;
 };
 
 export const useConversationStore = create<ConversationStore>((set, get) => ({
-  messagesByConversationId: DUMMY_MESSAGES,
-  getMessages: (conversationId) => get().messagesByConversationId[conversationId] ?? [],
-  sendMessage: (conversationId, content) => {
-    const newMessage: Message = {
-      id: `${conversationId}-${Date.now()}`,
-      conversationId,
-      role: "user",
-      content,
-      createdAt: new Date().toISOString(),
-    };
+  messagesByCharacterId: {},
+  isLoading: false,
+  error: null,
+  getMessages: (characterId) => get().messagesByCharacterId[characterId] ?? [],
+  loadMessages: async (characterId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const messages = await fetchMessages(characterId);
+      set((state) => ({
+        messagesByCharacterId: { ...state.messagesByCharacterId, [characterId]: messages },
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error), isLoading: false });
+    }
+  },
+  sendMessage: async (characterId, content) => {
+    const message = await postMessage(characterId, content);
     set((state) => ({
-      messagesByConversationId: {
-        ...state.messagesByConversationId,
-        [conversationId]: [...(state.messagesByConversationId[conversationId] ?? []), newMessage],
+      messagesByCharacterId: {
+        ...state.messagesByCharacterId,
+        [characterId]: [...(state.messagesByCharacterId[characterId] ?? []), message],
       },
     }));
   },

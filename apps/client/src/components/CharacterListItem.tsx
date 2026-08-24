@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Character } from "../types";
+import { avatarColorFor } from "../utils/avatarColor";
 
 type Props = {
   character: Character;
@@ -9,11 +10,11 @@ type Props = {
 export function CharacterListItem({ character, onPress }: Props) {
   return (
     <Pressable style={styles.container} onPress={onPress}>
-      <View style={[styles.avatar, { backgroundColor: character.avatarColor }]} />
+      <View style={[styles.avatar, { backgroundColor: avatarColorFor(character.id) }]} />
       <View style={styles.textContainer}>
         <Text style={styles.name}>{character.name}</Text>
         <Text style={styles.preview} numberOfLines={1}>
-          {character.lastMessagePreview ?? character.concept}
+          {character.concept}
         </Text>
       </View>
     </Pressable>

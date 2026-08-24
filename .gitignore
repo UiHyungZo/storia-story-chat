@@ -38,5 +38,8 @@ HELP.md
 .vscode/
 *.iml
 
+# OMC (Claude Code plugin) local session state
+.omc/
+
 # Docker volumes / local env
 .env.*.local

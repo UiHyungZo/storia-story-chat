@@ -1,6 +1,7 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -22,18 +23,31 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   const { characterId } = route.params;
   const character = useCharacterStore((state) => state.getCharacterById(characterId));
   const messages = useConversationStore((state) => state.getMessages(characterId));
+  const isLoading = useConversationStore((state) => state.isLoading);
+  const error = useConversationStore((state) => state.error);
+  const loadMessages = useConversationStore((state) => state.loadMessages);
   const sendMessage = useConversationStore((state) => state.sendMessage);
   const [draft, setDraft] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: character?.name ?? "Chat" });
   }, [navigation, character]);
 
-  const handleSend = () => {
+  useEffect(() => {
+    loadMessages(characterId);
+  }, [characterId, loadMessages]);
+
+  const handleSend = async () => {
     const trimmed = draft.trim();
-    if (!trimmed) return;
-    sendMessage(characterId, trimmed);
+    if (!trimmed || isSending) return;
     setDraft("");
+    setIsSending(true);
+    try {
+      await sendMessage(characterId, trimmed);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -43,10 +57,12 @@ export function ChatRoomScreen({ route, navigation }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={80}
       >
+        {isLoading && messages.length === 0 && <ActivityIndicator style={styles.centerBlock} />}
+        {error && <Text style={styles.error}>{error}</Text>}
         <FlatList
           style={styles.flex}
           data={[...messages].reverse()}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id.toString()}
           inverted
           renderItem={({ item }) => <MessageBubble message={item} />}
         />
@@ -58,7 +74,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
             placeholder="메시지를 입력하세요"
             multiline
           />
-          <Pressable style={styles.sendButton} onPress={handleSend}>
+          <Pressable style={styles.sendButton} onPress={handleSend} disabled={isSending}>
             <Text style={styles.sendButtonText}>전송</Text>
           </Pressable>
         </View>
@@ -74,6 +90,14 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  centerBlock: {
+    marginTop: 24,
+  },
+  error: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    color: "#DC2626",
   },
   inputRow: {
     flexDirection: "row",
