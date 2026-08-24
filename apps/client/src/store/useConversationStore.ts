@@ -44,6 +44,8 @@ type ConversationStore = {
 
 let nextLocalId = -1;
 
+const EMPTY_MESSAGES: Message[] = [];
+
 export const useConversationStore = create<ConversationStore>((set, get) => {
   const sendViaRest = async (characterId: number, content: string): Promise<Message> => {
     const { userMessage, assistantMessage } = await postMessage(characterId, content);
@@ -63,7 +65,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => {
   connectionStatusByCharacterId: {},
   isLoading: false,
   error: null,
-  getMessages: (characterId) => get().messagesByCharacterId[characterId] ?? [],
+  getMessages: (characterId) => get().messagesByCharacterId[characterId] ?? EMPTY_MESSAGES,
   getStreamingContent: (characterId) => get().streamingByCharacterId[characterId],
   getConnectionStatus: (characterId) => get().connectionStatusByCharacterId[characterId],
   loadMessages: async (characterId) => {
