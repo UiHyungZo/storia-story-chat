@@ -70,6 +70,8 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
 
 이어서 **Sentry 연동**(클라이언트 + 백엔드)도 완료. DSN 미설정 시 SDK가 스스로 비활성화되는 게 표준 동작이라 다른 외부 연동과 동일한 graceful-degradation 패턴을 그대로 따름 — 새 가드 코드 불필요. 백엔드는 Spring Boot 4 전용 아티팩트(`io.sentry:sentry-spring-boot-4`, 구버전 가이드의 `sentry-spring-boot-starter-jakarta`는 Spring Boot 3용이라 안 맞음)를 웹 검색으로 확인 후 사용. 클라이언트는 설치 시점에 `@sentry/react-native`의 Expo SDK 57 호환성 이슈(GitHub #6384)가 열려있는 걸 먼저 확인했지만, 실제 설치·타입체크·테스트가 전부 문제없이 통과해 그대로 채택함. 실제 Sentry 프로젝트/DSN이 없어 이벤트 도착 자체는 미검증.
 
+마지막으로 **GitHub Actions CI**(`.github/workflows/ci.yml`, 백엔드/클라이언트 각각 test job)와 **백엔드 Dockerfile**을 추가. 계정/자격증명이 필요 없는 부분만 우선 완성했고, Fastlane·실제 클라우드 배포·CD는 Apple Developer/AWS/GCP 계정이 있어야 의미 있는 코드가 나오는 데다 실배포는 비용·되돌리기 어려움이 있어 사용자 승인 없이 진행하지 않기로 하고 보류함(`TODO.md` 7주차 참고). Dockerfile은 이 머신에 Docker가 없어 `docker build` 자체는 미검증.
+
 ## 중요한 결정 사항 / 함정
 
 - **MariaDB 예약어 회피**: `User` → `app_user` 테이블, `Character` → `story_character` 테이블로 매핑. 새 엔티티 추가 시 MariaDB/MySQL 예약어(`USER`, `CHARACTER`, `GROUP`, `ORDER` 등)와 충돌하는 이름은 `@Table(name = ...)`로 명시적으로 회피할 것.
