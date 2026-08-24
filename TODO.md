@@ -2,6 +2,8 @@
 
 PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. 완료된 항목은 커밋 로그 참고, 여기는 남은 작업만 추적.
 
+**(2026-08-24 세션 종료)** 다음 세션 시작 전: Docker(`docker compose up`)/백엔드(`export GEMINI_API_KEY=...` 후 `gradlew bootRun`)/Android 에뮬레이터 전부 재기동 필요(로컬 프로세스라 컴퓨터/세션 종료 시 꺼짐). 최우선 남은 작업은 4주차의 **FCM 서비스 계정 JSON** — 받으면 바로 실 발송 검증 가능. 상세는 [`HANDOFF.md`](./HANDOFF.md) 참고.
+
 ## 지금 당장 (1주차 마무리 갭)
 
 - [x] 클라이언트에서 실제 백엔드 REST API 호출로 전환 (`GET /api/characters`, `GET /api/conversations/{characterId}/messages`) — `dummyCharacters.ts` 제거, `src/api/` 계층 추가

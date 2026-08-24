@@ -4,6 +4,7 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-08-24 세션 종료 시점 상태)** 오늘 세션은 여기서 마무리. 로컬에 계속 떠있던 것들: 백엔드(`GEMINI_API_KEY` export한 채로 `gradlew bootRun`, PID로 떠있음), Android 에뮬레이터(`storia_test` AVD), Docker MariaDB 컨테이너 — **다음 세션 시작 시 전부 재기동 필요**(꺼져있을 가능성 높음): `docker compose up` → `export GEMINI_API_KEY=...` 후 `gradlew bootRun` → 에뮬레이터는 Android Studio나 `emulator -avd storia_test`로. 다음 세션 우선순위는 아래 "다음 작업"의 **서비스 계정 JSON** 항목(받으면 바로 FCM 실 발송 검증 가능) 참고.
 - **(2026-08-24, 이 프로젝트 최초 실행 검증 완료)** git push 완료됨(로컬 `develop` == `origin/develop`). Docker Desktop 실행(데몬 기동) → `docker compose up`(MariaDB) → `gradlew bootRun` → `npx expo run:ios`(iPhone 15 Pro 시뮬레이터)까지 전부 실제로 띄워서 캐릭터 목록 조회 → 채팅방 진입 → 메시지 전송 → 응답 수신 → 앱/백엔드 재시작 후 히스토리 복원까지 실제 왕복 확인함. 이 과정에서 **앱이 채팅방 진입 시 거의 항상 크래시하는 실제 버그**를 발견해 고침 — `useConversationStore.getMessages()`가 메시지 없을 때 `?? []`로 매번 새 배열을 반환해 Zustand 셀렉터 참조가 불안정해지고 "Maximum update depth exceeded"로 무한 루프. `EMPTY_MESSAGES` 상수로 고침(커밋 `e0ec8cb`). 상세는 아래 "신규(이어서, 2026-08-24 실행 검증 세션)" 참고.
 - **(7주차 신규) `gradlew test`/`npm test`는 이제 실행·통과까지 확인함**: 백엔드 18개(H2 인메모리 DB로 MariaDB 없이도 동작), 클라이언트 17개(`jest-expo`).
 - **Docker Desktop/Xcode 26.4.0(전체)/CocoaPods 전부 이 머신에 설치돼 있고 실제로 사용해 검증까지 마침** — 더 이상 블로커 아님. (이전엔 "설치 안 됨"으로 잘못 기록돼 있었음.)
