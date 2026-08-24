@@ -12,6 +12,7 @@ import com.storia.backend.entity.Character;
 import com.storia.backend.entity.Conversation;
 import com.storia.backend.entity.Message;
 import com.storia.backend.entity.User;
+import com.storia.backend.exception.ResourceNotFoundException;
 import com.storia.backend.repository.CharacterRepository;
 import com.storia.backend.repository.ConversationRepository;
 import com.storia.backend.repository.MessageRepository;
@@ -96,7 +97,7 @@ class ConversationServiceTest {
         when(characterRepository.findById(CHARACTER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> conversationService.postMessage(DEVICE_ID, CHARACTER_ID, "안녕"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(String.valueOf(CHARACTER_ID));
     }
 

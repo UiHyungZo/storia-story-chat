@@ -104,7 +104,7 @@ Content-Type: application/json
 ```
 
 * 구현: `ConversationController` → `ConversationService#postMessage`/`postAssistantMessage` + `GeminiService#streamReply`(`.block()`으로 동기화, ADR-006 참고)
-* `content`가 비어있으면 `@Valid`(`@NotBlank`) 검증 실패 — 단, 전역 예외 처리기가 없어 현재는 500으로 노출됨 (아래 Error Handling Policy 참고)
+* `content`가 비어있으면 `@Valid`(`@NotBlank`) 검증 실패 → `GlobalExceptionHandler`가 400 + `VALIDATION_ERROR`로 응답 (아래 Error Handling Policy 참고)
 * `GEMINI_API_KEY`가 설정되지 않았거나 Gemini 호출이 실패하면 고정 안내 문구("죄송해요, 지금은 답변을 생성할 수 없어요.")로 대체 — 500을 던지지 않음
 
 ---
@@ -240,15 +240,13 @@ Client (RN)
 
 # Error Handling Policy
 
-## 현재 상태
+`GlobalExceptionHandler`(`@RestControllerAdvice`)가 REST 계층 예외를 일괄 처리한다. 상세 매핑 표와 엔드포인트별 에러 케이스는 [`docs/error-handling.md`](./error-handling.md) 참고.
 
-전역 예외 처리기(`@RestControllerAdvice`)가 없다. `ConversationService`에서 존재하지 않는 캐릭터 ID 조회 시 `IllegalArgumentException`을 던지며, 이는 처리되지 않은 500 에러로 그대로 노출된다.
+요약:
 
-TODO:
-
-* `@RestControllerAdvice` 기반 전역 예외 처리기 추가
-* 존재하지 않는 리소스 → 404, 잘못된 요청 → 400으로 매핑
-* 클라이언트에는 에러 코드 + 사용자용 메시지를 함께 내려줄 것 (PRD 3.4 로딩/오류/재시도 요구사항과 연결)
+* `ResourceNotFoundException` → 404, `IllegalArgumentException`/검증 실패/헤더 누락 → 400, `IllegalStateException`(외부 의존성 실패) → 502, 그 외 미처리 예외 → 500
+* 모든 에러 응답은 `ErrorResponse { code, message }` 형태로 통일 (PRD 3.4 로딩/오류/재시도 요구사항과 연결)
+* STOMP(`ConversationStompController`)/raw WS(`VoiceEgressWebSocketHandler`) 경로에는 적용되지 않음 — 그쪽은 이미 자체 채널(`StreamEvent.error`, `VoiceTurnSession#fail`)로 에러를 알림
 
 ---
 

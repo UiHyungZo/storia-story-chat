@@ -4,6 +4,7 @@ import com.storia.backend.entity.Character;
 import com.storia.backend.entity.Conversation;
 import com.storia.backend.entity.Message;
 import com.storia.backend.entity.User;
+import com.storia.backend.exception.ResourceNotFoundException;
 import com.storia.backend.repository.CharacterRepository;
 import com.storia.backend.repository.ConversationRepository;
 import com.storia.backend.repository.MessageRepository;
@@ -65,6 +66,6 @@ public class ConversationService {
 
     private Character findCharacterOrThrow(Long characterId) {
         return characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found: " + characterId));
+                .orElseThrow(() -> new ResourceNotFoundException("Character not found: " + characterId));
     }
 }
