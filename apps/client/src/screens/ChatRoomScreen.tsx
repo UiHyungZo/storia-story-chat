@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,17 +15,21 @@ import {
 import { MessageBubble } from "../components/MessageBubble";
 import { useCharacterStore } from "../store/useCharacterStore";
 import { useConversationStore } from "../store/useConversationStore";
-import { RootStackParamList } from "../types";
+import { Message, RootStackParamList } from "../types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChatRoom">;
+
+const STREAMING_PLACEHOLDER_ID = Number.MIN_SAFE_INTEGER;
 
 export function ChatRoomScreen({ route, navigation }: Props) {
   const { characterId } = route.params;
   const character = useCharacterStore((state) => state.getCharacterById(characterId));
   const messages = useConversationStore((state) => state.getMessages(characterId));
+  const streamingContent = useConversationStore((state) => state.getStreamingContent(characterId));
   const isLoading = useConversationStore((state) => state.isLoading);
   const error = useConversationStore((state) => state.error);
   const loadMessages = useConversationStore((state) => state.loadMessages);
+  const disconnect = useConversationStore((state) => state.disconnect);
   const sendMessage = useConversationStore((state) => state.sendMessage);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -36,7 +40,22 @@ export function ChatRoomScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     loadMessages(characterId);
-  }, [characterId, loadMessages]);
+    return () => disconnect(characterId);
+  }, [characterId, loadMessages, disconnect]);
+
+  const displayMessages = useMemo(() => {
+    const reversed = [...messages].reverse();
+    if (streamingContent) {
+      const placeholder: Message = {
+        id: STREAMING_PLACEHOLDER_ID,
+        role: "assistant",
+        content: streamingContent,
+        createdAt: new Date().toISOString(),
+      };
+      reversed.unshift(placeholder);
+    }
+    return reversed;
+  }, [messages, streamingContent]);
 
   const handleSend = async () => {
     const trimmed = draft.trim();
@@ -61,7 +80,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
         {error && <Text style={styles.error}>{error}</Text>}
         <FlatList
           style={styles.flex}
-          data={[...messages].reverse()}
+          data={displayMessages}
           keyExtractor={(item) => item.id.toString()}
           inverted
           renderItem={({ item }) => <MessageBubble message={item} />}

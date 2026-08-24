@@ -18,10 +18,19 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ## 2주차 — Gemini 연동 & WebSocket
 
-- [ ] Google Gemini API 연동 (백엔드, 텍스트 스트리밍)
-- [ ] WebSocket(STOMP) 채널 구축 — `/topic/conversation/:id`
-- [ ] 클라이언트 WebSocket 클라이언트 연동 + 스트리밍 청크 렌더링(타이핑 효과)
-- [ ] REST 폴백 경로 구현 (WebSocket 실패 시)
+- [x] Google Gemini API 연동 (백엔드, 텍스트 스트리밍) — `GeminiService`(WebClient + SSE), `GEMINI_API_KEY` 환경변수 필요
+- [x] WebSocket(STOMP) 채널 구축 — `/app/conversation/{characterId}/send` → `/topic/conversation/{characterId}` (`WebSocketConfig`, `ConversationStompController`)
+- [x] 클라이언트 WebSocket 클라이언트 연동 + 스트리밍 청크 렌더링(타이핑 효과) — `src/api/websocket.ts`, `useConversationStore`의 `streamingByCharacterId`
+- [x] REST 폴백 경로 구현 (WebSocket 실패 시) — `POST /api/conversations/{characterId}/messages`도 Gemini를 동기 호출해 (논스트리밍) 응답을 반환하도록 변경, 클라이언트는 캐릭터별로 화면 진입 시 WS 연결을 1회 시도하고 실패하면 그 세션 동안 REST로 전환
+- [ ] **아직 코드만 작성, 실행 검증 안 됨** — 아래 "검증 필요" 참고
+
+### 검증 필요 (다음 세션, 로컬 실행 후 — 2주차)
+
+- [ ] `GEMINI_API_KEY` 환경변수 발급/설정 후 `gradlew bootRun` — 키 없으면 WS는 ERROR 이벤트, REST는 고정 안내 문구로 폴백하는지 확인
+- [ ] 채팅방 진입 → 메시지 전송 → 청크가 실시간으로 쌓여 타이핑 효과가 보이는지, 완료 시 최종 메시지로 치환되는지 확인
+- [ ] 백엔드를 내려서 강제로 WS 연결 실패 상황을 만든 뒤 REST 폴백(전체 응답 한 번에 반환)이 정상 동작하는지 확인
+- [ ] `@stomp/stompjs`가 RN(Hermes) 환경에서 별도 폴리필 없이 붙는지 확인 — 문제 있으면 `TextEncoder`/`TextDecoder` 폴리필 필요할 수 있음
+- [ ] 현재는 화면 진입 시 WS 연결을 1회만 시도하고 세션 내내 그 결과(ws/rest)를 유지함 — 스트리밍 도중 연결이 끊기는 시나리오의 재시도/재연결은 3주차 범위로 남겨둠
 
 ## 3주차 — 안정성 & 동기화
 

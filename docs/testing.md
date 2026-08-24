@@ -73,7 +73,7 @@ API 실패 시 에러 메시지 + 재시도 버튼 표시
 
 ---
 
-# WebSocket / WebRTC 테스트 (2, 6주차 — 향후)
+# WebSocket / WebRTC 테스트 (WebSocket은 2주차에 구현됨, 테스트 자체는 7주차 범위 — 향후)
 
 * WebSocket: STOMP 클라이언트를 Mock해 스트리밍 청크 수신 → UI 업데이트 검증, 연결 끊김 시 REST 폴백 전환 검증
 * WebRTC: Offer/Answer/ICE 교환 자체는 통합 테스트가 어려우므로, 시그널링 메시지 직렬화/라우팅 로직만 단위 테스트로 분리해 검증 (실제 P2P 연결은 수동 QA로 확인)

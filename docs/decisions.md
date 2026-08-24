@@ -70,3 +70,17 @@ Storia 개발 과정에서 내린 주요 기술/설계 결정을 기록한다. �
 **결정**: `X-Device-Id` 헤더 기반 익명 유저 식별로 최소화. 서버는 처음 보는 deviceId를 즉시 `app_user`로 생성한다.
 
 **영향**: 멀티 디바이스 로그인, 계정 복구, 소셜 로그인 등은 범위 밖. 클라이언트가 UUID를 잃어버리면(재설치 등) 이전 대화 히스토리에 다시 접근할 수 없음 — 포트폴리오 범위에서는 허용 가능한 제약으로 판단.
+
+---
+
+## ADR-006: WebClient만 부분 도입(전체 리액티브 스택 전환 안 함), REST 폴백은 `.block()`으로 동기화
+
+**날짜**: PRD v3 2주차, TODO.md "2주차 — Gemini 연동 & WebSocket"
+
+**배경**: Gemini의 `streamGenerateContent`(SSE) 스트리밍 응답을 소비하려면 리액티브 HTTP 클라이언트가 필요하다. Spring이 기본 제공하는 리액티브 클라이언트는 WebClient인데, 표준 도입 경로인 `spring-boot-starter-webflux`는 애플리케이션 전체를 리액티브 스택(Netty 서버, 리액티브 컨트롤러)으로 전환하는 것을 전제로 한다. 그러나 이 프로젝트는 JPA(블로킹 JDBC)와 Spring MVC 기반 REST/STOMP 컨트롤러를 그대로 유지해야 한다.
+
+**결정**: `spring-boot-starter-webflux` 대신 `spring-webflux` + `reactor-netty-http` 라이브러리만 개별 추가해 `WebClient` 빈만 사용한다. 앱은 계속 Servlet(MVC) 스택으로 동작한다. WebSocket(STOMP) 경로에서는 `Flux<String>`을 `Schedulers.boundedElastic()`으로 옮겨 구독(`subscribe()`)해 비동기로 청크를 발행하고, REST 폴백 경로(`POST /api/conversations/{characterId}/messages`)에서는 전체 응답을 모아야 하므로 `.collect(Collectors.joining())` 후 `.block()`으로 동기 반환한다.
+
+**트레이드오프**: MVC 요청 스레드에서 `.block()`을 호출하는 것은 일반적으로 리액티브 안티패턴으로 간주되지만, 여기서는 "REST는 스트리밍이 필요 없는 폴백 경로"라는 제약 덕분에 허용 가능한 단순화로 판단했다. 요청량이 많아지면 서블릿 스레드 풀 고갈 위험이 있으나, 포트폴리오 트래픽 규모에서는 문제 없음.
+
+**영향**: 새로운 리액티브 코드를 추가할 때 앱을 리액티브 스택으로 전환하려는 시도(예: 컨트롤러를 `Mono`/`Flux` 반환으로 바꾸는 것)는 이 결정과 충돌하므로, 전면 전환이 필요해지면 이 ADR을 갱신할 것.

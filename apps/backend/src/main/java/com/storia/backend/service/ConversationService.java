@@ -35,14 +35,29 @@ public class ConversationService {
         return messageRepository.save(message);
     }
 
+    @Transactional
+    public Message postAssistantMessage(String deviceId, Long characterId, String content) {
+        Conversation conversation = getOrCreateConversation(deviceId, characterId);
+        Message message = new Message(conversation, Message.Role.ASSISTANT, content);
+        return messageRepository.save(message);
+    }
+
+    public String getSystemPrompt(Long characterId) {
+        return findCharacterOrThrow(characterId).getSystemPrompt();
+    }
+
     private Conversation getOrCreateConversation(String deviceId, Long characterId) {
         User user = userRepository.findByDeviceId(deviceId)
                 .orElseGet(() -> userRepository.save(new User(deviceId)));
 
-        Character character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found: " + characterId));
+        Character character = findCharacterOrThrow(characterId);
 
         return conversationRepository.findByUserIdAndCharacterId(user.getId(), character.getId())
                 .orElseGet(() -> conversationRepository.save(new Conversation(user, character)));
+    }
+
+    private Character findCharacterOrThrow(Long characterId) {
+        return characterRepository.findById(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("Character not found: " + characterId));
     }
 }

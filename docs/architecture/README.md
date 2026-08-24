@@ -1,13 +1,17 @@
 # 아키텍처
 
-## 현재 구현 상태 (Week 1)
+## 현재 구현 상태 (Week 2)
 
-REST API 스켈레톤만 연결되어 있습니다. WebSocket 스트리밍, Gemini 연동, WebRTC 음성 통화는 아직 구현되지 않았습니다 (PRD v3 마일스톤 2주차 이후).
+REST + WebSocket(STOMP) + Gemini 스트리밍까지 연결되어 있습니다 (실행 검증은 아직 안 됨, [`HANDOFF.md`](../../HANDOFF.md) 참고). WebRTC 음성 통화는 아직 구현되지 않았습니다 (PRD v3 마일스톤 5~6주차).
 
 ```mermaid
 flowchart LR
     Client["RN Client\n(Expo)"] -->|"GET /api/characters"| Backend["Spring Boot\nBackend"]
     Client -->|"GET /api/conversations/:id/messages"| Backend
+    Client -->|"POST .../messages\n(WS 실패 시 폴백)"| Backend
+    Client -->|"STOMP SEND\n/app/conversation/:id/send"| Backend
+    Backend -->|"STOMP 발행\n/topic/conversation/:id"| Client
+    Backend -->|"streamGenerateContent (SSE)"| Gemini["Google Gemini API"]
     Backend --> DB[("MariaDB")]
 ```
 

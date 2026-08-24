@@ -23,6 +23,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
+	// WebClient only (not the full reactive-web starter) so the app stays on the
+	// Servlet stack — needed to call Gemini's streaming API from an MVC app.
+	implementation 'org.springframework:spring-webflux'
+	implementation 'io.projectreactor.netty:reactor-netty-http'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
 	annotationProcessor 'org.projectlombok:lombok'

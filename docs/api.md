@@ -2,7 +2,7 @@
 
 ## Goal
 
-Storia 백엔드는 REST(현재 구현) → WebSocket(STOMP, 2주차) → WebRTC 시그널링(6주차) 순으로 확장된다. 계층 간 책임을 명확히 나눠, 실시간 채널이 추가되어도 기존 REST 경로가 폴백으로 계속 동작하도록 유지한다.
+Storia 백엔드는 REST(1주차) → WebSocket(STOMP, 2주차 — 구현됨) → WebRTC 시그널링(6주차) 순으로 확장된다. 계층 간 책임을 명확히 나눠, 실시간 채널이 추가되어도 기존 REST 경로가 폴백으로 계속 동작하도록 유지한다.
 
 목표:
 
@@ -84,7 +84,7 @@ Header: X-Device-Id: <uuid>
 
 ## POST /api/conversations/{characterId}/messages
 
-유저 메시지 저장. LLM 응답 트리거(Gemini 연동)는 2주차 범위 — 현재는 유저 메시지만 저장하고 그대로 응답하며, 어시스턴트 응답은 생성되지 않는다.
+유저 메시지 저장 + Gemini 호출. **WebSocket 스트리밍이 실패했을 때 클라이언트가 쓰는 REST 폴백 경로**라서, 스트리밍 없이 Gemini 응답 전체를 기다렸다가 유저 메시지와 함께 한 번에 반환한다.
 
 ```text
 POST /api/conversations/{characterId}/messages
@@ -94,14 +94,18 @@ Content-Type: application/json
 { "content": "안녕" }
 ```
 
-응답 (`201 Created`, `MessageResponse`):
+응답 (`201 Created`, `MessageExchangeResponse`):
 
 ```json
-{ "id": 3, "role": "USER", "content": "안녕", "createdAt": "2026-08-24T10:00:02Z" }
+{
+  "userMessage": { "id": 3, "role": "USER", "content": "안녕", "createdAt": "2026-08-24T10:00:02Z" },
+  "assistantMessage": { "id": 4, "role": "ASSISTANT", "content": "안녕하세요!", "createdAt": "2026-08-24T10:00:03Z" }
+}
 ```
 
-* 구현: `ConversationController` → `ConversationService#postMessage`
+* 구현: `ConversationController` → `ConversationService#postMessage`/`postAssistantMessage` + `GeminiService#streamReply`(`.block()`으로 동기화, ADR-006 참고)
 * `content`가 비어있으면 `@Valid`(`@NotBlank`) 검증 실패 — 단, 전역 예외 처리기가 없어 현재는 500으로 노출됨 (아래 Error Handling Policy 참고)
+* `GEMINI_API_KEY`가 설정되지 않았거나 Gemini 호출이 실패하면 고정 안내 문구("죄송해요, 지금은 답변을 생성할 수 없어요.")로 대체 — 500을 던지지 않음
 
 ---
 
@@ -152,20 +156,28 @@ TODO:
 
 ---
 
-# WebSocket Policy (2주차 — 미구현)
+# WebSocket Policy (2주차 — 구현됨)
 
 PRD 3.3, `docs/architecture/README.md` "목표 아키텍처" 참고.
 
-계획:
-
 ```text
-Client --publish--> /app/conversation/{id}/send
-Server --subscribe--> /topic/conversation/{id}
+STOMP endpoint: ws://<host>:8080/ws  (SockJS 없음 — RN 네이티브 클라이언트 대상)
+Client --SEND--> /app/conversation/{characterId}/send   { "content": "..." }, Header: X-Device-Id
+Server --publish--> /topic/conversation/{characterId}   StreamEvent (CHUNK* → DONE | ERROR)
 ```
 
-* STOMP 기반, Gemini 스트리밍 응답을 청크 단위로 `/topic/conversation/{id}`에 발행
-* 연결 실패/타임아웃 시 클라이언트는 REST(`POST /api/conversations/{characterId}/messages`)로 폴백
-* 재연결 정책은 3주차 범위 ([`TODO.md`](../TODO.md))
+`StreamEvent`:
+
+```json
+{ "type": "CHUNK", "content": "안녕" }
+{ "type": "DONE", "messageId": 4, "content": "안녕하세요! 무엇을 도와드릴까요?", "createdAt": "2026-08-24T10:00:03Z" }
+{ "type": "ERROR", "content": "응답 생성에 실패했습니다: ..." }
+```
+
+* 구현: `WebSocketConfig`(STOMP 브로커 등록, `/topic` 심플 브로커 + `/app` prefix) → `ConversationStompController`(`@MessageMapping("/conversation/{characterId}/send")`) → `GeminiService#streamReply`(WebClient + SSE) → `SimpMessagingTemplate`으로 발행
+* 클라이언트 헤더(`X-Device-Id`)는 STOMP SEND 프레임의 네이티브 헤더로 전송하고, 서버는 `@Header("X-Device-Id")`로 읽는다 (CONNECT 프레임 헤더가 아니라 매 SEND마다 개별 헤더로 보냄 — 세션 속성 전파에 의존하지 않기 위함)
+* 유저 메시지는 스트리밍 시작 전에 먼저 저장(`ConversationService#postMessage`)하고, 스트림이 끝나면 누적된 전체 텍스트를 어시스턴트 메시지로 저장(`postAssistantMessage`)한 뒤 `DONE` 이벤트로 실제 `messageId`/`createdAt`을 전달
+* 연결 실패/타임아웃 시 클라이언트는 REST(`POST /api/conversations/{characterId}/messages`)로 폴백 — 현재 클라이언트는 채팅방 진입 시 1회만 연결을 시도하고, 실패하면 그 화면 세션 동안 REST만 사용 (재연결 정책은 3주차 범위, [`TODO.md`](../TODO.md))
 
 ---
 

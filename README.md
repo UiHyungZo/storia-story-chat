@@ -33,12 +33,19 @@ docker compose up -d
 
 ### 2. 백엔드 (Spring Boot)
 
+Gemini 응답을 받으려면 실행 전에 API 키를 환경변수로 설정하세요 (없으면 채팅은 되지만 고정 안내 문구만 돌아옵니다):
+
+```bash
+export GEMINI_API_KEY=your-api-key
+```
+
 ```bash
 cd apps/backend
 ./gradlew bootRun
 ```
 
 - REST API: `http://localhost:8080/api/characters`
+- WebSocket(STOMP): `ws://localhost:8080/ws`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ### 3. 클라이언트 (Expo)
@@ -53,4 +60,4 @@ Expo Go는 지원하지 않습니다 (커스텀 Native Module 사용 예정 — 
 
 ## 개발 현황
 
-Week 1 완료: RN 클라이언트(캐릭터 목록/채팅방 UI, 백엔드 REST API 연동) + Spring Boot 백엔드(REST API 조회/전송, DB 스키마, 캐릭터 시딩, CORS) 스캐폴딩. 상세 현황은 [HANDOFF](./HANDOFF.md) 참고.
+Week 2 코드 작성 완료(실행 검증 전): RN 클라이언트(캐릭터 목록/채팅방 UI, REST + WebSocket 스트리밍 연동) + Spring Boot 백엔드(REST API, STOMP WebSocket, Gemini 스트리밍 연동, DB 스키마, 캐릭터 시딩, CORS). 상세 현황은 [HANDOFF](./HANDOFF.md) 참고.

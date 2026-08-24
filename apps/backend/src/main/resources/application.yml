@@ -16,3 +16,8 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: gemini-2.0-flash
+  base-url: https://generativelanguage.googleapis.com
