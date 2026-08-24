@@ -5,7 +5,8 @@
 ## 참고사항 (재개 전 반드시 확인)
 
 - **git push 안 된 상태**: 로컬 `develop` 브랜치가 origin보다 커밋 여러 개 앞서 있음(1~3주차 작업 전부 미푸시). 이 머신에 GitHub 인증정보/`gh` CLI가 없어 push가 실패했었음 — origin에는 `develop` 브랜치 자체가 아직 없으므로 인증 해결 후 `git push -u origin develop`으로 최초 push 필요.
-- **이번 세션들은 코드만 작성, 실행 검증 전무**: docker compose, `gradlew bootRun`, `expo start` 중 아무것도 실제로 띄워보지 않음. 확인한 건 `gradlew compileJava`/`compileTestJava`와 `tsc --noEmit` 통과뿐 — 실제 API 왕복, 화면 동작, WebSocket 스트리밍은 전부 미검증.
+- **`docker compose`/`expo start`(실기기·시뮬레이터 실행)는 여전히 검증 전무**: docker compose, `expo start`/`run:ios` 둘 다 아직 실제로 띄워보지 않음. 실제 API 왕복, 화면 동작, WebSocket 스트리밍, 음성 통화 왕복은 전부 미검증.
+- **(7주차 신규) `gradlew test`/`npm test`는 이제 실행·통과까지 확인함**: 백엔드 18개(H2 인메모리 DB로 MariaDB 없이도 동작), 클라이언트 17개(`jest-expo`). 다만 이건 단위/슬라이스 테스트 범위라 위의 "실제 API 왕복/화면 동작" 미검증과는 별개 — `gradlew bootRun` 자체를 실제로 띄워본 적은 여전히 없음(테스트가 스프링 컨텍스트를 로드하긴 하지만 `bootRun`과 동일한 경로는 아님).
 - **이 머신엔 Docker가 없음**: `docker compose up`으로 MariaDB를 못 띄움 (Homebrew mysql 9.7.1이 이미 로컬 3306 포트를 점유 중이고 MariaDB는 미설치). 3주차 세션에서 이 문제로 DB 관련 실행 검증(히스토리 저장/복원)을 보류함 — 사용자가 명시적으로 이번엔 건너뛰기로 선택. 다음 세션에서 Docker Desktop을 설치하거나 `brew install mariadb`로 포트 3307에 별도 인스턴스를 띄워서 검증할 것.
 - **`GEMINI_API_KEY` 미설정**: 아직 키를 발급받지 않음. 백엔드를 띄우기 전에 `export GEMINI_API_KEY=...` 필요 (없으면 채팅은 되지만 고정 안내 문구만 돌아옴).
 - **Firebase 프로젝트 없음**: 4주차 FCM 푸시는 백엔드 스켈레톤만 구현됨(사용자가 명시적으로 선택). 서비스 계정 JSON/`GoogleService-Info.plist`/APNs 키가 있는 실제 Firebase 프로젝트가 생기기 전까지는 실 발송/클라이언트 SDK 연동 둘 다 불가능.
@@ -64,6 +65,8 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
 - **(5주차 신규)** LiveKit/STT/TTS 전부 미설정 상태(지금 이 머신 그대로)에서 통화 버튼을 눌러 `503`이 뜨고 클라이언트가 적절히 에러 처리하는지, TTS만 미설정인 경우 오디오 없이 텍스트 응답만 오고 자동으로 다음 턴(idle)으로 넘어가는 폴백이 매끄러운지 확인.
 
 6주차(WebRTC 최소 데모 C안)는 위 재평가에 따라 코드 작업 없이 종료됨 — 다음은 바로 7주차(모니터링/배포)이며, 5주차 확장 때문에 원래 계획에 없던 LiveKit/STT/TTS 배포 시크릿·`/egress/audio` 라우팅 확인 항목이 새로 추가됨. 상세는 [`TODO.md`](./TODO.md) 7주차 참고.
+
+**7주차 착수 — 테스트 코드부터 시작함(외부 자원 없이 이 머신에서 바로 실행 가능해서 우선순위를 높게 잡음)**: 백엔드 18개(`./gradlew test`)/클라이언트 17개(`npm test`) 전부 실제로 통과 확인함. 그 과정에서 **`ObjectMapper` 빈 부재로 `gradlew bootRun`이 애초에 기동조차 못 했을 실제 버그**를 발견해 고침(`config/JacksonConfig.java` 신규) — Spring Boot 4의 모듈화 스타터 구성 때문에 classic Jackson `ObjectMapper` 자동 빈 생성이 안 되고 있었음. 클라이언트는 `jest-expo`를 신규 도입했고, 3주차에서 고쳤던 두 버그(WS 폴백 시 메시지 중복, `disconnect()` 후 transport 미초기화)에 대한 회귀 테스트도 새로 작성함. 상세는 `TODO.md` 7주차 참고.
 
 ## 중요한 결정 사항 / 함정
 
