@@ -39,7 +39,7 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
   - **백엔드 신규**: `io.livekit:livekit-server:0.15.0`(정확한 API가 문서에 잘 없어 실제 jar를 `javap`으로 디컴파일해 시그니처 확인 후 작성 — 1회 컴파일 성공). `LiveKitProperties`(`LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/`LIVEKIT_EGRESS_AUDIO_WS_URL`), `voice/` 패키지(`VoiceCallService`/`VoiceTurnSession`/`VoiceTurnRegistry` — 턴 상태는 DB 아닌 인메모리), `VoiceEgressWebSocketHandler`(STOMP와 별개인 raw WebSocket, `/egress/audio` — `VoiceEgressWebSocketConfig`로 등록), `SttProperties`/`SttService`(Google Cloud Speech-to-Text 배치 인식, `STT_API_KEY`), `VoiceCallController`(`POST /api/calls/{characterId}/token`, `POST /api/calls/{characterId}/turns`, `GET /api/calls/turns/{turnId}`). `TtsProperties`/`TtsWebClientConfig`/`TtsService`(Google Cloud TTS REST)는 원래 B안 구현 그대로 재사용 — `GET /api/messages/{id}/audio`가 그때그때 합성해 반환(별도 저장소 없음, 반복 요청마다 재합성).
   - **클라이언트 신규**: `@livekit/react-native` + `livekit-client` + `@livekit/react-native-webrtc` + config plugin(`@livekit/react-native-expo-plugin`, `@config-plugins/react-native-webrtc`) — `App.tsx` 최상단에서 `registerGlobals()` 1회 호출. `src/api/calls.ts`(토큰 발급/턴 시작/상태 폴링). `useVoiceCallStore`는 LiveKit `Room`을 직접 다룸(`room.localParticipant.setMicrophoneEnabled()`로 마이크 트랙 publish/unpublish, unpublish가 "턴 종료" 신호) — 예전에 썼던 클라이언트 사이드 STT(`expo-speech-recognition`)는 완전히 제거함(서버가 오디오를 직접 받으므로 불필요해짐). `VoiceCallOverlay`/`ChatRoomScreen`의 "📞 통화" 버튼은 그대로(스토어 인터페이스 유지).
   - 메시지 송수신 자체는 여전히 **새 실시간 채널 없이 기존 텍스트 채팅 REST 경로 재사용**(`useConversationStore#sendMessageViaRest` — WS 스트리밍은 응답 완료를 기다리지 않고 바로 resolve되므로 음성 통화엔 못 씀, 이 결정 자체는 B안 때와 동일하게 유지).
-- **6주차(C안 WebRTC 최소 데모)와의 관계**: 5주차에서 이미 클라이언트↔서버 실제 WebRTC 연결(LiveKit)을 구현했으므로, C안이 원래 증명하려던 것 상당 부분이 선행 충족됨 — 6주차는 재평가/검증 위주로 가벼워질 전망.
+- **6주차(C안 WebRTC 최소 데모) → 재평가 완료, 별도 데모 없이 종료**: 5주차에서 이미 클라이언트↔서버 실제 WebRTC 연결(LiveKit)을 구현했으므로, C안이 원래 증명하려던 "WebRTC 연동 경험"은 선행 충족됐다고 판단. `react-native-webrtc` 기반 수동 시그널링 데모는 추가로 만들지 않기로 결정(판단 근거는 `docs/decisions.md` ADR-004 갱신 3 참고) — 6주차는 코드 작업 없이 문서 정리로 종료됨.
 
 ## 다음 작업 (바로 이어서 할 것)
 
@@ -63,7 +63,7 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료, 로컬 실행 검증은 �
 - **(5주차 신규)** `livekit-server` SDK 호출부(`VoiceCallService`의 `AccessToken` grant 구성, `EgressServiceClient#startTrackEgress`)가 컴파일은 됐지만(jar를 `javap`으로 시그니처만 확인) 실제 LiveKit 서버와의 런타임 동작은 미검증 — 특히 `CanPublish`/`CanSubscribe` 그랜트가 기대한 대로 동작하는지.
 - **(5주차 신규)** LiveKit/STT/TTS 전부 미설정 상태(지금 이 머신 그대로)에서 통화 버튼을 눌러 `503`이 뜨고 클라이언트가 적절히 에러 처리하는지, TTS만 미설정인 경우 오디오 없이 텍스트 응답만 오고 자동으로 다음 턴(idle)으로 넘어가는 폴백이 매끄러운지 확인.
 
-이후 순서는 [`TODO.md`](./TODO.md) 참고 (6주차: WebRTC 최소 데모 C안 — 5주차로 상당 부분 선행 충족되어 재평가 위주).
+6주차(WebRTC 최소 데모 C안)는 위 재평가에 따라 코드 작업 없이 종료됨 — 다음은 바로 7주차(모니터링/배포)이며, 5주차 확장 때문에 원래 계획에 없던 LiveKit/STT/TTS 배포 시크릿·`/egress/audio` 라우팅 확인 항목이 새로 추가됨. 상세는 [`TODO.md`](./TODO.md) 7주차 참고.
 
 ## 중요한 결정 사항 / 함정
 

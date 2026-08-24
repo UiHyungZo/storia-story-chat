@@ -97,21 +97,24 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
     - 트레이드오프: 리포에 언어/런타임이 하나 더 늘어남(Python 또는 Node 프로세스를 별도로 설치·배포·관리) — 배포 파이프라인(7주차)에도 영향
   - 두 방법 다 부담되면 이번 포트폴리오 스코프에서는 축소판으로 마무리하고, README/기술 블로그에 "왜 완전한 A안은 다음 확장 과제로 남겼는지"를 트레이드오프로 명시(PRD 7절 포트폴리오 활용 방안과 동일한 패턴)
 
-## 6주차 — WebRTC 최소 데모 (C안)
+## 6주차 — WebRTC 최소 데모 (C안) → 재평가 결과: 별도 데모 없이 문서화로 종료
 
-5주차에서 LiveKit으로 클라이언트↔서버 실제 WebRTC 연결을 이미 구현해서, C안이 원래 증명하려던 "WebRTC 연동 경험" 자체는 상당 부분 충족됨. 아래는 남은 걸 재평가해서 필요한 만큼만.
+5주차에서 LiveKit으로 클라이언트↔서버 실제 WebRTC 연결(마이크 오디오 캡처, ICE, DTLS-SRTP, 트랙 publish)을 이미 구현해서, C안이 원래 증명하려던 "WebRTC 연동 경험" 자체는 이미 충족됨(원래 C안이 존재했던 이유는 "B안엔 WebRTC가 전혀 없다"는 공백을 메우려는 것이었는데, 그 공백 자체가 없어짐).
 
-- [ ] 5주차 결과로 C안 요구사항이 충분히 충족되는지 재검토 (부족하면 아래 항목 추가 진행)
-- [ ] (필요시) `react-native-webrtc` 기반 1:1 P2P 오디오 스트리밍 최소 데모 — LiveKit을 안 거치는 순수 WebRTC 시그널링 경험을 별도로 증명하고 싶다면
-- [ ] B안/축소판 A안과의 통합 상태 문서화, 시간 여유 시 완전한 A안 확장
+- [x] 5주차 결과로 C안 요구사항이 충분히 충족되는지 재검토 — **충족됨으로 판단, 추가 코드 없이 종료**. LiveKit이 Offer/Answer/ICE 교환을 SDK 내부에서 처리해 "수동 시그널링 프로토콜 구현" 코드 증거는 없지만, 인터뷰/이력서 관점에서는 "LiveKit(WebRTC SFU)으로 실 미디어 스트리밍 구현" 정도로 충분히 증명 가능하다고 판단. 남은 시간은 5주차 미검증 항목(실기기 테스트, LiveKit/STT/TTS 자격증명 연동) 검증에 우선 투입하기로 함(`docs/decisions.md` ADR-004 갱신 3 참고).
+- [x] ~~(필요시) `react-native-webrtc` 기반 1:1 P2P 오디오 스트리밍 최소 데모~~ — 위 판단에 따라 진행 안 함. 나중에 "수동 시그널링을 직접 짜본 경험"을 굳이 더 증명하고 싶어지면 이 항목을 다시 열 것.
+- [x] B안/축소판 A안과의 통합 상태 문서화 — `docs/decisions.md` ADR-004, `docs/architecture/README.md`, `HANDOFF.md`에 이미 반영됨. 완전한 A안 확장은 5주차 "남은 작업" 항목으로 남아있음.
 
 ## 7주차 — 모니터링 & 배포
 
 - [ ] Sentry 연동 (클라이언트 RN SDK + 백엔드 Spring Boot SDK)
-- [ ] 에러 시나리오 검증 (WebRTC 연결 실패 포함)
+- [ ] 에러 시나리오 검증 (WebRTC 연결 실패 포함 — LiveKit room 연결 실패, Track Egress WebSocket 끊김, 턴 타임아웃 등 5주차에서 새로 생긴 실패 지점 포함)
 - [ ] 테스트 코드 (Jest+RNTL / JUnit5+Spring Boot Test) — 현재 `BackendApplicationTests`만 존재, 실질 테스트 없음
 - [ ] Docker/Fastlane/GitHub Actions 배포 파이프라인
 - [ ] iOS(TestFlight)/Android(Firebase App Distribution)/백엔드 배포
+- [ ] **(5주차 신규)** 배포 환경 시크릿에 `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/`LIVEKIT_EGRESS_AUDIO_WS_URL`/`STT_API_KEY`/`TTS_API_KEY` 추가 — 로컬 개발은 LiveKit Cloud가 `localhost`로 못 붙어 ngrok 터널이 필요했지만, 배포 후에는 실제 공인 도메인이 생기므로 `LIVEKIT_EGRESS_AUDIO_WS_URL`을 그 도메인 기준으로 설정하면 터널 불필요
+- [ ] **(5주차 신규)** `/egress/audio`(STOMP `/ws`와 별개인 raw WebSocket 경로)가 배포 환경의 리버스 프록시/로드밸런서에서 정상적으로 WSS 업그레이드되는지 확인 — `/ws` 검증됐다고 이 경로도 자동으로 되는 게 아니므로 별도 확인 필요
+- [ ] **(5주차 신규, 참고)** 완전한 A안(Python/Node 사이드카)까지 확장하기로 하면 배포 파이프라인에 새 런타임/프로세스가 하나 추가됨 — 상세는 5주차 "남은 작업" 항목 참고
 
 ## 문서화 (진행 중 계속 갱신)
 
