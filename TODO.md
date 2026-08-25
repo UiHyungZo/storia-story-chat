@@ -149,11 +149,12 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [ ] Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
 - [ ] Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
 - [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨
-- [ ] 스토어 필수 관문 항목 준비: 개인정보처리방침 URL, Google Play Data Safety 설문, Apple App Privacy 설문 + Export Compliance, 앱 아이콘(현재 기본 Expo 아이콘일 가능성)
+- [ ] 스토어 필수 관문 항목 준비: 개인정보처리방침 URL, Google Play Data Safety 설문, Apple App Privacy 설문 + Export Compliance
+- [ ] **(2026-08-25 확인)** `apps/client/assets/icon.png`가 실제로 Expo 기본 템플릿 아이콘(파란 "A" 블루프린트 스타일)인 것으로 확인됨 — Storia 브랜딩 아이콘으로 교체 필요. 디자인 방향(컬러/심볼)은 사용자 판단 필요.
 - [ ] Release 빌드 파이프라인 — Fastlane 대신 **EAS Build** 검토(Expo 프로젝트라 서명 관리가 더 간단할 수 있음)
 - [ ] iOS Release Build → TestFlight 내부 테스트 배포
 - [ ] Android Release AAB → Google Play 내부 테스트 배포
-- [ ] README에 아키텍처/배포 방식/구현 범위 정리 (아래 "문서화" 섹션의 API 명세/블로그와는 별개 항목)
+- [x] **(2026-08-25)** README에 아키텍처/배포 방식/구현 범위 정리 (아래 "문서화" 섹션의 API 명세/블로그와는 별개 항목) — 루트 `README.md`에 "구현 범위"/"배포 현황" 섹션 신규 추가, Android 실행법/FCM·Sentry 환경변수/테스트·CI/Docker 빌드 명령어 보강, `docs/architecture/README.md`의 stale한 "Week 5" 헤딩도 정정.
 - [ ] DeepLink는 이번 목표에서 필수 아님 — "Push/DeepLink/Streaming 중 핵심 기능" 요건은 Push(FCM)+Streaming(WS)으로 이미 충족됨, 시간 남으면 보너스로만 고려
 
 **(2026-08-25 결정) 백엔드는 localhost/LAN 유지해도 됨 — 클라우드 배포는 이번 목표에 필수 아님**: TestFlight 내부 테스터(App Store Connect Users, 최대 100명)는 Apple Beta App Review 자체가 없고, Google Play 내부 테스트 트랙도 가벼운 정책 체크만 거쳐 정식 리뷰가 없음 — 즉 리뷰어가 백엔드 기능을 실제로 테스트하지 않음. 본인 폰으로 직접 확인할 때만 집 Wi-Fi(LAN IP)에 있으면 됨(단 iOS ATS/Android cleartext traffic 차단 때문에 평문 HTTP 예외 설정은 필요 — `Info.plist NSAllowsArbitraryLoads` 또는 도메인 예외, Android `usesCleartextTraffic`/network security config). 면접 등에서 집 밖에서 직접 시연하려면 그 시점에 ngrok 터널을 예비책으로 켜둘 것 — 지금 단계에서 클라우드 배포를 서두를 필요는 없음.
