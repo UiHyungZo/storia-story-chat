@@ -160,5 +160,5 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ## 문서화 (진행 중 계속 갱신)
 
-- [ ] API 명세 문서 (`docs/api/` — Swagger로 충분한지, 별도 정리 필요한지 판단)
-- [ ] B안/C안 선택 이유 기술 블로그 초안 (PRD 7절 포트폴리오 활용 방안 참고)
+- [x] **(2026-08-25 확인)** API 명세 문서 — `docs/api/`는 빈 디렉토리(Swagger UI로 충분하다고 이미 판단된 흔적)이고, 실제 정리는 이미 [`docs/api.md`](./docs/api.md)에 REST/WS/WebRTC 엔드포인트별로 상세히 되어있었음(이전 세션에서 작성됐으나 이 체크박스에 반영이 안 돼있던 것으로 보임). 오늘 세션에서 stale해진 부분(3주차 per-device WS 토픽 스코프 변경 미반영)만 발견해 수정.
+- [x] **(2026-08-25)** B안/C안 선택 이유 기술 블로그 초안 (PRD 7절 포트폴리오 활용 방안 참고) — [`docs/blog-webrtc-tradeoffs.md`](./docs/blog-webrtc-tradeoffs.md)에 초안 작성 완료. `docs/decisions.md` ADR-004(원본 결정 + 갱신 1~3)를 근거 자료로 사용. 실제 블로그 플랫폼에 발행하기 전 다듬을 여지 있음 — 초안 자체가 완료 기준.
