@@ -151,7 +151,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 - [ ] Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
 - [ ] Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
-- [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨. **(2026-08-25 iOS 부분 검증)** 실제 iPhone(무료 Apple ID 개인 서명)에 Development Build 설치 → LAN IP로 캐릭터 목록 로드까지 확인(위 1주차 항목 참고). 메시지 전송/채팅방 등 나머지 화면 + Android 실기기(USB 디버깅 트러블슈팅 실패, 위 4주차 항목 참고)는 아직 미검증.
+- [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨. **(2026-08-25 iOS 대부분 검증)** 실제 iPhone(무료 Apple ID 개인 서명)에 Development Build 설치 → LAN IP로 캐릭터 목록 로드 + 채팅방 진입 + 메시지 전송 + 실제 Gemini 응답 수신까지 확인. 시뮬레이터/코드 리뷰로는 못 잡았던 **실기기 전용 UX 버그 2개 발견/수정**: (1) `keyboardVerticalOffset={80}`이 시뮬레이터 기준 매직 넘버라 실기기에서 키보드가 입력창을 가림 — `useHeaderHeight()`로 동적 계산하도록 수정. (2) 전송 버튼의 `disabled={isSending}`이 스타일 변화 없이 그냥 안 눌리기만 해서, Gemini 응답 대기(20~40초) 중 사용자가 "안 눌리는" 버튼을 보고 실패한 줄 알고 재입력을 시도하는 혼란스러운 UX였음 — 버튼에 스피너/dim 스타일 추가 + "답변을 생각하는 중이에요…" 배너 신규 추가로 해결. Android 실기기는 USB 디버깅 트러블슈팅 실패(위 4주차 항목 참고)로 여전히 미검증. 음성 통화/설정 등 나머지 iOS 화면도 미검증.
 - [ ] 스토어 필수 관문 항목 준비: 개인정보처리방침 URL, Google Play Data Safety 설문, Apple App Privacy 설문 + Export Compliance
 - [ ] **(2026-08-25 확인)** `apps/client/assets/icon.png`가 실제로 Expo 기본 템플릿 아이콘(파란 "A" 블루프린트 스타일)인 것으로 확인됨 — Storia 브랜딩 아이콘으로 교체 필요. 디자인 방향(컬러/심볼)은 사용자 판단 필요.
 - [ ] Release 빌드 파이프라인 — Fastlane 대신 **EAS Build** 검토(Expo 프로젝트라 서명 관리가 더 간단할 수 있음)
