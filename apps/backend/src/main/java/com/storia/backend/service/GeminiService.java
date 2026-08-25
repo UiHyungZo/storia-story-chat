@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storia.backend.config.GeminiProperties;
 import com.storia.backend.entity.Message;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,8 @@ import reactor.core.publisher.Flux;
 @RequiredArgsConstructor
 @Slf4j
 public class GeminiService {
+
+    private static final Duration CHUNK_TIMEOUT = Duration.ofSeconds(30);
 
     private final WebClient geminiWebClient;
     private final GeminiProperties properties;
@@ -46,6 +49,7 @@ public class GeminiService {
                 .retrieve()
                 .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {
                 })
+                .timeout(CHUNK_TIMEOUT)
                 .mapNotNull(ServerSentEvent::data)
                 .map(this::extractText)
                 .filter(text -> !text.isBlank());

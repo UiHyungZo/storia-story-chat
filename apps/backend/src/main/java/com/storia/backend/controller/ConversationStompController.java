@@ -18,7 +18,10 @@ import reactor.core.scheduler.Schedulers;
 
 /**
  * Client --publish--> /app/conversation/{characterId}/send
- * Server --broadcast--> /topic/conversation/{characterId} (StreamEvent: CHUNK*, then DONE or ERROR)
+ * Server --broadcast--> /topic/conversation/{deviceId}/{characterId} (StreamEvent: CHUNK*, then DONE or ERROR)
+ *
+ * <p>The broadcast destination is scoped by deviceId (not just characterId) so that two
+ * users chatting with the same character don't receive each other's stream events.
  */
 @Controller
 @RequiredArgsConstructor
@@ -41,7 +44,7 @@ public class ConversationStompController {
 
         conversationService.postMessage(deviceId, characterId, content);
 
-        String destination = "/topic/conversation/" + characterId;
+        String destination = "/topic/conversation/" + deviceId + "/" + characterId;
         StringBuilder full = new StringBuilder();
 
         geminiService.streamReply(
@@ -66,7 +69,7 @@ public class ConversationStompController {
                 .doOnError(error -> {
                     log.warn("Gemini streaming failed for character {}", characterId, error);
                     messagingTemplate.convertAndSend(destination,
-                            StreamEvent.error("응답 생성에 실패했습니다: " + error.getMessage()));
+                            StreamEvent.error("죄송해요, 지금은 답변을 생성할 수 없어요."));
                 })
                 .subscribe();
     }

@@ -34,8 +34,8 @@ function wsUrl(): string {
   return `${API_BASE_URL.replace(/^http/, "ws")}/ws`;
 }
 
-function subscribe(client: Client, characterId: number, handlers: StreamHandlers): void {
-  client.subscribe(`/topic/conversation/${characterId}`, (message: IMessage) => {
+function subscribe(client: Client, deviceId: string, characterId: number, handlers: StreamHandlers): void {
+  client.subscribe(`/topic/conversation/${deviceId}/${characterId}`, (message: IMessage) => {
     const event = JSON.parse(message.body) as StreamEventDto;
     if (event.type === "CHUNK" && event.content) {
       handlers.onChunk(event.content);
@@ -93,7 +93,7 @@ export async function connectConversationSocket(
     }, CONNECT_TIMEOUT_MS);
 
     client.onConnect = () => {
-      subscribe(client, characterId, handlers);
+      subscribe(client, deviceId, characterId, handlers);
       handlers.onConnectionStateChange?.("connected");
       if (!settled) {
         settled = true;
