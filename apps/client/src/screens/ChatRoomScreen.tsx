@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
@@ -39,6 +40,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<{ content: string; message: string } | null>(null);
+  const headerHeight = useHeaderHeight();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -93,7 +95,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={80}
+        keyboardVerticalOffset={headerHeight}
       >
         {isLoading && messages.length === 0 && <ActivityIndicator style={styles.centerBlock} />}
         {error && (
@@ -110,6 +112,12 @@ export function ChatRoomScreen({ route, navigation }: Props) {
           <View style={styles.statusBanner}>
             <ActivityIndicator size="small" color="#92400E" />
             <Text style={styles.statusText}>연결이 끊겨 재연결 중입니다… (그동안 메시지는 일반 방식으로 전송돼요)</Text>
+          </View>
+        )}
+        {isSending && !streamingContent && (
+          <View style={styles.statusBanner}>
+            <ActivityIndicator size="small" color="#92400E" />
+            <Text style={styles.statusText}>답변을 생각하는 중이에요… (캐릭터에 따라 20~40초 정도 걸릴 수 있어요)</Text>
           </View>
         )}
         <FlatList
@@ -135,8 +143,16 @@ export function ChatRoomScreen({ route, navigation }: Props) {
             placeholder="메시지를 입력하세요"
             multiline
           />
-          <Pressable style={styles.sendButton} onPress={() => handleSend()} disabled={isSending}>
-            <Text style={styles.sendButtonText}>전송</Text>
+          <Pressable
+            style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
+            onPress={() => handleSend()}
+            disabled={isSending}
+          >
+            {isSending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.sendButtonText}>전송</Text>
+            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -231,6 +247,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: "#3B82F6",
+  },
+  sendButtonDisabled: {
+    backgroundColor: "#93C5FD",
   },
   sendButtonText: {
     color: "#FFFFFF",
