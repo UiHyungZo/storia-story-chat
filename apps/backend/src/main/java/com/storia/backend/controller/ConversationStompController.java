@@ -6,12 +6,15 @@ import com.storia.backend.dto.StreamEvent;
 import com.storia.backend.entity.Message;
 import com.storia.backend.service.ConversationService;
 import com.storia.backend.service.GeminiService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import reactor.core.scheduler.Schedulers;
@@ -36,15 +39,11 @@ public class ConversationStompController {
     public void handleMessage(
             @DestinationVariable Long characterId,
             @Header("X-Device-Id") String deviceId,
-            @Payload MessageRequest request) {
+            @Valid @Payload MessageRequest request) {
         String content = request.content();
-        if (content == null || content.isBlank()) {
-            return;
-        }
-
         conversationService.postMessage(deviceId, characterId, content);
 
-        String destination = "/topic/conversation/" + deviceId + "/" + characterId;
+        String destination = destinationFor(deviceId, characterId);
         StringBuilder full = new StringBuilder();
 
         geminiService.streamReply(
@@ -72,5 +71,19 @@ public class ConversationStompController {
                             StreamEvent.error("죄송해요, 지금은 답변을 생성할 수 없어요."));
                 })
                 .subscribe();
+    }
+
+    @MessageExceptionHandler(MethodArgumentNotValidException.class)
+    public void handleValidationError(
+            @DestinationVariable Long characterId,
+            @Header("X-Device-Id") String deviceId) {
+        log.warn("Invalid message payload for character {}", characterId);
+        messagingTemplate.convertAndSend(
+                destinationFor(deviceId, characterId),
+                StreamEvent.error("메시지를 보낼 수 없습니다."));
+    }
+
+    private String destinationFor(String deviceId, Long characterId) {
+        return "/topic/conversation/" + deviceId + "/" + characterId;
     }
 }
