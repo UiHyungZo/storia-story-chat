@@ -136,6 +136,22 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [ ] **(5주차 신규)** `/egress/audio`(STOMP `/ws`와 별개인 raw WebSocket 경로)가 배포 환경의 리버스 프록시/로드밸런서에서 정상적으로 WSS 업그레이드되는지 확인 — `/ws` 검증됐다고 이 경로도 자동으로 되는 게 아니므로 별도 확인 필요
 - [ ] **(5주차 신규, 참고)** 완전한 A안(Python/Node 사이드카)까지 확장하기로 하면 배포 파이프라인에 새 런타임/프로세스가 하나 추가됨 — 상세는 5주차 "남은 작업" 항목 참고
 
+### 배포 목표 재정의 (2026-08-25)
+
+이 프로젝트의 목적은 스토어 정식 출시가 아니라 **"RN으로 iOS/Android 양쪽 실제 배포 파이프라인까지 처리할 수 있음"을 증명하는 것**으로 확정. 목표선은 **TestFlight + Google Play 내부 테스트까지**(정식 스토어 출시는 이번 범위 밖 — 필요해지면 지원 시작 후 진행). 이미 Swift 개인 앱으로 App Store 정식 출시 경험이 있어 재증명 가치가 낮고, RN+Android+Backend+AI 완성도에 시간을 쓰는 게 취업 전환엔 더 효율적이라는 판단.
+
+- [ ] Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
+- [ ] Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
+- [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨
+- [ ] 스토어 필수 관문 항목 준비: 개인정보처리방침 URL, Google Play Data Safety 설문, Apple App Privacy 설문 + Export Compliance, 앱 아이콘(현재 기본 Expo 아이콘일 가능성)
+- [ ] Release 빌드 파이프라인 — Fastlane 대신 **EAS Build** 검토(Expo 프로젝트라 서명 관리가 더 간단할 수 있음)
+- [ ] iOS Release Build → TestFlight 내부 테스트 배포
+- [ ] Android Release AAB → Google Play 내부 테스트 배포
+- [ ] README에 아키텍처/배포 방식/구현 범위 정리 (아래 "문서화" 섹션의 API 명세/블로그와는 별개 항목)
+- [ ] DeepLink는 이번 목표에서 필수 아님 — "Push/DeepLink/Streaming 중 핵심 기능" 요건은 Push(FCM)+Streaming(WS)으로 이미 충족됨, 시간 남으면 보너스로만 고려
+
+**(2026-08-25 결정) 백엔드는 localhost/LAN 유지해도 됨 — 클라우드 배포는 이번 목표에 필수 아님**: TestFlight 내부 테스터(App Store Connect Users, 최대 100명)는 Apple Beta App Review 자체가 없고, Google Play 내부 테스트 트랙도 가벼운 정책 체크만 거쳐 정식 리뷰가 없음 — 즉 리뷰어가 백엔드 기능을 실제로 테스트하지 않음. 본인 폰으로 직접 확인할 때만 집 Wi-Fi(LAN IP)에 있으면 됨(단 iOS ATS/Android cleartext traffic 차단 때문에 평문 HTTP 예외 설정은 필요 — `Info.plist NSAllowsArbitraryLoads` 또는 도메인 예외, Android `usesCleartextTraffic`/network security config). 면접 등에서 집 밖에서 직접 시연하려면 그 시점에 ngrok 터널을 예비책으로 켜둘 것 — 지금 단계에서 클라우드 배포를 서두를 필요는 없음.
+
 ## 문서화 (진행 중 계속 갱신)
 
 - [ ] API 명세 문서 (`docs/api/` — Swagger로 충분한지, 별도 정리 필요한지 판단)

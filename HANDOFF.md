@@ -66,6 +66,8 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료. 2026-08-24 세션에서 �
 
 ## 다음 작업 (바로 이어서 할 것)
 
+**(2026-08-25 갱신) 배포 목표 확정: TestFlight + Google Play 내부 테스트까지, 정식 스토어 출시는 범위 밖.** 이 프로젝트 목적은 "RN으로 iOS/Android 양쪽 실제 배포 파이프라인을 처리할 수 있음"을 증명하는 것 — 이미 Swift 개인 앱을 App Store에 정식 출시해본 경험이 있어 재증명 가치가 낮음. 백엔드는 localhost/LAN 유지로 충분(이유는 아래 "중요한 결정 사항" 참고), 클라우드 배포는 이번 목표에 필수 아님. 새로 추가된 항목(Apple Developer/Google Play Console 가입, 실기기 테스트, 스토어 관문 항목, EAS Build 검토, README 정리 등)은 [`TODO.md`](./TODO.md)의 "배포 목표 재정의 (2026-08-25)" 섹션 참고.
+
 **(2026-08-24 갱신) 아래 중 상당수는 이제 실행 검증 완료** — 남은 항목 위주로 정리:
 
 - [x] 캐릭터 목록 조회 → 채팅방 진입 → 메시지 전송 → 히스토리 복원까지 왕복 — 완료(위 "신규 실행 검증 세션" 참고).
@@ -120,6 +122,7 @@ PRD v3 마일스톤 **1~5주차 코드 작성 완료. 2026-08-24 세션에서 �
 - **(2026-08-24 신규) 외부 LLM API의 모델명은 언제든 서비스 종료될 수 있음**: `gemini-2.0-flash`가 어느 시점엔가 Google 쪽에서 종료돼 404를 반환하기 시작했음(에러 메시지가 대체 모델명을 알려줌 — `models/gemini-3.6-flash`). 그레이스풀 디그레이드가 에러를 조용히 삼키는 구조라 이런 경우 겉으로는 "정상 동작 중(그냥 폴백 문구가 나올 뿐)"처럼 보이므로, 주기적으로 실제 키를 넣고 살아있는지 확인하거나 최소한 에러 로그를 모니터링할 필요가 있음.
 - **(2026-08-24 신규) 이 머신에 Android SDK를 헤드리스로 설치한 방법(재현용 레시피)**: `curl`로 `https://dl.google.com/android/repository/commandlinetools-mac-<버전>_latest.zip` 받기 → `$HOME/Library/Android/sdk/cmdline-tools/latest`에 압축 해제(경로 이름이 정확히 `latest`여야 `sdkmanager`가 인식함) → `sdkmanager --licenses`로 라이선스 동의 → `sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;google_apis;arm64-v8a"` → `avdmanager create avd -n <이름> -k "system-images;android-35;google_apis;arm64-v8a" -d "pixel_6"` → `emulator -avd <이름> -no-snapshot -no-boot-anim`. GUI 셋업 마법사 없이 전부 가능함.
 - **(2026-08-24 신규) `adb`로 UI 자동화할 땐 스크린샷에서 좌표를 눈대중으로 추정하지 말고 `adb shell uiautomator dump`로 정확한 `bounds`를 확인할 것**: 스크린샷 픽셀 비율로 좌표를 계산했다가 dev-menu의 "Continue" 버튼을 두 번이나 못 눌렀음(실제 bounds는 화면 훨씬 아래쪽에 있었음). `uiautomator dump /sdcard/ui.xml` → `adb pull` → 원하는 `text=` 노드의 `bounds="[x1,y1][x2,y2]"`를 찾아 중심점을 탭하는 방식이 훨씬 안정적. 한글 등 비ASCII 텍스트는 `adb shell input text`로 잘 안 들어가서 영어로 대체해야 했음(한글 IME 자동화가 필요하면 별도 방법 조사 필요).
+- **(2026-08-25 신규) TestFlight/Google Play 내부 테스트는 백엔드가 localhost/LAN이어도 무방함**: TestFlight 내부 테스터(App Store Connect Users, 최대 100명)는 Apple Beta App Review가 없고, Google Play 내부 테스트 트랙도 가벼운 정책 체크만 거쳐 정식 리뷰가 없음 — 리뷰어가 백엔드 기능을 실제로 호출해보지 않음. 두 스토어 사이에 "한쪽만 localhost 허용" 같은 차이는 없음 — 스토어는 애초에 백엔드 위치에 관여하지 않고, 실제로 걸리는 건 OS 레벨 정책(iOS ATS, Android 9+ cleartext traffic 차단)뿐이라 두 플랫폼에 동일하게 적용됨. 본인 폰으로 직접 확인할 때만 집 Wi-Fi(LAN IP)에 있으면 되고, 예외 설정(`Info.plist NSAllowsArbitraryLoads`/도메인 예외, Android `usesCleartextTraffic`)만 해두면 됨. 집 밖(면접 등)에서 직접 시연할 계획이 생기면 그때 ngrok 터널을 켜는 것으로 충분 — 지금 클라우드 배포를 서두를 필요 없음. 상세 배포 목표는 `TODO.md` "배포 목표 재정의 (2026-08-25)" 참고.
 
 ## 로컬 실행
 
