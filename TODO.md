@@ -4,6 +4,8 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 **(2026-08-24 세션 종료)** 다음 세션 시작 전: Docker(`docker compose up`)/백엔드(`export GEMINI_API_KEY=...` 후 `gradlew bootRun`)/Android 에뮬레이터 전부 재기동 필요(로컬 프로세스라 컴퓨터/세션 종료 시 꺼짐). 최우선 남은 작업은 4주차의 **FCM 서비스 계정 JSON** — 받으면 바로 실 발송 검증 가능. 상세는 [`HANDOFF.md`](./HANDOFF.md) 참고.
 
+**(2026-08-25 세션)** 로컬 스택 재기동 후 실행 검증 중 실제 버그 하나 발견/수정: `GeminiService`의 `CHUNK_TIMEOUT`이 30초였는데, `gemini-3.6-flash`가 추론(thinking) 모델이라 실제 캐릭터 시스템 프롬프트급 요청에서 첫 응답까지 19~29초, 프롬프트에 따라 40초 넘게 걸리는 경우가 확인됨 — 30초 마진이 너무 빡빡해서 유효한 키로도 간헐적으로 고정 폴백 문구가 나왔음. 60초로 늘려서 REST/WS 스트리밍 둘 다 재검증 완료(아래 2주차 항목 참고). 서비스 계정 JSON은 이번 세션엔 아직 안 받음 — 여전히 최우선 남은 작업. 상세는 `HANDOFF.md` 참고.
+
 ## 지금 당장 (1주차 마무리 갭)
 
 - [x] 클라이언트에서 실제 백엔드 REST API 호출로 전환 (`GET /api/characters`, `GET /api/conversations/{characterId}/messages`) — `dummyCharacters.ts` 제거, `src/api/` 계층 추가
@@ -30,9 +32,11 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 - [x] **(2026-08-24 실행 검증 완료)** 사용자가 실제 `GEMINI_API_KEY` 제공 → 실 스트리밍/REST 왕복 전부 확인. 처음엔 계속 고정 폴백 문구만 왔는데, 원인은 키가 아니라 **`gemini-2.0-flash` 모델이 Google 쪽에서 서비스 종료**(`404 This model ... is no longer available`)된 것이었음 — `gemini-3.6-flash`로 교체(`application.yml`, 커밋 `8fbd6aa`)해서 해결. 헤드리스 STOMP 스크립트로 실제 WS 스트리밍도 확인: `CHUNK` 이벤트 여러 개 → `DONE`, 캐릭터 페르소나에 맞는 진짜 창의적인 응답(예: 렌이 손님에게 책을 파는 짧은 이야기를 즉석에서 지어냄) 도착. REST 경로도 curl/실제 앱 양쪽에서 진짜 AI 응답 수신 확인.
   - **부수 발견/수정**: `ConversationController.postMessage`의 `.onErrorReturn(...)`이 에러를 로그 한 줄 없이 완전히 삼키고 있어서, 모델 404 에러가 전혀 안 보이고 그냥 폴백 문구만 계속 나와 원인 파악이 어려웠음 — `.doOnError(error -> log.warn(...))` 추가(STOMP 컨트롤러는 이미 하고 있던 패턴, REST도 맞춤). 커밋 `8fbd6aa`.
+  - **(2026-08-25 추가 발견/수정)** 모델 교체 후에도 여전히 간헐적으로 고정 폴백 문구가 나오는 걸 재확인 — 로그에 `TimeoutException: Did not observe any item or terminal signal within 30000ms`. curl로 직접 Gemini `streamGenerateContent`를 찔러보니 `gemini-3.6-flash`가 추론(thinking) 모델이라 첫 청크까지 프롬프트 복잡도에 따라 11~29초, 길면 40초 넘게 걸리는 것을 확인(빈 프롬프트: 11초, 실제 캐릭터 시스템 프롬프트급: 19~29초). `GeminiService.CHUNK_TIMEOUT`을 30초→60초로 늘려 해결 — REST/WS 양쪽 헤드리스로 재검증 완료(REST 29초 소요, WS 헤드리스 STOMP 스크립트로 `CHUNK`×N → `DONE` 확인). `./gradlew test`로 회귀 없음 확인.
+  - **(2026-08-25 부수 수정)** `ConversationStompController`의 `doOnError`가 STOMP `ERROR` 이벤트는 정상 발행하지만 그 뒤로 예외가 `subscribe()`의 미구현 에러 핸들러까지 전파돼 `Operators : Operator called default onErrorDropped`라는 불필요한 스택트레이스가 로그에 매번 남고 있었음 — `.onErrorComplete()`를 `doOnError` 뒤에 추가해 정리.
 - [x] **(2026-08-24 실행 검증 완료)** 백엔드를 내려서 WS 연결 실패 상황을 만든 뒤 재연결이 되는지는 3주차 헤드리스 테스트로 확인(아래 3주차 참고). REST 폴백 자체는 이미 위에서 실제 응답까지 확인됨.
 - [x] `@stomp/stompjs`가 RN(Hermes) 환경에서 별도 폴리필 없이 붙음 — 실제 앱에서 폴리필 관련 크래시 없이 STOMP 핸드셰이크 자체는 정상 동작(curl로 `/ws`에 직접 Upgrade 요청 시 `101` 응답도 별도 확인).
-- [x] **(2026-08-24 신규 발견)** 현재는 화면 진입 시 WS 연결을 1회만 시도하고 세션 내내 그 결과(ws/rest)를 유지하는데, 이 연결 시도에 4초 타임아웃(`CONNECT_TIMEOUT_MS`, `src/api/websocket.ts`)이 걸려있음 — 실제 앱을 콜드 스타트 직후 채팅방에 진입해 첫 메시지를 보낸 세션에서 이 타임아웃을 넘겨 **조용히 REST로 폴백된 것으로 추정**됨(DB에 저장된 응답 문구가 WS 경로의 에러 문구가 아니라 REST 전용 폴백 문구였음). 앱 시작 직후 첫 채팅에서 WS가 예상보다 자주 REST로 떨어질 수 있다는 뜻 — 타임아웃을 늘리거나 원인을 더 조사할 가치가 있어 보임. 스트리밍 도중 연결이 끊기는 시나리오의 재시도/재연결은 3주차 범위.
+- [x] **(2026-08-24 신규 발견, 2026-08-25 원인 확정)** 현재는 화면 진입 시 WS 연결을 1회만 시도하고 세션 내내 그 결과(ws/rest)를 유지하는데, 이 연결 시도에 4초 타임아웃(`CONNECT_TIMEOUT_MS`, `src/api/websocket.ts`)이 걸려있음 — 당시엔 이게 원인으로 "추정"됐었으나, **2026-08-25에 진짜 원인이 확인됨**: WS 연결 자체는 정상이었고, `GeminiService`의 `CHUNK_TIMEOUT`(당시 30초)이 `gemini-3.6-flash`의 실제 응답 시간(19~29초, 프롬프트에 따라 40초+)에 비해 마진이 너무 빡빡해서 REST/WS 양쪽 다 간헐적으로 타임아웃 → 고정 폴백 문구가 나왔던 것. 60초로 늘려 해결(아래 2주차 항목 참고) — WS 4초 연결 타임아웃 자체는 별도 손 안 댐(로컬 백엔드 기준 4초면 충분해 보임, 실기기/원격 배포 시엔 재검토 여지 있음).
 
 ## 3주차 — 안정성 & 동기화
 
@@ -46,7 +50,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 - [x] Docker Desktop 설치 후 `docker compose up`으로 DB 히스토리 저장/복원 실제 확인 완료(위 참고).
 - [x] **(2026-08-24 실행 검증)** WS 재연결 메커니즘 자체 — 앱 UI로는 테스트 세션이 REST로 떨어져서(위 2주차 신규 발견 참고) 배너를 못 띄워봤지만, `websocket.ts`와 동일한 `@stomp/stompjs` 설정(`reconnectDelay`/`maxReconnectDelay`/`EXPONENTIAL`)으로 헤드리스 Node 스크립트를 만들어 실제 백엔드에 직접 붙여 검증: 연결 → 백엔드 kill → `WS CLOSED`/`WS ERROR` 감지 → 2s/4s/8s/16s 지수 백오프로 재시도 → 백엔드 재기동 후 자동 재연결 성공(`CONNECTED count=2`)까지 실제로 확인함. 즉 재연결의 핵심 메커니즘은 정상 동작 — **남은 건 `ChatRoomScreen`이 이 상태를 배너로 정확히 렌더링하는지를 실제 화면에서 탭으로 확인하는 것뿐**(탭 자동화 없어 미검증).
-- [ ] 메시지 전송 실패 배너를 탭했을 때 동일 내용으로 재전송되는지, 목록/채팅방 오류 배너의 "다시 시도"가 정상 동작하는지 확인
+- [x] **(2026-08-25 부분 검증)** 목록 화면 오류 배너의 "다시 시도" 탭 동작 — Android 에뮬레이터에서 실제 탭으로 확인: 백엔드를 내린 채 앱 재시작 → 캐시된 캐릭터 3종 + 오류 배너("fetch failed: ... Failed to connect to /10.0.2.2:8080") + "다시 시도" 표시 → 백엔드를 다시 올리고 "다시 시도" 실제 탭 → 오류 배너가 사라지고 정상 로드됨까지 확인. 메시지 전송 실패 배너(`sendError`) 탭 시 재전송은 코드 레벨로만 확인(`ChatRoomScreen`의 `onPress={() => handleSend(sendError.content)}` — 목록 재시도와 동일 패턴, 동일 content로 재호출) — 실제 탭 재현은 아래 "신규 발견" 항목 때문에 이번 세션엔 실패, 다음 세션 과제로 남김.
 - [x] **(2026-08-24 실행 검증 완료)** 오프라인 상태로 앱을 재시작해 캐릭터 목록이 AsyncStorage 캐시로부터 즉시 보이는지 확인 — 백엔드를 완전히 끈 상태에서 앱을 완전히 재시작해도 캐릭터 3종이 캐시에서 즉시 렌더링됐고, 동시에 "fetch failed: ... Could not connect to the server" 오류 배너 + "다시 시도" 버튼도 정상적으로 함께 표시됨. ("다시 시도" 탭 자체의 동작은 탭 자동화가 없어 미검증.)
 
 ## 4주차 — Native Module & 푸시
@@ -73,6 +77,8 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인 (서비스 계정 JSON 필요)
 - [x] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈 링크·컴파일 확인 완료(위 참고). 실제 햅틱 진동/알림 배너가 화면에 뜨는지 눈으로 직접 보는 것만 남음.
 - [x] **(2026-08-24 실행 검증 완료)** Android SDK/에뮬레이터 설치 후 `storia-native`의 Kotlin 모듈 링크·컴파일·실행 확인 완료(위 참고). 남은 건 진동/알림 배너를 실제 기기(에뮬레이터는 진동 체감 불가)에서 눈으로 확인하는 것과 API 33+ 권한 프롬프트 확인뿐.
+- [ ] **(2026-08-25 신규 발견)** 이 머신에 실제 Android 기기가 USB로 연결돼 있음(`adb devices`에 `unauthorized` 상태로 표시) — 기기 화면에서 "USB 디버깅 허용"만 승인하면 바로 실기기 테스트(진동/알림 배너 확인 등)에 쓸 수 있을 것으로 보임. 다음 세션에서 기기 화면 확인 후 승인하고 이어서 진행할 것.
+- [ ] **(2026-08-25 신규 발견, 도구 관련)** Android 에뮬레이터(`storia_test`)가 백엔드 JVM 프로세스를 `kill -9`로 죽일 때 같이 죽는 현상을 이번 세션에서 3회 재현함(원인 미확정 — 리소스 경합으로 추정, 메모리 여유가 있을 때도 발생해 확정은 아님). `adb reverse tcp:8080` 제거로 우회 시도했으나 Android는 `10.0.2.2`(에뮬레이터 내장 게이트웨이 별칭)로 백엔드에 직접 붙기 때문에 `adb reverse` 설정과 무관하게 계속 연결됨 — 이 방법으로는 백엔드 다운 상황을 재현할 수 없음. 다음에 백엔드 다운/네트워크 실패 시나리오를 에뮬레이터에서 테스트하려면 프로세스를 죽이지 말고 다른 방법(예: 에뮬레이터 게스트 OS 방화벽 규칙, `adb shell` 네트워크 제어)을 찾을 것.
 
 ## 5주차 — 음성 통화, "축소판 A안"으로 확장
 
@@ -122,7 +128,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - **클라이언트**: `npx expo install @sentry/react-native`로 SDK 57 호환 버전(`~7.11.0`) 설치 — 설치 시점에 Expo SDK 57 호환성 관련 GitHub 이슈(#6384)가 열려있는 걸 먼저 확인했으나, 실제 설치·`tsc --noEmit`·`npm test` 전부 문제없이 통과해 그대로 채택. `app.json` plugins에 `@sentry/react-native` 자동 추가됨(`expo install`이 처리). `App.tsx`에서 `Sentry.init({ dsn, enabled: Boolean(dsn) })` 호출 + `Sentry.wrap(App)`으로 루트 컴포넌트 감싸 자동 계측(터치/네비게이션) 활성화. DSN은 `EXPO_PUBLIC_SENTRY_DSN` 환경변수.
   - **미검증**: 실제 Sentry 프로젝트/DSN이 없어 이벤트가 실제로 대시보드에 도착하는지는 확인 못 함 — 다음 세션에서 Sentry 프로젝트 생성 후 확인 필요.
 - [x] **(신규) 전역 REST 예외 처리기** — `GlobalExceptionHandler`(`@RestControllerAdvice`)로 잘못된 `characterId` 등 처리 안 된 예외가 그대로 500으로 노출되던 문제 해결(아래 참고용으로 HANDOFF.md에 "범위 밖"으로 남아있던 항목이었음). `ResourceNotFoundException` 등을 상태 코드 + `{code, message}` 구조화된 응답으로 매핑, `docs/error-handling.md`에 엔드포인트별 에러 케이스 문서화. `GlobalExceptionHandlerTest` 추가. **(2026-08-24 실행 검증 완료)** curl로 실제 확인: 잘못된 characterId → `404 {"code":"NOT_FOUND",...}`, `X-Device-Id` 헤더 누락 → `400 {"code":"MISSING_HEADER",...}`, 유효성 검증 실패 → `400 {"code":"VALIDATION_ERROR",...}` — 전부 구조화된 응답으로 정상 동작.
-- [ ] 에러 시나리오 검증 (WebRTC 연결 실패 포함 — LiveKit room 연결 실패, Track Egress WebSocket 끊김, 턴 타임아웃 등 5주차에서 새로 생긴 실패 지점 포함)
+- [ ] 에러 시나리오 검증 (WebRTC 연결 실패 포함 — LiveKit room 연결 실패, Track Egress WebSocket 끊김, 턴 타임아웃 등 5주차에서 새로 생긴 실패 지점 포함). **(2026-08-25 부분 검증)** 자격증명 불필요한 부분만 curl+코드 리뷰로 확인: `LIVEKIT_*` 미설정 시 `POST /api/calls/{characterId}/token` → `503`(클라이언트는 `useVoiceCallStore#startCall`의 try/catch가 `phase: "error"` + `errorMessage`로 전환하는 것 코드로 확인 — `apiPost`가 non-2xx에서 `ApiError`를 throw함도 확인), `TTS_API_KEY` 미설정 시 `GET/HEAD /api/messages/{id}/audio` → `404`(클라이언트 `isMessageAudioAvailable`이 `HEAD` + `response.ok`로 확인 후 `playAssistantAudio`가 에러 없이 `phase: "idle"`로 조용히 복귀하는 것 코드로 확인). 실제 LiveKit room 연결 후 끊김/턴 타임아웃 등은 여전히 LiveKit 자격증명 필요 — 미검증.
 - [x] **테스트 코드 (백엔드 JUnit5+Spring Boot Test, 클라이언트 Jest) — 외부 자원(Docker/Xcode/계정) 없이 이 머신에서 실제로 실행·통과까지 확인함.**
   - **백엔드(18개, `./gradlew test`)**: `MessageRepositoryTest`(`@DataJpaTest` + H2 인메모리 — 3주차부터 미검증으로 남아있던 "메시지가 `createdAt` 오름차순으로 저장/조회되는지"를 처음으로 실제 실행 검증함), `ConversationServiceTest`/`CharacterServiceTest`/`MessageServiceTest`(Mockito 단위 테스트), `TtsServiceTest`/`SttServiceTest`(자격증명 미설정 시 WebClient를 아예 호출하지 않고 graceful degrade하는지 검증), `CharacterControllerTest`(`@WebMvcTest` + `@MockitoBean` — Spring Boot 4에서 `@MockBean`이 제거되고 `org.springframework.test.context.bean.override.mockito.MockitoBean`으로 바뀜, `javap`로 확인 후 사용). `com.h2database:h2`를 `testRuntimeOnly`로 추가하고 `src/test/resources/application.yml`로 테스트 시 datasource를 H2로 자동 오버라이드(테스트 클래스패스가 메인보다 우선순위가 높아 별도 프로파일 지정 없이 적용됨) — 로컬에 MariaDB가 없어도 전체 테스트 스위트가 항상 돌아가게 함(7주차 CI 파이프라인에도 그대로 재사용 가능).
     - **부수적으로 발견/수정한 실제 버그**: 원래 있던 `BackendApplicationTests.contextLoads()`가 DB 문제와 별개로 `NoSuchBeanDefinitionException: ObjectMapper`로 실패하고 있었음 — Spring Boot 4의 모듈화된 스타터(`webmvc`, `websocket`만 쓰고 구버전의 통짜 `web` 스타터를 안 씀) 구성에서는 classic Jackson `ObjectMapper` 빈이 자동 생성되지 않는데, `TtsService`/`SttService`가 이걸 생성자로 직접 주입받고 있어서 **`gradlew bootRun`을 했어도 애플리케이션이 아예 기동조차 못 했을 상황**이었음. `config/JacksonConfig.java`에 명시적 `@Bean ObjectMapper`를 추가해 해결 — 이번 세션 전까지 아무도 전체 컨텍스트를 실제로 띄워본 적이 없어서 드러나지 않았던 버그.

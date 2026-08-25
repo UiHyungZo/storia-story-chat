@@ -9,7 +9,7 @@ REST 계층(`@RestController`)의 전역 예외 처리 정책. 구현: `com.stor
 | 채널 | 에러 통지 방법 |
 |---|---|
 | REST (`@RestController`) | 이 문서의 `GlobalExceptionHandler` |
-| STOMP (`ConversationStompController`) | `StreamEvent.error(message)`를 `/topic/conversation/{characterId}`로 발행 |
+| STOMP (`ConversationStompController`) | `StreamEvent.error(message)`를 `/topic/conversation/{deviceId}/{characterId}`로 발행 |
 | Raw WS Egress (`VoiceEgressWebSocketHandler`) | `VoiceTurnSession#fail(message)` → 클라이언트가 `GET /api/calls/turns/{turnId}` 폴링 시 `status: "error"`로 확인 |
 
 ## 공통 응답 형태

@@ -256,9 +256,11 @@ PRD 3.3, `docs/architecture/README.md` "목표 아키텍처" 참고.
 
 ```text
 STOMP endpoint: ws://<host>:8080/ws  (SockJS 없음 — RN 네이티브 클라이언트 대상)
-Client --SEND--> /app/conversation/{characterId}/send   { "content": "..." }, Header: X-Device-Id
-Server --publish--> /topic/conversation/{characterId}   StreamEvent (CHUNK* → DONE | ERROR)
+Client --SEND--> /app/conversation/{characterId}/send                Header: X-Device-Id, { "content": "..." }
+Server --publish--> /topic/conversation/{deviceId}/{characterId}     StreamEvent (CHUNK* → DONE | ERROR)
 ```
+
+브로드캐스트 destination은 `characterId`뿐 아니라 `deviceId`로도 스코프돼 있어(같은 캐릭터와 대화하는 서로 다른 두 유저가 서로의 스트림 이벤트를 받지 않도록), 클라이언트는 반드시 자신의 `deviceId`가 포함된 토픽을 구독해야 한다.
 
 `StreamEvent`:
 
