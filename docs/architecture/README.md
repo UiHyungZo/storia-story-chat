@@ -1,6 +1,6 @@
 # 아키텍처
 
-## 현재 구현 상태 (Week 5 — 실행 검증은 아직 안 됨, [`HANDOFF.md`](../../HANDOFF.md) 참고)
+## 현재 구현 상태 (Week 7 — 실행 검증 진행 중, [`HANDOFF.md`](../../HANDOFF.md) 참고)
 
 텍스트 채팅(REST + WebSocket/STOMP + Gemini 스트리밍), WS 재연결, 로컬 캐시, Native
 Module(Haptic+로컬 알림), FCM 푸시 백엔드, 음성 통화(LiveKit 기반 "축소판 A안")까지
