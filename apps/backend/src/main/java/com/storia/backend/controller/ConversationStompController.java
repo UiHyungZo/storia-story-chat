@@ -70,6 +70,7 @@ public class ConversationStompController {
                     messagingTemplate.convertAndSend(destination,
                             StreamEvent.error("죄송해요, 지금은 답변을 생성할 수 없어요."));
                 })
+                .onErrorComplete()
                 .subscribe();
     }
 

@@ -21,7 +21,7 @@ import reactor.core.publisher.Flux;
 @Slf4j
 public class GeminiService {
 
-    private static final Duration CHUNK_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration CHUNK_TIMEOUT = Duration.ofSeconds(60);
 
     private final WebClient geminiWebClient;
     private final GeminiProperties properties;
