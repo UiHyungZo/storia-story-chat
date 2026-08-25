@@ -16,7 +16,10 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ### 검증 필요 (다음 세션, 로컬 실행 후)
 
-- [ ] Android 에뮬레이터는 `10.0.2.2`, iOS 시뮬레이터는 `localhost`로 자동 분기(`src/api/config.ts`) — 실기기 테스트 시 `EXPO_PUBLIC_API_BASE_URL` 환경변수로 개발 머신 LAN IP를 넣어야 함 (자동 감지 불가). iOS 시뮬레이터 기준(`localhost`)은 검증됨, LAN IP 경로는 미검증.
+- [x] **(2026-08-25 실행 검증 완료)** Android 에뮬레이터는 `10.0.2.2`, iOS 시뮬레이터는 `localhost`로 자동 분기(`src/api/config.ts`) — 실기기 테스트 시 `EXPO_PUBLIC_API_BASE_URL` 환경변수로 개발 머신 LAN IP를 넣어야 함 (자동 감지 불가). iOS 시뮬레이터 기준(`localhost`)은 검증됨. **LAN IP 경로도 실제 iPhone(Xcode에 페어링된 실기기, 무료 Apple ID 개인 서명)으로 왕복 확인 완료**: `EXPO_PUBLIC_API_BASE_URL=http://<Mac LAN IP>:8080`로 Metro/네이티브 빌드 → WiFi로 캐릭터 목록 정상 로드까지 확인.
+  - **과정에서 발견/수정한 실제 빌드 버그 2개**: (1) `@react-native-firebase/app`가 기본으로 SPM(Swift Package Manager)을 쓰는데, `@config-plugins/react-native-webrtc`가 요구하는 static 프레임워크 링크와 충돌(`pod install` 실패) — RNFirebase 플러그인이 제공하는 `ios.disableSPM: true` 옵션을 `app.json`에 추가해 해결. (2) 그 다음 `GoogleUtilities`가 모듈을 정의하지 않아 static 프레임워크에서 `pod install`이 또 실패 — CocoaPods 공식 해법인 `use_modular_headers!`를 Podfile에 주입하는 로컬 config plugin(`apps/client/plugins/withModularHeaders.js`, `withPodfile`+`mergeContents` 사용, RNFirebase 자체 플러그인 구현 패턴을 그대로 따름)을 새로 만들어 해결.
+  - **iOS ATS 예외도 이번에 처음 추가**: `app.json`의 `ios.infoPlist.NSAppTransportSecurity.NSAllowsLocalNetworking: true` — 이게 없으면 실기기에서 평문 HTTP(사설 IP 대역)가 ATS에 막혀 아예 연결 시도조차 안 됨(배포 목표 재정의 섹션에서 이미 "필요할 것"으로 예견했던 항목, 이번에 실제로 필요함을 확인하고 추가).
+  - **처음엔 "Could not connect to the server"로 실패했는데 원인은 코드가 아니라 운영 실수였음**: 이미 몇 시간 전에 Android 테스트용으로 띄워둔 Metro가 `EXPO_PUBLIC_API_BASE_URL` 없이 떠있던 상태라, iOS 실기기 빌드가 그 기존 Metro에 붙으면서 (iOS 기본값인) `localhost`가 그대로 번들에 박힘 — 실기기에서 `localhost`는 자기 자신이라 당연히 연결 실패. Metro를 올바른 env var로 재기동하니 해결. **교훈: `expo run:ios/--device`를 새 env var로 다시 실행해도, 이미 떠있는 Metro가 있으면 그걸 그대로 재사용해서 새 env var가 반영 안 될 수 있음 — env var를 바꿨으면 Metro도 같이 재기동할 것.**
 - [x] **캐릭터 목록 → 채팅방 진입 → 메시지 전송 → 히스토리 복원까지 실제 왕복 확인함** (iOS 시뮬레이터). 이 과정에서 `useConversationStore.getMessages()`가 메시지 없을 때 `?? []`로 매번 새 배열을 반환해 Zustand 셀렉터 참조가 불안정해지고, 채팅방 진입 시 "Maximum update depth exceeded"로 **거의 항상 크래시하는 실제 버그**를 발견 — `EMPTY_MESSAGES` 상수로 고침(커밋 `e0ec8cb`). 앱 완전 종료 후 재시작 + 백엔드 완전 종료 후 재시작 두 경우 모두 DB에서 메시지가 정상 복원되는 것도 확인.
 - [x] **(2026-08-24 결정)** CORS 설정 유지하기로 결정 — `WebConfig`의 기존 주석이 이미 정확한 근거를 담고 있음(RN 네이티브 fetch는 CORS 영향 없지만 Swagger UI 등 브라우저 기반 API 확인 시나리오엔 필요). 로컬 개발 전용 전체 허용 설정이라 제거할 이유 없음, 배포 전 재검토(코드 주석에 이미 명시)만 남기고 종료.
 
@@ -148,7 +151,7 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 - [ ] Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
 - [ ] Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
-- [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨
+- [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨. **(2026-08-25 iOS 부분 검증)** 실제 iPhone(무료 Apple ID 개인 서명)에 Development Build 설치 → LAN IP로 캐릭터 목록 로드까지 확인(위 1주차 항목 참고). 메시지 전송/채팅방 등 나머지 화면 + Android 실기기(USB 디버깅 트러블슈팅 실패, 위 4주차 항목 참고)는 아직 미검증.
 - [ ] 스토어 필수 관문 항목 준비: 개인정보처리방침 URL, Google Play Data Safety 설문, Apple App Privacy 설문 + Export Compliance
 - [ ] **(2026-08-25 확인)** `apps/client/assets/icon.png`가 실제로 Expo 기본 템플릿 아이콘(파란 "A" 블루프린트 스타일)인 것으로 확인됨 — Storia 브랜딩 아이콘으로 교체 필요. 디자인 방향(컬러/심볼)은 사용자 판단 필요.
 - [ ] Release 빌드 파이프라인 — Fastlane 대신 **EAS Build** 검토(Expo 프로젝트라 서명 관리가 더 간단할 수 있음)

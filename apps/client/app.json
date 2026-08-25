@@ -15,7 +15,10 @@
         "aps-environment": "development"
       },
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
@@ -50,8 +53,16 @@
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
       "@sentry/react-native",
-      "@react-native-firebase/app",
-      "@react-native-firebase/messaging"
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ],
+      "@react-native-firebase/messaging",
+      "./plugins/withModularHeaders"
     ]
   }
 }
