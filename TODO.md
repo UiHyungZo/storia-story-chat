@@ -6,6 +6,17 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 **(2026-08-25 세션)** 로컬 스택 재기동 후 실행 검증 중 실제 버그 하나 발견/수정: `GeminiService`의 `CHUNK_TIMEOUT`이 30초였는데, `gemini-3.6-flash`가 추론(thinking) 모델이라 실제 캐릭터 시스템 프롬프트급 요청에서 첫 응답까지 19~29초, 프롬프트에 따라 40초 넘게 걸리는 경우가 확인됨 — 30초 마진이 너무 빡빡해서 유효한 키로도 간헐적으로 고정 폴백 문구가 나왔음. 60초로 늘려서 REST/WS 스트리밍 둘 다 재검증 완료(아래 2주차 항목 참고). 서비스 계정 JSON은 이번 세션엔 아직 안 받음 — 여전히 최우선 남은 작업. 상세는 `HANDOFF.md` 참고.
 
+**(2026-08-26 세션, Docker/Android SDK 없는 보조 머신에서 진행 — 코드/설정 작업 위주)** 실행 검증은 전혀 못 했고, 자격증명 없이 가능한 코드 작업만 진행: (1) Storia 브랜딩 앱 아이콘 신규 생성(PIL로 직접 그림, Expo 기본 아이콘 교체), (2) `apps/client/eas.json` 신규 작성(EAS Build 프로파일), (3) `docs/legal/privacy-policy.md` 초안 작성(문의처 이메일 `lukaend@naver.com`까지 채움, 발행용 공개 URL만 남음), (4) 에뮬레이터-백엔드 동시 종료 버그의 원인 가설/대안 조사(미검증, 코드 리뷰 기반), (5) **`pythonSideCar` 브랜치를 `develop`에 merge**하고 `apps/python-sidecar/agent.py`의 실제 API 오류 2건을 이 머신에 `brew install python@3.12`로 검증 환경을 만들어 실제로 고침(`chat_ctx.items` 파싱, `JobContext.add_shutdown_callback` 미연결) — 상세는 아래 각 섹션 참고. **다음 세션은 메인 컴퓨터(집)에서 진행하기로 함** — 아래 "다음 최우선 작업" 전부 거기서 처리할 것.
+
+### 다음 세션 최우선 작업 (메인 컴퓨터에서, 전부 외부 계정/콘솔 작업)
+
+- [ ] **FCM 서비스 계정 JSON** 발급 (Firebase 콘솔 → 프로젝트 설정 → 서비스 계정) — 몇 세션째 1순위로 밀려있는 항목
+- [ ] **APNs Auth Key(.p8)** 발급 (Apple Developer 계정은 이미 있음 — developer.apple.com → Keys) → Firebase 콘솔 Cloud Messaging 탭에 업로드
+- [ ] **LiveKit Cloud 프로젝트 생성**(무료 티어) — `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`. 백엔드(5주차 축소판 A안)와 `apps/python-sidecar` 둘 다 같은 값 사용
+- [ ] **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 백엔드의 `STT_API_KEY`/`TTS_API_KEY`와 별개 인증 방식) 발급 + Speech-to-Text/Text-to-Speech API 활성화 — **리포 폴더 밖에 저장할 것** (안전장치로 `.gitignore`에 `*service-account*.json`/`*-sa.json` 패턴은 추가해뒀지만, 애초에 리포 밖 보관이 제일 안전함)
+- [ ] Google Play Console 가입 ($25, 인증 며칠 걸릴 수 있음)
+- [ ] 위 자격증명 확보 후: Docker/백엔드/Metro/에뮬레이터 재기동 → FCM 실 발송/iOS 네이티브 모듈 육안 확인/`python-sidecar` 실제 room 연결 검증 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
+
 ## 지금 당장 (1주차 마무리 갭)
 
 - [x] 클라이언트에서 실제 백엔드 REST API 호출로 전환 (`GET /api/characters`, `GET /api/conversations/{characterId}/messages`) — `dummyCharacters.ts` 제거, `src/api/` 계층 추가
