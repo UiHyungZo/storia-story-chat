@@ -11,9 +11,11 @@ FCM 푸시는 전부 기존 Spring Boot 백엔드가 갖고 있으므로, `llm_n
 부르는 대신 Spring의 기존 REST 엔드포인트(`storia_client.StoriaBackendClient`)를
 그대로 호출한다.
 
-미검증: 이 머신에 LiveKit/Google 자격증명이 없어 실제로 room에 연결해본 적이 없다.
-`livekit-agents`를 pip install해서 실제 API(특히 `ChatContext`/`llm_node` 시그니처)를
-설치된 버전 문서와 대조하기 전까지는 스켈레톤으로 취급할 것.
+(2026-08-26) `pip install -r requirements.txt`가 Python 3.12 + `livekit-agents==1.3.12`
+기준으로 실제 설치되는 것과, `ChatContext`/`llm_node`/`JobContext.add_shutdown_callback`
+API 시그니처는 설치된 패키지를 직접 introspect해서 확인·반영함(아래 각 지점 주석 참고).
+여전히 미검증: LiveKit/Google 자격증명이 없어 실제로 room에 연결해 대화를 나눠본 적은
+없음 — automatic dispatch 동작, STT/TTS 플러그인 실제 왕복은 그대로 남아있는 항목.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import os
 
 from dotenv import load_dotenv
 from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli, llm
+from livekit.agents.llm import ChatMessage
 from livekit.plugins import google, silero
 
 from storia_client import StoriaBackendClient
@@ -57,10 +60,16 @@ class StoriaAgent(Agent):
         self._character_id = character_id
 
     async def llm_node(self, chat_ctx: llm.ChatContext, tools, model_settings=None):
-        # TODO(미검증): chat_ctx에서 "가장 최근 유저 발화 텍스트"를 꺼내는 정확한 API는
-        # 설치된 livekit-agents 버전 문서를 보고 확정할 것 (버전마다 ChatContext 모양이
-        # 바뀌어왔음 — items[-1].text_content는 1.x 기준 추정치).
-        user_text = chat_ctx.items[-1].text_content if chat_ctx.items else ""
+        # (2026-08-26 검증) chat_ctx.items는 ChatMessage 외에도 FunctionCall/
+        # FunctionCallOutput/AgentHandoff 등이 섞인 유니온(ChatItem)이라 마지막 원소가
+        # 항상 유저 발화 ChatMessage라는 보장이 없음 — role="user"인 ChatMessage를
+        # 뒤에서부터 찾아야 함. text_content는 ChatMessage에만 있는 프로퍼티(1.3.x 기준
+        # livekit/agents/llm/chat_context.py에서 직접 확인).
+        user_text = ""
+        for item in reversed(chat_ctx.items):
+            if isinstance(item, ChatMessage) and item.role == "user":
+                user_text = item.text_content or ""
+                break
         if not user_text:
             yield "죄송해요, 잘 못 들었어요."
             return
@@ -86,8 +95,11 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # session.start()는 세션을 시작만 시키고 리턴하며, 대화는 잡 프로세스가 살아있는
     # 동안(참가자 퇴장 등으로 잡이 끝날 때까지) 백그라운드에서 계속된다 — 그래서 여기서
-    # 곧바로 backend.aclose()를 부르면 안 된다. 잡 종료 시점에 정리하는 정확한 콜백
-    # (예: ctx.add_shutdown_callback 류)은 설치된 SDK 버전 문서로 확인해서 연결할 것.
+    # 곧바로 backend.aclose()를 부르면 안 된다. (2026-08-26 검증) JobContext에
+    # add_shutdown_callback(callback)이 실제로 존재함 — 인자 없는 콜백/이유 문자열을
+    # 받는 콜백 둘 다 허용(livekit/agents/job.py에서 직접 확인). 잡이 끝날 때(참가자 전원
+    # 퇴장 등) httpx 클라이언트를 정리하도록 등록.
+    ctx.add_shutdown_callback(backend.aclose)
     await session.start(agent=StoriaAgent(backend, device_id, character_id), room=ctx.room)
 
 
