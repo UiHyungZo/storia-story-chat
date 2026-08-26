@@ -35,3 +35,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Service account / credential keys (FIREBASE_CREDENTIALS_PATH etc.) — keep
+# outside the repo if possible; this is just a safety net against `git add .`
+*service-account*.json
+*-sa.json

@@ -2,3 +2,9 @@
 __pycache__/
 *.pyc
 .env
+
+# Google Cloud service account key (GOOGLE_APPLICATION_CREDENTIALS) — keep it
+# outside the repo if possible; this is just a safety net against `git add .`
+*service-account*.json
+*-sa.json
+
