@@ -22,6 +22,7 @@ docs/           # ERD, API 명세, 아키텍처 다이어그램
 - [에러 처리 정책](./docs/error-handling.md)
 - [테스트 정책](./docs/testing.md)
 - [기술 블로그 초안 — WebRTC 트레이드오프](./docs/blog-webrtc-tradeoffs.md) — 음성 통화를 왜 처음부터 완전한 실시간 파이프라인으로 짜지 않았는지
+- [개인정보처리방침](./docs/legal/privacy-policy.md) — 스토어 제출용 초안(스토어 등록 시 공개 URL로 퍼블리시 필요)
 - [HANDOFF](./HANDOFF.md) — 현재 진행 상태 및 인계 사항
 - [TODO](./TODO.md) — 남은 작업 목록
 
