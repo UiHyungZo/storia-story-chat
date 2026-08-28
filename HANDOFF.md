@@ -29,7 +29,7 @@
 
 PRD v3 마일스톤 **1~5주차 코드 작성 완료. 2026-08-24 세션에서 이 프로젝트 최초로 로컬 스택 전체(DB→백엔드→iOS 클라이언트)를 실제로 기동해 왕복 검증함** — 자격증명(Gemini/TTS/STT/LiveKit/Firebase/Sentry) 미설정 상태의 graceful-degradation 경로와 REST 왕복/DB 히스토리 복원/iOS 네이티브 빌드는 확인됨. 실제 자격증명이 필요한 기능(스트리밍 응답, FCM 발송, 음성 통화, Android 빌드)은 여전히 미검증 — 아래 "참고사항"/"다음 작업" 참고. **5주차는 세션 중 사용자와 상의해 범위가 원래 계획(B안만)보다 넓어짐** — 아래 참고.
 
-- **백엔드**: Spring Boot 3.x + JPA. `User`/`Character`/`Conversation`/`Message` 엔티티, 캐릭터 3종 시딩(`CharacterSeeder`), Swagger UI, `WebConfig`(로컬 개발용 CORS 전체 허용, `/api/**`).
+- **백엔드**: Spring Boot 4.0.7(모듈화 스타터 `webmvc`+`websocket`, Java 17) + JPA. `User`/`Character`/`Conversation`/`Message` 엔티티, 캐릭터 3종 시딩(`CharacterSeeder`), Swagger UI, `WebConfig`(로컬 개발용 CORS 전체 허용, `/api/**`).
   - REST: `GET /api/characters`, `GET /api/conversations/{characterId}/messages`, `POST /api/conversations/{characterId}/messages`(유저 메시지 저장 + Gemini 동기 호출로 어시스턴트 응답까지 한 번에 반환 — WS 실패 시 폴백 경로).
   - WebSocket(STOMP) — `WebSocketConfig`(`/ws` 엔드포인트, SockJS 없이 raw STOMP), `ConversationStompController`(`/app/conversation/{characterId}/send` 수신 → Gemini 스트리밍 청크를 `/topic/conversation/{deviceId}/{characterId}`로 발행 — 3주차 커밋 `ebb671f`에서 캐릭터당이 아니라 디바이스별로 스코프됨). `GeminiService`가 WebClient(SSE)로 Gemini `streamGenerateContent` 호출 — `GEMINI_API_KEY` 환경변수 필요, 없으면 WS는 ERROR 이벤트, REST는 고정 안내 문구로 우아하게 저하됨.
   - 3주차에 백엔드 변경 없음 (안정성/동기화 작업은 전부 클라이언트 범위).

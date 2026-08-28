@@ -2,14 +2,14 @@
 
 AI 캐릭터와 텍스트/음성으로 대화하는 스토리 챗 앱. React Native(Expo) 클라이언트와 Spring Boot 백엔드로 구성된 풀스택 포트폴리오 프로젝트입니다.
 
-자세한 요구사항은 [`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)를 참고하세요.
+자세한 요구사항은 [`PRD/Storia_PRD_final.md`](./PRD/Storia_PRD_final.md)를 참고하세요 (v2/v3/v3_merged는 히스토리 스냅샷).
 
 ## 구조
 
 ```
 apps/
 ├── client/     # React Native (Expo, TypeScript)
-└── backend/    # Spring Boot 3.x (Java 17)
+└── backend/    # Spring Boot 4.0.7 (Java 17)
 docs/           # ERD, API 명세, 아키텍처 다이어그램
 ```
 
@@ -138,7 +138,7 @@ PRD v3 마일스톤(1~7주차) 코드는 전부 작성 완료했고, 로컬 환�
 - **음성 통화**: 클라이언트↔LiveKit 구간은 실제 WebRTC, 서버는 Track Egress로 오디오만 받아 기존 배치 STT/Gemini/TTS 파이프라인에 흘려보내는 절충안("축소판 A안") — 왜 완전한 양방향 실시간 대신 이 구조를 택했는지는 [기술 블로그 초안](./docs/blog-webrtc-tradeoffs.md) 참고
 - **모니터링/테스트**: Sentry(클라이언트+백엔드), 백엔드 18개/클라이언트 17개 자동화 테스트, GitHub Actions CI, 백엔드 Dockerfile, 전역 REST 예외 처리기
 
-**의도적으로 범위 밖에 둔 것**: 정식 로그인(디바이스 ID 기반 익명 세션으로 대체), 다중 대화 세션, TURN 서버, 완전한 양방향 실시간 음성(서버가 합성 음성을 WebRTC로 실시간 재전송), 상시 운영 클라우드 배포 — 근거는 [PRD 9절](./PRD/Storia_PRD_v3.md)과 [ADR](./docs/decisions.md) 참고.
+**의도적으로 범위 밖에 둔 것**: 정식 로그인(디바이스 ID 기반 익명 세션으로 대체), 다중 대화 세션, TURN 서버, 완전한 양방향 실시간 음성(서버가 합성 음성을 WebRTC로 실시간 재전송), 상시 운영 클라우드 배포 — 근거는 [PRD 9절](./PRD/Storia_PRD_final.md)과 [ADR](./docs/decisions.md) 참고.
 
 ## 배포 현황
 
