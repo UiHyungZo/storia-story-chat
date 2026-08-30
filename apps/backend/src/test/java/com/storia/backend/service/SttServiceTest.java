@@ -18,7 +18,7 @@ class SttServiceTest {
 
     @Test
     void transcribe_returnsNullWithoutCallingWebClient_whenNotConfigured() {
-        SttProperties unconfigured = new SttProperties("", "https://speech.googleapis.com", "ko-KR", 48000);
+        SttProperties unconfigured = new SttProperties("", "https://speech.googleapis.com", "ko-KR", 48000, 2);
         SttService service = new SttService(sttWebClient, unconfigured, new ObjectMapper());
 
         String result = service.transcribe(new byte[] {1, 2, 3});
@@ -29,7 +29,7 @@ class SttServiceTest {
 
     @Test
     void transcribe_returnsNullWithoutCallingWebClient_whenAudioIsEmpty() {
-        SttProperties configured = new SttProperties("real-key", "https://speech.googleapis.com", "ko-KR", 48000);
+        SttProperties configured = new SttProperties("real-key", "https://speech.googleapis.com", "ko-KR", 48000, 2);
         SttService service = new SttService(sttWebClient, configured, new ObjectMapper());
 
         String result = service.transcribe(new byte[0]);

@@ -1,5 +1,6 @@
 package com.storia.backend.voice;
 
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,9 @@ public class VoiceEgressWebSocketHandler extends BinaryWebSocketHandler {
 
     private static final String TURN_ID_ATTR = "turnId";
 
+    /** Per-turn count of received audio frames, purely for the close-time log line. */
+    private final ConcurrentHashMap<String, Integer> audioFrameCounts = new ConcurrentHashMap<>();
+
     private final VoiceCallService voiceCallService;
 
     @Override
@@ -46,6 +50,7 @@ public class VoiceEgressWebSocketHandler extends BinaryWebSocketHandler {
         byte[] chunk = new byte[message.getPayloadLength()];
         message.getPayload().get(chunk);
         voiceCallService.appendAudio(turnId, chunk);
+        audioFrameCounts.merge(turnId, 1, Integer::sum);
     }
 
     @Override
@@ -56,6 +61,7 @@ public class VoiceEgressWebSocketHandler extends BinaryWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String turnId = (String) session.getAttributes().get(TURN_ID_ATTR);
+        log.info("Egress WS closed (turnId={}, status={}, audioFrames={})", turnId, status.getCode(), audioFrameCounts.remove(turnId));
         if (turnId != null) {
             voiceCallService.completeTurn(turnId);
         }

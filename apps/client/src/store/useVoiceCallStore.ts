@@ -5,7 +5,10 @@ import { getTurnStatus, requestCallToken, startTurnEgress } from "../api/calls";
 import { getMessageAudioUrl, isMessageAudioAvailable } from "../api/tts";
 
 const POLL_INTERVAL_MS = 600;
-const POLL_TIMEOUT_MS = 20000;
+// A turn runs STT -> Gemini -> TTS server-side. gemini-3.6-flash is a reasoning model
+// that regularly takes 30-45s on a character prompt (see GeminiService.CHUNK_TIMEOUT,
+// which was bumped to 60s for the same reason), so a 20s budget times out the happy path.
+const POLL_TIMEOUT_MS = 75000;
 
 export type CallPhase = "idle" | "listening" | "thinking" | "speaking" | "error";
 

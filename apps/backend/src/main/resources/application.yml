@@ -36,6 +36,9 @@ stt:
   base-url: https://speech.googleapis.com
   language-code: ko-KR
   sample-rate-hertz: 48000
+  # LiveKit Track Egress streams the track as interleaved stereo pcm_s16le; without
+  # this Google STT reads the interleaved samples as mono and returns no results.
+  audio-channel-count: 2
 
 livekit:
   host: ${LIVEKIT_HOST:}

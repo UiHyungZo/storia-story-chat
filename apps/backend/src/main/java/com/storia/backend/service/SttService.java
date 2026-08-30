@@ -36,6 +36,9 @@ public class SttService {
                 "config", Map.of(
                         "encoding", "LINEAR16",
                         "sampleRateHertz", properties.sampleRateHertz(),
+                        // LiveKit Track Egress gives us interleaved stereo; tell Google so it
+                        // doesn't read the interleaved samples as a single garbled mono stream.
+                        "audioChannelCount", properties.audioChannelCount(),
                         "languageCode", properties.languageCode()),
                 "audio", Map.of("content", Base64.getEncoder().encodeToString(linear16Audio)));
 

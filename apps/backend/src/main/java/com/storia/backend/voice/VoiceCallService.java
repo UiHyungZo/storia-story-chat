@@ -88,7 +88,9 @@ public class VoiceCallService {
         }
         session.markProcessing();
         try {
-            String transcript = sttService.transcribe(session.audioBytes());
+            byte[] audio = session.audioBytes();
+            log.info("Voice turn {} completing: {} bytes of egressed audio", turnId, audio.length);
+            String transcript = sttService.transcribe(audio);
             if (transcript == null || transcript.isBlank()) {
                 session.fail("음성을 인식하지 못했어요.");
                 return;
@@ -101,6 +103,7 @@ public class VoiceCallService {
                             conversationService.getMessages(session.getDeviceId(), session.getCharacterId()))
                     .collect(Collectors.joining())
                     .defaultIfEmpty("죄송해요, 지금은 답변을 생성할 수 없어요.")
+                    .doOnError(error -> log.warn("음성 턴 Gemini 응답 실패 (turnId={})", turnId, error))
                     .onErrorReturn("죄송해요, 지금은 답변을 생성할 수 없어요.")
                     .block();
 
