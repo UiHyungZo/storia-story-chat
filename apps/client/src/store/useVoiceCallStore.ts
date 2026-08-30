@@ -1,5 +1,5 @@
-import { AudioPlayer, createAudioPlayer } from "expo-audio";
-import { Room } from "livekit-client";
+import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import { LocalTrackPublication, Room, Track } from "livekit-client";
 import { create } from "zustand";
 import { getTurnStatus, requestCallToken, startTurnEgress } from "../api/calls";
 import { getMessageAudioUrl, isMessageAudioAvailable } from "../api/tts";
@@ -9,6 +9,10 @@ const POLL_INTERVAL_MS = 600;
 // that regularly takes 30-45s on a character prompt (see GeminiService.CHUNK_TIMEOUT,
 // which was bumped to 60s for the same reason), so a 20s budget times out the happy path.
 const POLL_TIMEOUT_MS = 75000;
+// A synthesized character reply is at most a few hundred characters of Korean TTS
+// (~30-60s of audio). If playback hasn't reported didJustFinish by then, treat the
+// turn as done rather than pinning the call in "speaking" forever.
+const PLAYBACK_MAX_MS = 90000;
 
 export type CallPhase = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -26,6 +30,7 @@ type VoiceCallStore = {
 let room: Room | null = null;
 let roomName: string | null = null;
 let currentTurnId: string | null = null;
+let micPublication: LocalTrackPublication | null = null;
 let player: AudioPlayer | null = null;
 
 function stopAndReleasePlayer(): void {
@@ -40,6 +45,7 @@ function teardownRoom(): void {
   room = null;
   roomName = null;
   currentTurnId = null;
+  micPublication = null;
 }
 
 /**
@@ -62,11 +68,25 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
 
     set({ phase: "speaking" });
     stopAndReleasePlayer();
+
+    // The turn we just finished left the iOS audio session in playAndRecord (LiveKit
+    // mic capture), which routes playback to the quiet earpiece and honours the ring
+    // switch. Flip it back to a playback session so the reply comes out the speaker.
+    try {
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+    } catch {
+      // non-fatal — fall through and try to play anyway
+    }
+
     player = createAudioPlayer(getMessageAudioUrl(messageId));
 
     await new Promise<void>((resolve) => {
+      // Don't hang the call forever if the clip never loads or never fires
+      // didJustFinish (bad source, dropped connection mid-stream).
+      const safety = setTimeout(resolve, PLAYBACK_MAX_MS);
       const subscription = player!.addListener("playbackStatusUpdate", (status) => {
         if (status.didJustFinish) {
+          clearTimeout(safety);
           subscription.remove();
           resolve();
         }
@@ -133,6 +153,7 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
         if (!publication?.trackSid) {
           throw new Error("마이크 트랙을 시작하지 못했어요.");
         }
+        micPublication = publication;
         const { turnId } = await startTurnEgress(characterId, roomName, publication.trackSid);
         currentTurnId = turnId;
       } catch (error) {
@@ -143,9 +164,17 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     stopListening: async () => {
       if (get().phase !== "listening" || !room) return;
       set({ phase: "thinking" });
-      // Unpublishing (not just muting) the track ends the LiveKit egress connection
-      // on the backend, which is what signals "this turn's audio is complete".
-      await room.localParticipant.setMicrophoneEnabled(false);
+      // Unpublishing (not just muting) the track is what ends the backend's Track
+      // Egress connection, which is the "this turn's audio is complete" signal.
+      // NOTE: livekit-client's setMicrophoneEnabled(false) only *mutes* an audio
+      // track (it unpublishes for screen-share only), so egress would keep running
+      // and the turn would never complete — we must unpublish explicitly.
+      const publication =
+        micPublication ?? room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      micPublication = null;
+      if (publication?.track) {
+        await room.localParticipant.unpublishTrack(publication.track, true);
+      }
       const turnId = currentTurnId;
       currentTurnId = null;
       if (turnId) {
