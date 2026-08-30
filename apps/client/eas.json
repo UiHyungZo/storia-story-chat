@@ -40,7 +40,7 @@
       "ios": {
         "appleId": "",
         "ascAppId": "",
-        "appleTeamId": ""
+        "appleTeamId": "9G5T5K3BP2"
       },
       "android": {
         "serviceAccountKeyPath": "./google-play-service-account.json",

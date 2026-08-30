@@ -10,12 +10,14 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ### 다음 세션 최우선 작업 (메인 컴퓨터에서, 전부 외부 계정/콘솔 작업)
 
-- [ ] **FCM 서비스 계정 JSON** 발급 (Firebase 콘솔 → 프로젝트 설정 → 서비스 계정) — 몇 세션째 1순위로 밀려있는 항목
-- [ ] **APNs Auth Key(.p8)** 발급 (Apple Developer 계정은 이미 있음 — developer.apple.com → Keys) → Firebase 콘솔 Cloud Messaging 탭에 업로드
+**(2026-08-30 메인 컴퓨터 세션)** Docker/Android SDK/Xcode 전부 이 머신에 설치돼 있음을 재확인, 로컬 스택(DB/백엔드/에뮬레이터/Metro) 재기동 완료. Google Play Console 가입 접수함(인증 대기 중). FCM 서비스 계정 JSON + APNs Auth Key 둘 다 발급받아 실제 발송까지 완료 검증(아래, 4주차 섹션 참고) — **자세한 내용은 `HANDOFF.md` 참고**.
+
+- [x] **FCM 서비스 계정 JSON** 발급 + 연동 + 실 발송 검증 완료 (아래 4주차 섹션 참고)
+- [x] **APNs Auth Key(.p8)** 발급 + Firebase 업로드 + 실 iPhone 수신 검증 완료 (아래 4주차 섹션 참고)
 - [ ] **LiveKit Cloud 프로젝트 생성**(무료 티어) — `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`. 백엔드(5주차 축소판 A안)와 `apps/python-sidecar` 둘 다 같은 값 사용
-- [ ] **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 백엔드의 `STT_API_KEY`/`TTS_API_KEY`와 별개 인증 방식) 발급 + Speech-to-Text/Text-to-Speech API 활성화 — **리포 폴더 밖에 저장할 것** (안전장치로 `.gitignore`에 `*service-account*.json`/`*-sa.json` 패턴은 추가해뒀지만, 애초에 리포 밖 보관이 제일 안전함)
-- [ ] Google Play Console 가입 ($25, 인증 며칠 걸릴 수 있음)
-- [ ] 위 자격증명 확보 후: Docker/백엔드/Metro/에뮬레이터 재기동 → FCM 실 발송/iOS 네이티브 모듈 육안 확인/`python-sidecar` 실제 room 연결 검증 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
+- [ ] **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 백엔드의 `STT_API_KEY`/`TTS_API_KEY`와 별개 인증 방식) 발급 + Speech-to-Text/Text-to-Speech API 활성화 — **리포 폴더 밖에 저장할 것** (`.gitignore`에 실제 Firebase/GCP 파일명 패턴까지 보강해둠 — 아래 "중요한 결정 사항" 참고)
+- [x] **(2026-08-30 접수)** Google Play Console 가입 — 결제/신원 인증 제출함, 승인 대기 중
+- [ ] 위 자격증명 확보 후: `python-sidecar` 실제 room 연결 검증 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
 
 ## 지금 당장 (1주차 마무리 갭)
 
@@ -85,10 +87,10 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 - [x] **(2026-08-24 진행)** Firebase 프로젝트 생성 → iOS/Android 앱 등록해서 `GoogleService-Info.plist`/`google-services.json` 발급받음(`com.storia.client`로 확인) → `apps/client/`에 배치, `.gitignore` 처리, `app.json`의 `googleServicesFile`로 연결. **서비스 계정 JSON(`FIREBASE_CREDENTIALS_PATH`용, 백엔드가 실제 발송하는 데 필요)과 APNs Auth Key는 아직 미발급** — 남은 항목으로 아래 유지.
 - [x] **(2026-08-24 실행 검증 완료)** 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가(커밋 `1144f90`). `src/push/registerPushToken.ts`가 권한 요청 → 토큰 발급 → `PUT /api/devices/token`(`src/api/devices.ts`, `client.ts`에 `apiPut` 신규) 전송, 앱 시작 시 1회 호출(`App.tsx`). iOS는 `app.json`에 `aps-environment` entitlement + `UIBackgroundModes: ["remote-notification"]` 수동 추가 필요했음(`@react-native-firebase/messaging` 플러그인은 Android 알림 아이콘 설정만 하고 iOS는 안 건드림). **Android 에뮬레이터에서 실제 토큰 발급 → DB `app_user.fcm_token`에 진짜 FCM 토큰(`fDDC1I...`) 저장되는 것까지 확인** — 에뮬레이터 Play Services가 오래돼서 `SERVICE_VERSION_UPDATE_REQUIRED` 경고가 logcat에 떴지만 토큰 발급 자체는 성공.
-- [ ] **서비스 계정 JSON 발급** → `FIREBASE_CREDENTIALS_PATH`로 백엔드에 주입 → 실제 발송(`PushNotificationService`) 확인
-- [ ] iOS에서도 위와 동일하게 토큰 발급/등록 확인 — iOS 시뮬레이터는 실제 APNs 토큰을 못 받는 경우가 많아 실기기가 필요할 수 있음
-- [ ] APNs Auth Key(.p8, Apple Developer 계정) 발급 → Firebase 콘솔 Cloud Messaging 탭에 업로드 (iOS 실제 원격 푸시 수신에 필요)
-- [ ] 앱을 백그라운드/종료 상태로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인 (서비스 계정 JSON 필요)
+- [x] **(2026-08-30 메인 컴퓨터 세션, 실행 검증 완료)** **서비스 계정 JSON 발급** → `FIREBASE_CREDENTIALS_PATH`(`~/secrets/storia/`, 리포 밖 + `~/.zshrc`에 영구 export)로 백엔드에 주입 → **Android 에뮬레이터로 실제 발송 왕복 확인**: 앱 백그라운드 전환 → `POST /api/conversations/{id}/messages` curl 호출 → 실제 알림함에 "Storia · 렌 (Ren) · 죄송해요, 지금은 답변을 생성할 수 없어요." 배너 도착까지 확인(`adb dumpsys notification`으로 최초 시도 시 `POST_NOTIFICATIONS` 권한 미승인으로 OS가 막고 있던 것도 진단 — `pm grant`로 권한 부여 후 정상 수신, 앱 최초 실행 시 권한 팝업 "허용"만 누르면 되는 정상 동작이라 코드 수정 불필요).
+- [x] **(2026-08-30 실행 검증 완료)** APNs Auth Key(.p8, Key ID `82V493X845`, Team ID `9G5T5K3BP2`) 발급 → Firebase 콘솔 Cloud Messaging 탭 "개발 APNs 인증 키"로 업로드(프로덕션 키는 TestFlight/production 빌드 전환 시 별도 업로드 필요). `eas.json`의 `appleTeamId`도 이 값으로 채움.
+- [x] **(2026-08-30 실행 검증 완료)** iOS에서도 실제 원격 푸시 수신 확인 — APNs 키 업로드 전엔 실제 iPhone 토큰(2026-08-25 세션에 등록된 것)으로 발송 시 `401 Invalid APNs credential`(`THIRD_PARTY_AUTH_ERROR`)이 났으나, 키 업로드 후 같은 토큰으로 재발송하니 에러 없이 발송 성공 + **실제 iPhone에 푸시 배너 도착까지 사용자가 직접 확인**.
+- [x] **(2026-08-30 실행 검증 완료)** 앱을 백그라운드로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인 — Android/iOS 둘 다 실기기 알림 도착까지 확인 완료(위 두 항목 참고). **4주차 FCM 원격 푸시 항목 전부 종료.**
 - [x] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈 링크·컴파일 확인 완료(위 참고). 실제 햅틱 진동/알림 배너가 화면에 뜨는지 눈으로 직접 보는 것만 남음.
 - [x] **(2026-08-24 실행 검증 완료)** Android SDK/에뮬레이터 설치 후 `storia-native`의 Kotlin 모듈 링크·컴파일·실행 확인 완료(위 참고). 남은 건 진동/알림 배너를 실제 기기(에뮬레이터는 진동 체감 불가)에서 눈으로 확인하는 것과 API 33+ 권한 프롬프트 확인뿐.
 - [ ] **(2026-08-25 신규 발견, 트러블슈팅 실패)** 이 머신에 실제 Android 기기(갤럭시 S10, Android 12, 시리얼 `R3CM90JM64W`)가 USB로 연결돼 있어 실기기 테스트를 시도했으나 실패. 처음엔 `adb devices`에 `unauthorized`로 잡혔으나(USB 디버깅 인증 팝업 문제로 추정), 권한 취소 후 재연결/adb 서버 재시작/USB 모드를 "파일 전송"으로 확인/포트 교체/macOS 쪽 "기기 신뢰" 팝업 수락까지 다 시도한 뒤로는 `adb devices`에서 아예 사라짐 — Android Studio Device Manager에도 Physical 기기가 전혀 안 뜸(가상 기기 `storia_test`만 보임). 폰은 **충전은 정상**되는 것으로 봐서 전원 핀은 살아있고 데이터 핀 쪽 핸드셰이크만 실패하는 것으로 추정(케이블/포트 마모 가능성). Android 12라 OS 버전 문제는 아님. 다음 세션에서 다른 케이블/다른 컴퓨터로 재시도해볼 것 — 소프트웨어 쪽으로 시도할 수 있는 건 이번 세션에서 다 시도함.
