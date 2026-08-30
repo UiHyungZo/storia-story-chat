@@ -43,3 +43,9 @@ HELP.md
 
 # Docker volumes / local env
 .env.*.local
+
+# Service account / credential keys — never commit these regardless of where they land
+*service-account*.json
+*-sa.json
+*firebase-adminsdk*.json
+*.pem
