@@ -27,6 +27,7 @@ import os
 import uuid
 
 from dotenv import load_dotenv
+from google.cloud import texttospeech
 from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli, llm
 from livekit.agents.llm import ChatMessage
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions
@@ -143,10 +144,20 @@ async def entrypoint(ctx: JobContext) -> None:
         llm=StoriaLLM(backend, device_id, character_id),
         vad=silero.VAD.load(),
         stt=google.STT(languages="ko-KR"),
-        # use_streaming=False: Google Cloud TTS streaming only accepts Chirp 3 HD voices;
-        # the classic ko-KR-Standard voice (same family the Spring backend's TtsService
-        # uses) only works via batch synthesis.
-        tts=google.TTS(language="ko-KR", voice_name="ko-KR-Standard-A", use_streaming=False),
+        # livekit-plugins-google's google.TTS is the Gemini/Chirp plugin, NOT classic
+        # Cloud TTS. `ko-KR-Standard-*` is not a valid voice there — it silently routes
+        # to gemini-2.5-flash-tts (which needs "Agent Platform API" enabled, and we
+        # haven't) and the client hears static. Chirp 3 HD is Google's real-time-grade
+        # TTS and works, but only via batch (`use_streaming=False`) and only if we ask
+        # for LINEAR16 — the plugin's default PCM encoding and its streaming path both
+        # get a 400 from Chirp voices. 48 kHz matches LiveKit's native rate.
+        tts=google.TTS(
+            language="ko-KR",
+            voice_name="ko-KR-Chirp3-HD-Charon",
+            audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+            sample_rate=48000,
+            use_streaming=False,
+        ),
     )
 
     # session.start()는 세션을 시작만 시키고 리턴하며, 대화는 잡 프로세스가 살아있는

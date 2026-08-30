@@ -13,7 +13,12 @@ import httpx
 
 
 class StoriaBackendClient:
-    def __init__(self, base_url: str, timeout: float = 30.0) -> None:
+    # POST /api/conversations/{id}/messages calls Gemini synchronously on the Spring
+    # side. gemini-3.6-flash is a reasoning model that regularly takes 30-46s on a
+    # character prompt (GeminiService.CHUNK_TIMEOUT is 60s; the RN reduced-A-plan
+    # client polls for 75s for the same reason), so a 30s HTTP read timeout here
+    # aborts the happy path and the agent never gets a reply to speak.
+    def __init__(self, base_url: str, timeout: float = 90.0) -> None:
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
 
     async def send_message(self, device_id: str, character_id: int, content: str) -> str:

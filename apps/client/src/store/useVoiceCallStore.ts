@@ -1,5 +1,6 @@
+import { AudioSession } from "@livekit/react-native";
 import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
-import { LocalTrackPublication, Room, Track } from "livekit-client";
+import { LocalTrackPublication, RemoteParticipant, Room, RoomEvent, Track } from "livekit-client";
 import { create } from "zustand";
 import { getTurnStatus, requestCallToken, startTurnEgress } from "../api/calls";
 import { getMessageAudioUrl, isMessageAudioAvailable } from "../api/tts";
@@ -16,10 +17,21 @@ const PLAYBACK_MAX_MS = 90000;
 
 export type CallPhase = "idle" | "listening" | "thinking" | "speaking" | "error";
 
+/**
+ * "turn": 축소판 A안 — 마이크 → Track Egress → 서버 배치 STT/Gemini/TTS → 오디오 URL 재생.
+ * "agent": apps/python-sidecar 의 LiveKit Agents 워커가 room에 들어와 있을 때. 실시간
+ * STT/응답/TTS를 워커가 직접 처리하고 합성 음성을 WebRTC로 되쏘므로, 클라이언트는
+ * egress를 시작하지 않고 워커가 room에 publish하는 오디오 트랙을 그냥 재생만 한다.
+ */
+export type CallMode = "turn" | "agent";
+
 type VoiceCallStore = {
   isCallActive: boolean;
   characterId: number | null;
   phase: CallPhase;
+  mode: CallMode;
+  /** agent 모드에서 워커가 말하고 있는지 (상태 문구/스피너 표시에만 사용). */
+  agentSpeaking: boolean;
   errorMessage: string | null;
   startCall: (characterId: number) => Promise<void>;
   endCall: () => void;
@@ -55,8 +67,40 @@ function teardownRoom(): void {
  * B안과 동일하게 오디오 URL로 돌아옴 — 서버가 합성 음성을 WebRTC로 직접 되쏘는 완전한
  * 양방향 실시간은 범위 밖. 턴제(풀 듀플렉스 아님): idle → listening → thinking →
  * speaking, 재생이 끝나야 다음 턴을 들을 수 있음.
+ *
+ * 예외: apps/python-sidecar 의 LiveKit Agents 워커가 떠 있으면 그 워커가 같은 room에
+ * 자동 진입한다("완전한 A안"). 그 참가자가 감지되면 mode="agent"로 전환해 egress/폴링
+ * 경로를 건너뛰고, 워커가 room에 되쏘는 오디오를 WebRTC로 그대로 듣는다.
  */
 export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
+  async function ensureMicPublished(): Promise<void> {
+    if (!room || micPublication) return;
+    try {
+      const publication = await room.localParticipant.setMicrophoneEnabled(true);
+      if (publication) micPublication = publication;
+    } catch (error) {
+      set({ phase: "error", errorMessage: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  function handleParticipant(participant: RemoteParticipant): void {
+    if (!participant.isAgent || get().mode === "agent") return;
+    set({ mode: "agent" });
+    // Start the WebRTC audio session NOW, on agent detection — the mic publish only
+    // happens later when the user taps the button, by which point the session has
+    // settled. (Publishing the mic *concurrently* with this call, or without it at
+    // all, left capture silent and the worker got no transcript.)
+    AudioSession.startAudioSession().catch(() => {});
+  }
+
+  function handleTrackSubscribed(): void {
+    // Belt-and-suspenders: the agent's reply audio arrives as a subscribed remote
+    // track; make sure playback is live. startAudioSession() is idempotent.
+    if (get().mode === "agent") {
+      AudioSession.startAudioSession().catch(() => {});
+    }
+  }
+
   async function playAssistantAudio(messageId: number): Promise<void> {
     const available = await isMessageAudioAvailable(messageId);
     if (!available) {
@@ -123,15 +167,38 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     isCallActive: false,
     characterId: null,
     phase: "idle",
+    mode: "turn",
+    agentSpeaking: false,
     errorMessage: null,
 
     startCall: async (characterId) => {
-      set({ isCallActive: true, characterId, phase: "idle", errorMessage: null });
+      set({
+        isCallActive: true,
+        characterId,
+        phase: "idle",
+        mode: "turn",
+        agentSpeaking: false,
+        errorMessage: null,
+      });
       try {
         const tokenResponse = await requestCallToken(characterId);
         roomName = tokenResponse.roomName;
         room = new Room();
+        // A LiveKit Agents worker (apps/python-sidecar), if running, auto-dispatches
+        // into this room as a hidden participant — detect it and switch to agent mode.
+        room.on(RoomEvent.ParticipantConnected, handleParticipant);
+        room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+          if (participant.isAgent && get().mode === "agent") {
+            set({ mode: "turn", agentSpeaking: false });
+          }
+        });
+        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const talking = speakers.some((p) => p instanceof RemoteParticipant && p.isAgent);
+          if (get().agentSpeaking !== talking) set({ agentSpeaking: talking });
+        });
+        room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
         await room.connect(tokenResponse.url, tokenResponse.token);
+        room.remoteParticipants.forEach(handleParticipant);
       } catch (error) {
         set({ phase: "error", errorMessage: error instanceof Error ? error.message : String(error) });
       }
@@ -140,12 +207,29 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     endCall: () => {
       stopAndReleasePlayer();
       teardownRoom();
-      set({ isCallActive: false, characterId: null, phase: "idle", errorMessage: null });
+      AudioSession.stopAudioSession().catch(() => {});
+      set({
+        isCallActive: false,
+        characterId: null,
+        phase: "idle",
+        mode: "turn",
+        agentSpeaking: false,
+        errorMessage: null,
+      });
     },
 
     startListening: async () => {
-      const { isCallActive, characterId, phase } = get();
-      if (!isCallActive || !room || !roomName || !characterId || phase === "listening") return;
+      const { isCallActive, characterId, phase, mode } = get();
+      if (!isCallActive || !room || !roomName || !characterId) return;
+      if (mode === "agent") {
+        // Tapping the button in agent mode publishes the mic once; it then stays up
+        // for the whole call (stopListening is a no-op) so the worker's streaming
+        // STT never gets starved. The worker's own VAD does turn-taking from here.
+        set({ phase: "listening", errorMessage: null });
+        await ensureMicPublished();
+        return;
+      }
+      if (phase === "listening") return;
 
       set({ phase: "listening", errorMessage: null });
       try {
@@ -162,6 +246,9 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     },
 
     stopListening: async () => {
+      // Agent mode: never unpublish mid-call (see ensureMicPublished) — the mic
+      // stays live until endCall tears the room down.
+      if (get().mode === "agent") return;
       if (get().phase !== "listening" || !room) return;
       set({ phase: "thinking" });
       // Unpublishing (not just muting) the track is what ends the backend's Track

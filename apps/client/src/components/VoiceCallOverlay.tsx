@@ -18,29 +18,56 @@ const PHASE_LABEL: Record<string, string> = {
 export function VoiceCallOverlay({ characterId, characterName }: Props) {
   const isCallActive = useVoiceCallStore((state) => state.isCallActive);
   const phase = useVoiceCallStore((state) => state.phase);
+  const mode = useVoiceCallStore((state) => state.mode);
+  const agentSpeaking = useVoiceCallStore((state) => state.agentSpeaking);
   const errorMessage = useVoiceCallStore((state) => state.errorMessage);
   const startListening = useVoiceCallStore((state) => state.startListening);
   const stopListening = useVoiceCallStore((state) => state.stopListening);
   const endCall = useVoiceCallStore((state) => state.endCall);
+
+  const agentMode = mode === "agent";
+  const listening = phase === "listening";
+  // Turn mode disables the mic button while a reply is being fetched/played.
+  const busy = !agentMode && (phase === "thinking" || phase === "speaking");
+  const showSpinner = busy || (agentMode && agentSpeaking);
+
+  // Agent mode is full-duplex once the mic is live: the worker's VAD does turn-
+  // taking, so the mic button is only shown to *start* (publish once) and then
+  // hidden. Turn mode toggles 🎤/■ every turn.
+  const showMicButton = !agentMode || !listening;
+
+  let status: string;
+  if (errorMessage) {
+    status = errorMessage;
+  } else if (agentMode) {
+    status = !listening
+      ? "마이크를 눌러 통화를 시작하세요"
+      : agentSpeaking
+        ? `${characterName} 말하는 중…`
+        : "듣고 있어요 — 자유롭게 말하세요";
+  } else {
+    status = PHASE_LABEL[phase];
+  }
 
   return (
     <Modal visible={isCallActive} animationType="fade" transparent>
       <View style={styles.backdrop}>
         <View style={[styles.avatar, { backgroundColor: avatarColorFor(characterId) }]} />
         <Text style={styles.name}>{characterName}</Text>
-        <Text style={styles.status}>{errorMessage ?? PHASE_LABEL[phase]}</Text>
-        {(phase === "thinking" || phase === "speaking") && (
-          <ActivityIndicator style={styles.spinner} color="#FFFFFF" />
-        )}
+        {agentMode && <Text style={styles.badge}>실시간 통화</Text>}
+        <Text style={styles.status}>{status}</Text>
+        {showSpinner && <ActivityIndicator style={styles.spinner} color="#FFFFFF" />}
 
         <View style={styles.controls}>
-          <Pressable
-            style={[styles.micButton, phase === "listening" && styles.micButtonActive]}
-            onPress={() => (phase === "listening" ? stopListening() : startListening())}
-            disabled={phase === "thinking" || phase === "speaking"}
-          >
-            <Text style={styles.micButtonText}>{phase === "listening" ? "■" : "🎤"}</Text>
-          </Pressable>
+          {showMicButton && (
+            <Pressable
+              style={[styles.micButton, listening && styles.micButtonActive]}
+              onPress={() => (listening ? stopListening() : startListening())}
+              disabled={busy}
+            >
+              <Text style={styles.micButtonText}>{listening ? "■" : "🎤"}</Text>
+            </Pressable>
+          )}
           <Pressable style={styles.endButton} onPress={endCall}>
             <Text style={styles.endButtonText}>통화 종료</Text>
           </Pressable>
@@ -68,6 +95,16 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  badge: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#111827",
+    backgroundColor: "#A7F3D0",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    overflow: "hidden",
   },
   status: {
     fontSize: 15,
