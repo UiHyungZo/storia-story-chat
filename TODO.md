@@ -12,12 +12,15 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 **(2026-08-30 메인 컴퓨터 세션)** Docker/Android SDK/Xcode 전부 이 머신에 설치돼 있음을 재확인, 로컬 스택(DB/백엔드/에뮬레이터/Metro) 재기동 완료. Google Play Console 가입 접수함(인증 대기 중). FCM 서비스 계정 JSON + APNs Auth Key 둘 다 발급받아 실제 발송까지 완료 검증(아래, 4주차 섹션 참고) — **자세한 내용은 `HANDOFF.md` 참고**.
 
+**(2026-08-31 메인 컴퓨터 세션)** 음성 통화(5주차 축소판 A안) 트랙 진행. LiveKit Cloud 프로젝트(`storia-vob8tuvz.livekit.cloud`) + Google Cloud STT/TTS API 키 발급, ngrok 터널로 `LIVEKIT_EGRESS_AUDIO_WS_URL` 연결. **RN 앱 없이 헤드리스로 서버측 파이프라인 전체를 실제 검증**: `livekit-cli`로 room에 OGG 오디오를 publish → 백엔드 `POST /api/calls/{id}/turns` → LiveKit Track Egress가 ngrok 통해 `/egress/audio`로 되접속 → PCM 프레임 수신 → STT → Gemini → TTS → `GET /api/messages/{id}/audio` MP3까지 왕복 확인. **이 과정에서 실제 버그 3개 발견/수정**(아래 5주차 섹션 참고). 남은 건 RN 앱(실기기/에뮬레이터, 마이크)으로 클라이언트측 `useVoiceCallStore` 전체 흐름 확인뿐. 상세는 `HANDOFF.md` 참고.
+
 - [x] **FCM 서비스 계정 JSON** 발급 + 연동 + 실 발송 검증 완료 (아래 4주차 섹션 참고)
 - [x] **APNs Auth Key(.p8)** 발급 + Firebase 업로드 + 실 iPhone 수신 검증 완료 (아래 4주차 섹션 참고)
-- [ ] **LiveKit Cloud 프로젝트 생성**(무료 티어) — `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`. 백엔드(5주차 축소판 A안)와 `apps/python-sidecar` 둘 다 같은 값 사용
-- [ ] **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 백엔드의 `STT_API_KEY`/`TTS_API_KEY`와 별개 인증 방식) 발급 + Speech-to-Text/Text-to-Speech API 활성화 — **리포 폴더 밖에 저장할 것** (`.gitignore`에 실제 Firebase/GCP 파일명 패턴까지 보강해둠 — 아래 "중요한 결정 사항" 참고)
+- [x] **(2026-08-31)** **LiveKit Cloud 프로젝트 생성**(무료 티어) — `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 발급, `~/secrets/storia/livekit.env`에 저장(리포 밖). `apps/python-sidecar`도 같은 값 사용 가능
+- [x] **(2026-08-31)** **Google Cloud STT/TTS API 키** 발급(`storia-140e9` 프로젝트에 Speech-to-Text + Text-to-Speech API 활성화, 결제 계정 카드 등록 + 예산 알림 ₩1,000, API 키 1개를 `STT_API_KEY`/`TTS_API_KEY` 공용) → `~/secrets/storia/livekit.env`에 저장
+- [ ] **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 위 API 키 방식과 별개 인증) 발급 — python-sidecar(완전한 A안) 갈 때만 필요. **리포 폴더 밖에 저장할 것**
 - [x] **(2026-08-30 접수)** Google Play Console 가입 — 결제/신원 인증 제출함, 승인 대기 중
-- [ ] 위 자격증명 확보 후: `python-sidecar` 실제 room 연결 검증 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
+- [ ] 남은 자격증명: `python-sidecar`용 Google 서비스 계정 JSON → python-sidecar 실제 room 연결 검증 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
 
 ## 지금 당장 (1주차 마무리 갭)
 
@@ -116,12 +119,17 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 
 ### 남은 작업 (다음 세션 — 자격증명/환경 준비된 뒤)
 
-- [ ] LiveKit Cloud 프로젝트 생성(무료 티어) → `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 백엔드에 주입
-- [ ] 로컬 개발용 공인 접근 가능한 터널(예: ngrok) 준비 → `LIVEKIT_EGRESS_AUDIO_WS_URL`을 그 터널 주소로 설정 (LiveKit Cloud가 `localhost`로 못 붙기 때문 — HANDOFF.md 참고)
-- [ ] Google Cloud STT/TTS API 키 발급 → `STT_API_KEY`/`TTS_API_KEY` 설정
+- [x] **(2026-08-31)** LiveKit Cloud 프로젝트 생성(무료 티어) → `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 백엔드에 주입, `lk room list`로 자격증명 유효 확인
+- [x] **(2026-08-31)** ngrok 터널(`brew install ngrok` + authtoken) → `LIVEKIT_EGRESS_AUDIO_WS_URL=wss://<subdomain>.ngrok-free.dev/egress/audio` 설정. LiveKit Cloud egress가 이 주소로 실제 되접속하는 것 확인(무료 ngrok URL은 재시작마다 바뀜)
+- [x] **(2026-08-31)** Google Cloud STT/TTS API 키 발급 → `STT_API_KEY`/`TTS_API_KEY` 설정. 직접 curl로 TTS 합성 → 그 오디오 STT 역인식(신뢰도 0.92)까지 왕복 확인
 - [x] Xcode+CocoaPods 있는 환경에서 `expo prebuild`/`expo run:ios`로 LiveKit RN SDK가 정상 링크·컴파일되는 것 확인 완료(위 참고)
-- [ ] 실제 통화 왕복: 통화 버튼 → 토큰 발급 → room 연결 → 마이크 publish → egress 시작 → 말하고 unpublish → 폴링 → STT 텍스트 정확도 → TTS 오디오 재생까지 확인
-- [ ] `livekit-server` SDK의 `startTrackEgress`/`AccessToken` grant 구성이 실제 LiveKit 서버 응답과 맞는지(`javap`로 시그니처만 확인했고 런타임 동작은 미검증) 확인
+- [x] **(2026-08-31 헤드리스 검증 완료)** 서버측 통화 왕복 전체 — `livekit-cli`로 room에 OGG publish → `POST /api/calls/{id}/token`(200, JWT grants 정확) → `POST /api/calls/{id}/turns` → LiveKit Track Egress가 ngrok 통해 `/egress/audio`로 되접속 → `VoiceEgressWebSocketHandler`가 PCM 프레임 수신(턴당 ~1500프레임/2.9MB) → 트랙 unpublish → `completeTurn` → STT 전사 → USER 메시지 저장 → Gemini 캐릭터 응답 → ASSISTANT 메시지 저장 → `GET /api/calls/turns/{turnId}` `recording`→`processing`→`done` → `GET /api/messages/{id}/audio` MP3(캐릭터 보이스). **남은 건 RN 앱(마이크 실기기/에뮬레이터)으로 `useVoiceCallStore` 클라이언트 흐름 확인뿐** — `lk` publish가 RN 클라이언트의 WebRTC 마이크 트랙을 대신한 것.
+- [x] **(2026-08-31)** `livekit-server` SDK의 `startTrackEgress`/`AccessToken` grant 런타임 동작 확인 — `lk egress list`가 `EGRESS_COMPLETE`(에러 없음), 토큰 JWT를 디코드해 `roomJoin`/`canPublish`/`canSubscribe`/`room` grant가 `VoiceCallService.createToken`과 일치함 확인
+- **(2026-08-31 발견/수정한 실제 버그 3개)**:
+  1. **STT가 항상 전사 실패**: LiveKit Track Egress는 트랙을 **interleaved stereo `pcm_s16le`**로 스트리밍하는데 `SttService`가 Google STT에 mono로 넘겨서(`audioChannelCount` 미지정) 인터리브된 샘플을 뭉갠 mono로 읽어 항상 결과 0개였음. `stt.audio-channel-count: 2` 프로퍼티 추가 + 요청에 `audioChannelCount` 전달로 수정. 프로퍼티 파일 밖에선 검증 불가였던 항목.
+  2. **긴 응답의 `GET /api/messages/{id}/audio`가 404**: `TtsWebClientConfig`/`SttWebClientConfig`가 WebClient 기본 in-memory 버퍼(256KB)를 그대로 씀 → Google TTS가 MP3 전체를 base64로 한 JSON 바디에 담아 반환하는데, ~400자 한국어 응답이면 이미 256KB 초과 → `DataBufferLimitException` → `TtsService`가 null 반환 → 404. 두 WebClient에 `maxInMemorySize(16MB)` 설정으로 수정(실제 483KB MP3 응답으로 재확인).
+  3. **음성 턴 Gemini 503을 조용히 삼킴**: `VoiceCallService`의 Gemini 호출이 `.onErrorReturn(...)`만 있고 `.doOnError` 로그가 없어(REST 경로는 2026-08-24에 이미 고친 안티패턴) Google의 간헐적 `503 Service Unavailable`이 로그 없이 고정 폴백 문구로만 나왔음. `.doOnError` 로그 추가.
+- **(2026-08-31 클라이언트 변경, 미검증)** `useVoiceCallStore`의 `POLL_TIMEOUT_MS`를 20초→75초로 늘림 — 헤드리스 검증에서 한 턴이 STT+Gemini(추론 모델)+TTS로 30~46초 걸리는 걸 확인, 20초면 happy path가 타임아웃남(`GeminiService.CHUNK_TIMEOUT` 30→60초 수정과 같은 뿌리). 실기기 검증 필요.
 - [ ] **시간이 남으면 — 완전한 양방향 실시간(원래 정의의 A안) 확장**: 지금 축소판은 응답을 오디오 URL로 반환하고 클라이언트가 별도로 재생하는데, 이걸 서버가 합성한 TTS를 그 LiveKit 세션에 오디오 트랙으로 다시 publish해서 실시간으로 들려주는 것까지 가는 확장. 리서치 스파이크에서 확인한 핵심 리스크: 이 "서버가 라이브 세션에 오디오 되쏘기" 부분은 LiveKit도 보통 Python/Node **Agent SDK**로 처리하고, 순수 JVM(Spring Boot)에서 하는 표준 경로가 없음.
   - **(2026-08-26) `pythonSideCar` 브랜치를 `develop`에 merge함** — LiveKit Agents SDK로 room에 봇처럼 들어가 STT/TTS는 플러그인이 처리하고, 응답 생성은 새로 안 짜고 기존 Spring REST(`/api/conversations/{characterId}/messages`)를 그대로 호출하도록 설계함. 이에 맞춰 `VoiceCallService.createToken()`의 클라이언트 토큰도 `CanSubscribe(true)`로 변경(에이전트가 되쏘는 오디오를 클라이언트가 구독할 수 있어야 하므로).
   - **(2026-08-26 추가) 자격증명 없이 코드로 확인 가능한 부분은 실제로 검증·수정함**: 이 머신 기본 `python3`가 3.9라 `livekit-agents`(요구 `>=3.10,<3.15`) 자체가 import조차 안 됐음 — `brew install python@3.12`로 해결. 그 환경에서 `pip install -r requirements.txt`가 실제 PyPI 패키지(`livekit-agents==1.3.12` 등)로 정상 설치되는 것 확인. 설치된 패키지를 직접 introspect해서 `agent.py`의 두 가지 추정 코드를 실제 API로 교정: (1) `chat_ctx.items[-1].text_content` → 마지막 아이템이 항상 유저 발화 `ChatMessage`라는 보장이 없어(FunctionCall 등도 섞인 유니온) role="user"인 `ChatMessage`를 뒤에서부터 찾도록 수정, (2) `JobContext.add_shutdown_callback()`이 실제로 존재함을 확인하고 `backend.aclose()`를 잡 종료 시 정리하도록 연결(전엔 아예 안 닫고 있었음). `python -m py_compile`/import까지 확인. **자격증명이 필요한 부분(실제 room 연결, automatic dispatch, STT/TTS 왕복)은 여전히 미검증** — 상세는 `apps/python-sidecar/README.md` 참고.
