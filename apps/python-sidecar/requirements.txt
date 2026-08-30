@@ -1,5 +1,7 @@
-livekit-agents>=1.0
-livekit-plugins-google>=1.0
-livekit-plugins-silero>=1.0
+# Pinned to the versions verified end-to-end on 2026-08-31 (see README "검증 상태").
+# The Agents API drifted noticeably between 1.3.x and 1.7.x, so don't float the major/minor.
+livekit-agents==1.7.1
+livekit-plugins-google==1.7.1
+livekit-plugins-silero==1.7.1
 httpx>=0.27
 python-dotenv>=1.0

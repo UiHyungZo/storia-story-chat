@@ -48,4 +48,7 @@ HELP.md
 *service-account*.json
 *-sa.json
 *firebase-adminsdk*.json
+# GCP downloads a service-account key named "<project-id>-<hash>.json" with no other
+# marker, so match that shape too (both our projects' ids).
+storia-*-[0-9a-f]*.json
 *.pem

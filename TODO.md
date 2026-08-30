@@ -18,9 +18,10 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [x] **APNs Auth Key(.p8)** 발급 + Firebase 업로드 + 실 iPhone 수신 검증 완료 (아래 4주차 섹션 참고)
 - [x] **(2026-08-31)** **LiveKit Cloud 프로젝트 생성**(무료 티어) — `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 발급, `~/secrets/storia/livekit.env`에 저장(리포 밖). `apps/python-sidecar`도 같은 값 사용 가능
 - [x] **(2026-08-31)** **Google Cloud STT/TTS API 키** 발급(`storia-140e9` 프로젝트에 Speech-to-Text + Text-to-Speech API 활성화, 결제 계정 카드 등록 + 예산 알림 ₩1,000, API 키 1개를 `STT_API_KEY`/`TTS_API_KEY` 공용) → `~/secrets/storia/livekit.env`에 저장
-- [ ] **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 위 API 키 방식과 별개 인증) 발급 — python-sidecar(완전한 A안) 갈 때만 필요. **리포 폴더 밖에 저장할 것**
+- [x] **(2026-08-31)** **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 위 API 키 방식과 별개 인증) 발급 — `storia-voice-sidecar@storia-140e9`("Cloud Speech-to-Text 클라이언트" 역할), `~/secrets/storia/storia-140e9-cde9926dcbac.json`(리포 밖, `chmod 600`). **처음엔 리포 루트에 떨어뜨렸다가** 이동 + `.gitignore`에 `storia-*-[0-9a-f]*.json` 패턴 추가
+- [x] **(2026-08-31)** **python-sidecar 실제 room 연결 + 왕복 검증** — automatic dispatch / 실시간 STT / Spring 위임(DB에 캐릭터 응답 저장) / TTS 되쏘기까지 확인. `livekit-agents 1.7.x` 대응으로 `agent.py` 3곳 수정. 상세는 아래 5주차 "완전한 A안" 항목 + `apps/python-sidecar/README.md`
 - [x] **(2026-08-30 접수)** Google Play Console 가입 — 결제/신원 인증 제출함, 승인 대기 중
-- [ ] 남은 자격증명: `python-sidecar`용 Google 서비스 계정 JSON → python-sidecar 실제 room 연결 검증 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
+- [ ] 남은 것: 실제 RN 앱으로 (1) 축소판 A안 클라이언트 흐름 + (2) python-sidecar 에이전트 음성 재생 확인 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
 
 ## 지금 당장 (1주차 마무리 갭)
 
@@ -130,10 +131,15 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   2. **긴 응답의 `GET /api/messages/{id}/audio`가 404**: `TtsWebClientConfig`/`SttWebClientConfig`가 WebClient 기본 in-memory 버퍼(256KB)를 그대로 씀 → Google TTS가 MP3 전체를 base64로 한 JSON 바디에 담아 반환하는데, ~400자 한국어 응답이면 이미 256KB 초과 → `DataBufferLimitException` → `TtsService`가 null 반환 → 404. 두 WebClient에 `maxInMemorySize(16MB)` 설정으로 수정(실제 483KB MP3 응답으로 재확인).
   3. **음성 턴 Gemini 503을 조용히 삼킴**: `VoiceCallService`의 Gemini 호출이 `.onErrorReturn(...)`만 있고 `.doOnError` 로그가 없어(REST 경로는 2026-08-24에 이미 고친 안티패턴) Google의 간헐적 `503 Service Unavailable`이 로그 없이 고정 폴백 문구로만 나왔음. `.doOnError` 로그 추가.
 - **(2026-08-31 클라이언트 변경, 미검증)** `useVoiceCallStore`의 `POLL_TIMEOUT_MS`를 20초→75초로 늘림 — 헤드리스 검증에서 한 턴이 STT+Gemini(추론 모델)+TTS로 30~46초 걸리는 걸 확인, 20초면 happy path가 타임아웃남(`GeminiService.CHUNK_TIMEOUT` 30→60초 수정과 같은 뿌리). 실기기 검증 필요.
-- [ ] **시간이 남으면 — 완전한 양방향 실시간(원래 정의의 A안) 확장**: 지금 축소판은 응답을 오디오 URL로 반환하고 클라이언트가 별도로 재생하는데, 이걸 서버가 합성한 TTS를 그 LiveKit 세션에 오디오 트랙으로 다시 publish해서 실시간으로 들려주는 것까지 가는 확장. 리서치 스파이크에서 확인한 핵심 리스크: 이 "서버가 라이브 세션에 오디오 되쏘기" 부분은 LiveKit도 보통 Python/Node **Agent SDK**로 처리하고, 순수 JVM(Spring Boot)에서 하는 표준 경로가 없음.
-  - **(2026-08-26) `pythonSideCar` 브랜치를 `develop`에 merge함** — LiveKit Agents SDK로 room에 봇처럼 들어가 STT/TTS는 플러그인이 처리하고, 응답 생성은 새로 안 짜고 기존 Spring REST(`/api/conversations/{characterId}/messages`)를 그대로 호출하도록 설계함. 이에 맞춰 `VoiceCallService.createToken()`의 클라이언트 토큰도 `CanSubscribe(true)`로 변경(에이전트가 되쏘는 오디오를 클라이언트가 구독할 수 있어야 하므로).
-  - **(2026-08-26 추가) 자격증명 없이 코드로 확인 가능한 부분은 실제로 검증·수정함**: 이 머신 기본 `python3`가 3.9라 `livekit-agents`(요구 `>=3.10,<3.15`) 자체가 import조차 안 됐음 — `brew install python@3.12`로 해결. 그 환경에서 `pip install -r requirements.txt`가 실제 PyPI 패키지(`livekit-agents==1.3.12` 등)로 정상 설치되는 것 확인. 설치된 패키지를 직접 introspect해서 `agent.py`의 두 가지 추정 코드를 실제 API로 교정: (1) `chat_ctx.items[-1].text_content` → 마지막 아이템이 항상 유저 발화 `ChatMessage`라는 보장이 없어(FunctionCall 등도 섞인 유니온) role="user"인 `ChatMessage`를 뒤에서부터 찾도록 수정, (2) `JobContext.add_shutdown_callback()`이 실제로 존재함을 확인하고 `backend.aclose()`를 잡 종료 시 정리하도록 연결(전엔 아예 안 닫고 있었음). `python -m py_compile`/import까지 확인. **자격증명이 필요한 부분(실제 room 연결, automatic dispatch, STT/TTS 왕복)은 여전히 미검증** — 상세는 `apps/python-sidecar/README.md` 참고.
-  - 시도한다면:
+- [x] **(2026-08-31 실제 왕복 검증)** **완전한 양방향 실시간(원래 정의의 A안) — `apps/python-sidecar`**: LiveKit Agents SDK 워커가 room에 봇으로 들어가 유저 오디오를 실시간 STT → 응답 생성은 새로 안 짜고 기존 Spring REST(`/api/conversations/{characterId}/messages`)에 위임 → 그 텍스트를 TTS로 합성해 같은 LiveKit 세션에 오디오 트랙으로 되쏨. LiveKit Cloud + Google 서비스 계정으로 실제 검증:
+  - ✅ automatic dispatch(`agent_name` 미설정 워커)가 `call-{deviceId}-{characterId}` ad-hoc room에 별도 룰 없이 자동 진입 — 2026-08-26에 "미검증"으로 남겼던 핵심 질문 해소
+  - ✅ 실시간 Google STT 한국어 전사 + 턴 감지
+  - ✅ `StoriaLLM`이 Spring REST 호출 → DB에 유저/어시스턴트 메시지 저장 + 캐릭터 페르소나 응답 (로직 중복 없음 설계 그대로 동작)
+  - ✅ 에이전트가 TTS 합성해 room에 오디오 트랙 publish, 구독자가 오디오 프레임 수신
+  - ⚠️ 에이전트 음성의 **깨끗한 재생 확인은 미완** — 합성 파이썬 테스트 클라이언트로 캡처한 오디오가 리샘플 아티팩트로 역-전사 안 됨(축소판 A안 RN 재생 검증과 동일하게 실기기 필요)
+  - **`livekit-agents 1.7.x` 대응 `agent.py` 3곳 수정**: (1) `AgentSession(llm=...)` 없으면 `AgentActivity`가 "skip response if no llm is set"로 응답 생성 자체를 건너뜀 → Spring 위임을 `Agent.llm_node` 오버라이드가 아니라 `llm.LLM`/`llm.LLMStream`(`StoriaLLM`) 구현으로 넣음. (2) 워커 헬스체크 포트 8081이 Metro와 충돌 → `WorkerOptions(port=8083)`. (3) Google Cloud TTS 스트리밍은 Chirp 3 HD 보이스만 지원 → `google.TTS(voice_name="ko-KR-Standard-A", use_streaming=False)` 배치 합성. 상세는 `apps/python-sidecar/README.md`.
+  - `requirements.txt`를 검증 버전(`livekit-agents==1.7.1` 등)으로 핀 고정. `VoiceCallService.createToken()`은 2026-08-26에 이미 `CanSubscribe(true)`로 바꿔둠(에이전트 오디오 구독용).
+  - **(참고) 처음 조사 때 남겼던 대안 정리 — 이제 위 방식으로 확정됨:**
   - 먼저 `io.livekit:livekit-server`(관리용 SDK)가 아니라 실시간 미디어 publish가 가능한 JVM 라이브러리가 있는지 재조사(현재는 없다고 판단했지만 확정은 아님)
   - **없다면 Python/Node 사이드카 방식이 유력** — Spring 안에 "붙이는" 게 아니라 별도 프로세스로 띄워서 REST로 통신하는 표준 마이크로서비스 패턴:
     - Python(또는 Node)에 LiveKit **Agents SDK**로 작은 서비스를 하나 만듦. 이 Agent가 room에 봇처럼 들어가서 유저 오디오를 실시간 구독 → STT → TTS 오디오를 그 세션에 다시 publish하는 것까지 SDK가 대부분 처리해줌 — "서버가 라이브 세션에 오디오 되쏘기"라는 가장 어려운 부분이 이미 해결된 상태로 옴
