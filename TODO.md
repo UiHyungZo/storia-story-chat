@@ -2,29 +2,24 @@
 
 PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. 완료된 항목은 커밋 로그 참고, 여기는 남은 작업만 추적.
 
-**(2026-08-24 세션 종료)** 다음 세션 시작 전: Docker(`docker compose up`)/백엔드(`export GEMINI_API_KEY=...` 후 `gradlew bootRun`)/Android 에뮬레이터 전부 재기동 필요(로컬 프로세스라 컴퓨터/세션 종료 시 꺼짐). 최우선 남은 작업은 4주차의 **FCM 서비스 계정 JSON** — 받으면 바로 실 발송 검증 가능. 상세는 [`HANDOFF.md`](./HANDOFF.md) 참고.
+## 현재 상태 (2026-08-31 기준)
 
-**(2026-08-25 세션)** 로컬 스택 재기동 후 실행 검증 중 실제 버그 하나 발견/수정: `GeminiService`의 `CHUNK_TIMEOUT`이 30초였는데, `gemini-3.6-flash`가 추론(thinking) 모델이라 실제 캐릭터 시스템 프롬프트급 요청에서 첫 응답까지 19~29초, 프롬프트에 따라 40초 넘게 걸리는 경우가 확인됨 — 30초 마진이 너무 빡빡해서 유효한 키로도 간헐적으로 고정 폴백 문구가 나왔음. 60초로 늘려서 REST/WS 스트리밍 둘 다 재검증 완료(아래 2주차 항목 참고). 서비스 계정 JSON은 이번 세션엔 아직 안 받음 — 여전히 최우선 남은 작업. 상세는 `HANDOFF.md` 참고.
+PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 없이 종료). **7주차(모니터링/배포)만 남음.**
 
-**(2026-08-26 세션, Docker/Android SDK 없는 보조 머신에서 진행 — 코드/설정 작업 위주)** 실행 검증은 전혀 못 했고, 자격증명 없이 가능한 코드 작업만 진행: (1) Storia 브랜딩 앱 아이콘 신규 생성(PIL로 직접 그림, Expo 기본 아이콘 교체), (2) `apps/client/eas.json` 신규 작성(EAS Build 프로파일), (3) `docs/legal/privacy-policy.md` 초안 작성(문의처 이메일 `lukaend@naver.com`까지 채움, 발행용 공개 URL만 남음), (4) 에뮬레이터-백엔드 동시 종료 버그의 원인 가설/대안 조사(미검증, 코드 리뷰 기반), (5) **`pythonSideCar` 브랜치를 `develop`에 merge**하고 `apps/python-sidecar/agent.py`의 실제 API 오류 2건을 이 머신에 `brew install python@3.12`로 검증 환경을 만들어 실제로 고침(`chat_ctx.items` 파싱, `JobContext.add_shutdown_callback` 미연결) — 상세는 아래 각 섹션 참고. **다음 세션은 메인 컴퓨터(집)에서 진행하기로 함** — 아래 "다음 최우선 작업" 전부 거기서 처리할 것.
+- **1~4주차**: 텍스트 채팅(REST+WS 스트리밍), DB 히스토리, 안정성/캐시, Native Module(iOS Swift + Android Kotlin), FCM 원격 푸시 — 전부 실기기(iPhone) / 에뮬레이터(Android)까지 실행 검증 완료. Gemini(`gemini-3.6-flash`), Firebase 서비스 계정 JSON, APNs Auth Key 발급/연동 완료.
+- **5주차 (음성 통화, 축소판 A안)**: LiveKit Cloud + Google STT/TTS 자격증명 발급, 서버측 파이프라인 헤드리스 검증 + **연결된 iPhone 12 Pro로 클라이언트 전체 흐름 검증 완료**(마이크 WebRTC publish → egress → STT → Gemini → TTS → 스피커 재생, 여러 턴). 이 과정에서 실제 버그 5개(서버 3 + 실기기 클라 2) 발견/수정 — 상세는 아래 5주차 섹션. **완전한 A안(python-sidecar)**도 헤드리스로 실제 room 왕복 검증(automatic dispatch / 실시간 STT / Spring 위임 / TTS 되쏘기).
+- 자격증명은 전부 `~/secrets/storia/`(리포 밖, `chmod 600`) — `livekit.env`에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY`/`GEMINI_API_KEY`, 별도로 Firebase/APNs/GCP 서비스계정 JSON. 재기동 절차는 `HANDOFF.md` 참고(무료 ngrok URL은 세션마다 갱신 필요).
 
-### 다음 세션 최우선 작업 (메인 컴퓨터에서, 전부 외부 계정/콘솔 작업)
+### 다음 작업 (우선순위 순)
 
-**(2026-08-30 메인 컴퓨터 세션)** Docker/Android SDK/Xcode 전부 이 머신에 설치돼 있음을 재확인, 로컬 스택(DB/백엔드/에뮬레이터/Metro) 재기동 완료. Google Play Console 가입 접수함(인증 대기 중). FCM 서비스 계정 JSON + APNs Auth Key 둘 다 발급받아 실제 발송까지 완료 검증(아래, 4주차 섹션 참고) — **자세한 내용은 `HANDOFF.md` 참고**.
+- [ ] **(5주차 잔여)** 실제 RN 앱으로 **python-sidecar 에이전트 음성 재생** 확인 — 클라이언트에 `AudioSession.startAudioSession()` + 원격 오디오 트랙 재생 배선이 없음(축소판은 URL+`expo-audio`라 불필요했음). 새 클라 작업 + 네이티브 재빌드 필요. 상세는 아래 5주차 "완전한 A안" 항목.
+- [ ] **(7주차)** `eas init`(Expo 계정 로그인) → `app.json`에 `extra.eas.projectId` 채움 → `eas.json`의 `submit.production` 값(Apple ID/ascAppId/Play 서비스계정) 채우기
+- [ ] **(7주차)** 개인정보처리방침 공개 URL 퍼블리시(초안 `docs/legal/privacy-policy.md` 완료, GitHub Pages/Artifact 등) → Play Data Safety / Apple App Privacy + Export Compliance 설문
+- [ ] **(7주차)** iOS Release Build → TestFlight 내부 테스트 / Android Release AAB → Google Play 내부 테스트 (Apple Developer 가입 필요, Google Play Console는 인증 대기 중)
+- [ ] Android 실기기 USB 재시도(다른 케이블) — 소프트웨어 쪽은 2026-08-25에 다 시도, 케이블/포트 마모 추정
+- [ ] 자잘: 메시지 전송/로드 실패 배너 "다시 시도" 탭 동작(탭 자동화 필요), 에뮬레이터-백엔드 동시 종료 버그 pfctl 검증
 
-**(2026-08-31 메인 컴퓨터 세션)** 음성 통화(5주차 축소판 A안) 트랙 진행. LiveKit Cloud 프로젝트(`storia-vob8tuvz.livekit.cloud`) + Google Cloud STT/TTS API 키 발급, ngrok 터널로 `LIVEKIT_EGRESS_AUDIO_WS_URL` 연결. **RN 앱 없이 헤드리스로 서버측 파이프라인 전체를 실제 검증**: `livekit-cli`로 room에 OGG 오디오를 publish → 백엔드 `POST /api/calls/{id}/turns` → LiveKit Track Egress가 ngrok 통해 `/egress/audio`로 되접속 → PCM 프레임 수신 → STT → Gemini → TTS → `GET /api/messages/{id}/audio` MP3까지 왕복 확인. **이 과정에서 실제 버그 3개 발견/수정**(아래 5주차 섹션 참고). 남은 건 RN 앱(실기기/에뮬레이터, 마이크)으로 클라이언트측 `useVoiceCallStore` 전체 흐름 확인뿐. 상세는 `HANDOFF.md` 참고.
-
-- [x] **FCM 서비스 계정 JSON** 발급 + 연동 + 실 발송 검증 완료 (아래 4주차 섹션 참고)
-- [x] **APNs Auth Key(.p8)** 발급 + Firebase 업로드 + 실 iPhone 수신 검증 완료 (아래 4주차 섹션 참고)
-- [x] **(2026-08-31)** **LiveKit Cloud 프로젝트 생성**(무료 티어) — `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 발급, `~/secrets/storia/livekit.env`에 저장(리포 밖). `apps/python-sidecar`도 같은 값 사용 가능
-- [x] **(2026-08-31)** **Google Cloud STT/TTS API 키** 발급(`storia-140e9` 프로젝트에 Speech-to-Text + Text-to-Speech API 활성화, 결제 계정 카드 등록 + 예산 알림 ₩1,000, API 키 1개를 `STT_API_KEY`/`TTS_API_KEY` 공용) → `~/secrets/storia/livekit.env`에 저장
-- [x] **(2026-08-31)** **Google 서비스 계정 JSON**(`GOOGLE_APPLICATION_CREDENTIALS`, `apps/python-sidecar`용, 위 API 키 방식과 별개 인증) 발급 — `storia-voice-sidecar@storia-140e9`("Cloud Speech-to-Text 클라이언트" 역할), `~/secrets/storia/storia-140e9-cde9926dcbac.json`(리포 밖, `chmod 600`). **처음엔 리포 루트에 떨어뜨렸다가** 이동 + `.gitignore`에 `storia-*-[0-9a-f]*.json` 패턴 추가
-- [x] **(2026-08-31)** **python-sidecar 실제 room 연결 + 왕복 검증** — automatic dispatch / 실시간 STT / Spring 위임(DB에 캐릭터 응답 저장) / TTS 되쏘기까지 확인. `livekit-agents 1.7.x` 대응으로 `agent.py` 3곳 수정. 상세는 아래 5주차 "완전한 A안" 항목 + `apps/python-sidecar/README.md`
-- [x] **(2026-08-30 접수)** Google Play Console 가입 — 결제/신원 인증 제출함, 승인 대기 중
-- [x] **(2026-08-31)** 실제 RN 앱(연결된 iPhone 12 Pro, iOS 26.6)으로 **(1) 축소판 A안 클라이언트 흐름 전체 검증 완료** — `expo run:ios --device`로 실기기 빌드/설치 → "📞 통화" → 마이크 publish(권한 허용) → 발화 → ■ → STT → Gemini(렌 페르소나) → TTS → **스피커로 렌 목소리 재생**까지, 여러 턴 반복 확인. **실기기 전용 버그 2개 발견/수정**(아래 5주차 섹션). `POLL_TIMEOUT_MS` 75초도 실기기에서 확인됨(한 턴 12~25초).
-- [ ] 남은 것: 실제 RN 앱으로 **(2) python-sidecar 에이전트 음성 재생** 확인 → Android 실기기 USB 재시도(다른 케이블) → `eas init`(Expo 계정 로그인)
-
-## 지금 당장 (1주차 마무리 갭)
+## 1주차 — 마무리 갭
 
 - [x] 클라이언트에서 실제 백엔드 REST API 호출로 전환 (`GET /api/characters`, `GET /api/conversations/{characterId}/messages`) — `dummyCharacters.ts` 제거, `src/api/` 계층 추가
 - [x] 클라이언트 디바이스 ID 생성 및 영속화 (AsyncStorage) — `src/api/deviceId.ts`, `X-Device-Id` 헤더로 전송
@@ -32,14 +27,12 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [x] 백엔드 CORS 설정 — `WebConfig`(`/api/**` 전체 허용, 로컬 개발 전용)
 - [x] **(2026-08-24 실행 검증 완료)** Docker Desktop 실행 → `docker compose up` → `gradlew bootRun` → `expo run:ios`(iOS 시뮬레이터, iPhone 15 Pro)까지 이 프로젝트 최초로 실제 기동 확인. 과정에서 실제 버그 하나 발견/수정(아래 참고).
 
-### 검증 필요 (다음 세션, 로컬 실행 후)
+### 검증 완료 (1주차)
 
-- [x] **(2026-08-25 실행 검증 완료)** Android 에뮬레이터는 `10.0.2.2`, iOS 시뮬레이터는 `localhost`로 자동 분기(`src/api/config.ts`) — 실기기 테스트 시 `EXPO_PUBLIC_API_BASE_URL` 환경변수로 개발 머신 LAN IP를 넣어야 함 (자동 감지 불가). iOS 시뮬레이터 기준(`localhost`)은 검증됨. **LAN IP 경로도 실제 iPhone(Xcode에 페어링된 실기기, 무료 Apple ID 개인 서명)으로 왕복 확인 완료**: `EXPO_PUBLIC_API_BASE_URL=http://<Mac LAN IP>:8080`로 Metro/네이티브 빌드 → WiFi로 캐릭터 목록 정상 로드까지 확인.
-  - **과정에서 발견/수정한 실제 빌드 버그 2개**: (1) `@react-native-firebase/app`가 기본으로 SPM(Swift Package Manager)을 쓰는데, `@config-plugins/react-native-webrtc`가 요구하는 static 프레임워크 링크와 충돌(`pod install` 실패) — RNFirebase 플러그인이 제공하는 `ios.disableSPM: true` 옵션을 `app.json`에 추가해 해결. (2) 그 다음 `GoogleUtilities`가 모듈을 정의하지 않아 static 프레임워크에서 `pod install`이 또 실패 — CocoaPods 공식 해법인 `use_modular_headers!`를 Podfile에 주입하는 로컬 config plugin(`apps/client/plugins/withModularHeaders.js`, `withPodfile`+`mergeContents` 사용, RNFirebase 자체 플러그인 구현 패턴을 그대로 따름)을 새로 만들어 해결.
-  - **iOS ATS 예외도 이번에 처음 추가**: `app.json`의 `ios.infoPlist.NSAppTransportSecurity.NSAllowsLocalNetworking: true` — 이게 없으면 실기기에서 평문 HTTP(사설 IP 대역)가 ATS에 막혀 아예 연결 시도조차 안 됨(배포 목표 재정의 섹션에서 이미 "필요할 것"으로 예견했던 항목, 이번에 실제로 필요함을 확인하고 추가).
-  - **처음엔 "Could not connect to the server"로 실패했는데 원인은 코드가 아니라 운영 실수였음**: 이미 몇 시간 전에 Android 테스트용으로 띄워둔 Metro가 `EXPO_PUBLIC_API_BASE_URL` 없이 떠있던 상태라, iOS 실기기 빌드가 그 기존 Metro에 붙으면서 (iOS 기본값인) `localhost`가 그대로 번들에 박힘 — 실기기에서 `localhost`는 자기 자신이라 당연히 연결 실패. Metro를 올바른 env var로 재기동하니 해결. **교훈: `expo run:ios/--device`를 새 env var로 다시 실행해도, 이미 떠있는 Metro가 있으면 그걸 그대로 재사용해서 새 env var가 반영 안 될 수 있음 — env var를 바꿨으면 Metro도 같이 재기동할 것.**
-- [x] **캐릭터 목록 → 채팅방 진입 → 메시지 전송 → 히스토리 복원까지 실제 왕복 확인함** (iOS 시뮬레이터). 이 과정에서 `useConversationStore.getMessages()`가 메시지 없을 때 `?? []`로 매번 새 배열을 반환해 Zustand 셀렉터 참조가 불안정해지고, 채팅방 진입 시 "Maximum update depth exceeded"로 **거의 항상 크래시하는 실제 버그**를 발견 — `EMPTY_MESSAGES` 상수로 고침(커밋 `e0ec8cb`). 앱 완전 종료 후 재시작 + 백엔드 완전 종료 후 재시작 두 경우 모두 DB에서 메시지가 정상 복원되는 것도 확인.
-- [x] **(2026-08-24 결정)** CORS 설정 유지하기로 결정 — `WebConfig`의 기존 주석이 이미 정확한 근거를 담고 있음(RN 네이티브 fetch는 CORS 영향 없지만 Swagger UI 등 브라우저 기반 API 확인 시나리오엔 필요). 로컬 개발 전용 전체 허용 설정이라 제거할 이유 없음, 배포 전 재검토(코드 주석에 이미 명시)만 남기고 종료.
+전부 실행 검증 완료. 요점만:
+- 캐릭터 목록 → 채팅방 → 메시지 전송 → 히스토리 복원 왕복(iOS 시뮬레이터). 진입 시 거의 항상 크래시하던 실제 버그(`useConversationStore.getMessages()`의 `?? []`가 매번 새 배열 → Zustand 셀렉터 무한 루프) `EMPTY_MESSAGES` 상수로 수정(커밋 `e0ec8cb`).
+- 실기기 iPhone LAN IP 경로(`EXPO_PUBLIC_API_BASE_URL=http://<Mac LAN IP>:8080`)도 왕복 확인. 이때 잡은 빌드 버그: RNFirebase SPM↔static-framework 충돌(`app.json` `ios.disableSPM: true`), `GoogleUtilities` 모듈 미정의(`withModularHeaders.js` config plugin 신설), iOS ATS 예외(`NSAllowsLocalNetworking: true`) 추가. **교훈: env var 바꿨으면 Metro도 재기동**(안 하면 기존 Metro가 `localhost`를 번들에 박음).
+- CORS 전체 허용(`WebConfig`)은 로컬 개발용으로 유지, 배포 전 재검토만 남김.
 
 ## 2주차 — Gemini 연동 & WebSocket
 
@@ -49,15 +42,11 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [x] REST 폴백 경로 구현 (WebSocket 실패 시) — `POST /api/conversations/{characterId}/messages`도 Gemini를 동기 호출해 (논스트리밍) 응답을 반환하도록 변경, 클라이언트는 캐릭터별로 화면 진입 시 WS 연결을 1회 시도하고 실패하면 그 세션 동안 REST로 전환
 - [x] **(2026-08-24 부분 검증)** `GEMINI_API_KEY` 미설정 상태로 `gradlew bootRun` 실행 확인 — REST(`postMessage`)는 고정 안내 문구로 정상 폴백하는 것을 curl과 실제 앱 둘 다에서 확인. WS `ERROR` 이벤트 자체(`ConversationStompController`가 빈 응답 시 `StreamEvent.error(...)` 발행)는 코드로만 확인, 실제 이벤트 수신은 미검증 — 아래 참고.
 
-### 검증 필요 (다음 세션, 로컬 실행 후 — 2주차)
+### 검증 완료 (2주차)
 
-- [x] **(2026-08-24 실행 검증 완료)** 사용자가 실제 `GEMINI_API_KEY` 제공 → 실 스트리밍/REST 왕복 전부 확인. 처음엔 계속 고정 폴백 문구만 왔는데, 원인은 키가 아니라 **`gemini-2.0-flash` 모델이 Google 쪽에서 서비스 종료**(`404 This model ... is no longer available`)된 것이었음 — `gemini-3.6-flash`로 교체(`application.yml`, 커밋 `8fbd6aa`)해서 해결. 헤드리스 STOMP 스크립트로 실제 WS 스트리밍도 확인: `CHUNK` 이벤트 여러 개 → `DONE`, 캐릭터 페르소나에 맞는 진짜 창의적인 응답(예: 렌이 손님에게 책을 파는 짧은 이야기를 즉석에서 지어냄) 도착. REST 경로도 curl/실제 앱 양쪽에서 진짜 AI 응답 수신 확인.
-  - **부수 발견/수정**: `ConversationController.postMessage`의 `.onErrorReturn(...)`이 에러를 로그 한 줄 없이 완전히 삼키고 있어서, 모델 404 에러가 전혀 안 보이고 그냥 폴백 문구만 계속 나와 원인 파악이 어려웠음 — `.doOnError(error -> log.warn(...))` 추가(STOMP 컨트롤러는 이미 하고 있던 패턴, REST도 맞춤). 커밋 `8fbd6aa`.
-  - **(2026-08-25 추가 발견/수정)** 모델 교체 후에도 여전히 간헐적으로 고정 폴백 문구가 나오는 걸 재확인 — 로그에 `TimeoutException: Did not observe any item or terminal signal within 30000ms`. curl로 직접 Gemini `streamGenerateContent`를 찔러보니 `gemini-3.6-flash`가 추론(thinking) 모델이라 첫 청크까지 프롬프트 복잡도에 따라 11~29초, 길면 40초 넘게 걸리는 것을 확인(빈 프롬프트: 11초, 실제 캐릭터 시스템 프롬프트급: 19~29초). `GeminiService.CHUNK_TIMEOUT`을 30초→60초로 늘려 해결 — REST/WS 양쪽 헤드리스로 재검증 완료(REST 29초 소요, WS 헤드리스 STOMP 스크립트로 `CHUNK`×N → `DONE` 확인). `./gradlew test`로 회귀 없음 확인.
-  - **(2026-08-25 부수 수정)** `ConversationStompController`의 `doOnError`가 STOMP `ERROR` 이벤트는 정상 발행하지만 그 뒤로 예외가 `subscribe()`의 미구현 에러 핸들러까지 전파돼 `Operators : Operator called default onErrorDropped`라는 불필요한 스택트레이스가 로그에 매번 남고 있었음 — `.onErrorComplete()`를 `doOnError` 뒤에 추가해 정리.
-- [x] **(2026-08-24 실행 검증 완료)** 백엔드를 내려서 WS 연결 실패 상황을 만든 뒤 재연결이 되는지는 3주차 헤드리스 테스트로 확인(아래 3주차 참고). REST 폴백 자체는 이미 위에서 실제 응답까지 확인됨.
-- [x] `@stomp/stompjs`가 RN(Hermes) 환경에서 별도 폴리필 없이 붙음 — 실제 앱에서 폴리필 관련 크래시 없이 STOMP 핸드셰이크 자체는 정상 동작(curl로 `/ws`에 직접 Upgrade 요청 시 `101` 응답도 별도 확인).
-- [x] **(2026-08-24 신규 발견, 2026-08-25 원인 확정)** 현재는 화면 진입 시 WS 연결을 1회만 시도하고 세션 내내 그 결과(ws/rest)를 유지하는데, 이 연결 시도에 4초 타임아웃(`CONNECT_TIMEOUT_MS`, `src/api/websocket.ts`)이 걸려있음 — 당시엔 이게 원인으로 "추정"됐었으나, **2026-08-25에 진짜 원인이 확인됨**: WS 연결 자체는 정상이었고, `GeminiService`의 `CHUNK_TIMEOUT`(당시 30초)이 `gemini-3.6-flash`의 실제 응답 시간(19~29초, 프롬프트에 따라 40초+)에 비해 마진이 너무 빡빡해서 REST/WS 양쪽 다 간헐적으로 타임아웃 → 고정 폴백 문구가 나왔던 것. 60초로 늘려 해결(아래 2주차 항목 참고) — WS 4초 연결 타임아웃 자체는 별도 손 안 댐(로컬 백엔드 기준 4초면 충분해 보임, 실기기/원격 배포 시엔 재검토 여지 있음).
+- 실제 `GEMINI_API_KEY`로 스트리밍(`CHUNK`×N → `DONE`) + REST 왕복 확인. `gemini-2.0-flash`가 Google 쪽 서비스 종료(404)돼 `gemini-3.6-flash`로 교체(커밋 `8fbd6aa`). `.onErrorReturn` 앞에 `.doOnError` 로그가 없어 원인 파악이 어려웠음 → REST 경로에도 로그 추가.
+- `gemini-3.6-flash`는 추론 모델이라 첫 청크까지 19~40초+ 걸림 → `GeminiService.CHUNK_TIMEOUT` 30→60초(유효 키로도 간헐 폴백 문구 나오던 진짜 원인). `ConversationStompController`에 `.onErrorComplete()` 추가로 `onErrorDropped` 스택트레이스 정리.
+- `@stomp/stompjs` RN(Hermes)에서 폴리필 없이 동작, `/ws` Upgrade `101` 확인. WS 4초 연결 타임아웃(`CONNECT_TIMEOUT_MS`)은 로컬 기준 충분해 그대로 둠(원격 배포 시 재검토 여지).
 
 ## 3주차 — 안정성 & 동기화
 
@@ -67,12 +56,11 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
 - [x] **(2026-08-24 실행 검증 완료)** DB 히스토리 저장/복원 — Docker Desktop 설치 후 `docker compose up`으로 MariaDB 기동, 앱에서 실제로 보낸 메시지가 `createdAt` 오름차순으로 저장/조회되는 것을 DB 직접 쿼리 + `GET /api/conversations/{id}/messages` 양쪽으로 확인. **백엔드 프로세스를 완전히 껐다 켠 뒤에도, 앱을 완전히 종료 후 재시작한 뒤에도** 히스토리가 그대로 살아있는 것까지 확인.
 - [x] 로컬 캐시(AsyncStorage) 동기화 — `src/storage/cache.ts` 추가. `useCharacterStore`/`useConversationStore`가 로드 시작 시 캐시를 먼저 하이드레이션(즉시 렌더) 후 백그라운드로 fetch하고, 성공 시 캐시에 write-through(스트리밍 완료/REST 전송 성공 시점 포함). 네트워크 실패 시에도 캐시된 데이터는 화면에 남아 있음.
 
-### 검증 필요 (다음 세션 — 3주차, DB 기동 가능한 환경에서)
+### 검증 완료 (3주차)
 
-- [x] Docker Desktop 설치 후 `docker compose up`으로 DB 히스토리 저장/복원 실제 확인 완료(위 참고).
-- [x] **(2026-08-24 실행 검증)** WS 재연결 메커니즘 자체 — 앱 UI로는 테스트 세션이 REST로 떨어져서(위 2주차 신규 발견 참고) 배너를 못 띄워봤지만, `websocket.ts`와 동일한 `@stomp/stompjs` 설정(`reconnectDelay`/`maxReconnectDelay`/`EXPONENTIAL`)으로 헤드리스 Node 스크립트를 만들어 실제 백엔드에 직접 붙여 검증: 연결 → 백엔드 kill → `WS CLOSED`/`WS ERROR` 감지 → 2s/4s/8s/16s 지수 백오프로 재시도 → 백엔드 재기동 후 자동 재연결 성공(`CONNECTED count=2`)까지 실제로 확인함. 즉 재연결의 핵심 메커니즘은 정상 동작 — **남은 건 `ChatRoomScreen`이 이 상태를 배너로 정확히 렌더링하는지를 실제 화면에서 탭으로 확인하는 것뿐**(탭 자동화 없어 미검증).
-- [x] **(2026-08-25 부분 검증)** 목록 화면 오류 배너의 "다시 시도" 탭 동작 — Android 에뮬레이터에서 실제 탭으로 확인: 백엔드를 내린 채 앱 재시작 → 캐시된 캐릭터 3종 + 오류 배너("fetch failed: ... Failed to connect to /10.0.2.2:8080") + "다시 시도" 표시 → 백엔드를 다시 올리고 "다시 시도" 실제 탭 → 오류 배너가 사라지고 정상 로드됨까지 확인. 메시지 전송 실패 배너(`sendError`) 탭 시 재전송은 코드 레벨로만 확인(`ChatRoomScreen`의 `onPress={() => handleSend(sendError.content)}` — 목록 재시도와 동일 패턴, 동일 content로 재호출) — 실제 탭 재현은 아래 "신규 발견" 항목 때문에 이번 세션엔 실패, 다음 세션 과제로 남김.
-- [x] **(2026-08-24 실행 검증 완료)** 오프라인 상태로 앱을 재시작해 캐릭터 목록이 AsyncStorage 캐시로부터 즉시 보이는지 확인 — 백엔드를 완전히 끈 상태에서 앱을 완전히 재시작해도 캐릭터 3종이 캐시에서 즉시 렌더링됐고, 동시에 "fetch failed: ... Could not connect to the server" 오류 배너 + "다시 시도" 버튼도 정상적으로 함께 표시됨. ("다시 시도" 탭 자체의 동작은 탭 자동화가 없어 미검증.)
+- DB 히스토리 저장/복원 — 백엔드/앱 완전 재시작 후에도 유지 확인.
+- WS 재연결 메커니즘 — 헤드리스 Node 스크립트로 연결 → 백엔드 kill → 2/4/8/16s 지수 백오프 → 재연결 성공까지 확인.
+- 오프라인 재시작 시 AsyncStorage 캐시로 캐릭터 목록 즉시 렌더 + 오류 배너/"다시 시도" 표시 확인. 목록 배너 "다시 시도" 탭은 Android 에뮬레이터에서 실제 탭 확인. **남은 것**: 메시지 전송 실패 배너(`sendError`) 재전송 탭, "재연결 중" 배너 렌더 — 탭 자동화 없어 코드 리뷰로만 확인(위 "다음 작업" 참고).
 
 ## 4주차 — Native Module & 푸시
 
@@ -88,20 +76,16 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - `gradlew compileJava`/`compileTestJava` 통과 확인. Firebase 프로젝트가 없어 실제 발송은 미검증.
 - [x] **(신규) `lastActiveAt` 트래킹 + 일일 재참여 푸시** — `User.lastActiveAt`이 엔티티엔 있었지만 생성 후 갱신되는 곳이 없던 버그를 발견, REST/WS 채팅 경로가 공유하는 `getOrCreateConversation`에서 매 요청마다 갱신하도록 수정. `ReEngagementScheduler`가 매일 3일 이상 미접속 유저에게 FCM 재참여 푸시를 발송, `User.reengagementPushSent`로 유휴 기간당 최대 1회만 보내고 유저가 돌아오면 다시 `false`로 리셋.
 
-### 남은 작업
+### 검증 완료 (4주차 — FCM 원격 푸시 전부 종료)
 
-- [x] **(2026-08-24 진행)** Firebase 프로젝트 생성 → iOS/Android 앱 등록해서 `GoogleService-Info.plist`/`google-services.json` 발급받음(`com.storia.client`로 확인) → `apps/client/`에 배치, `.gitignore` 처리, `app.json`의 `googleServicesFile`로 연결. **서비스 계정 JSON(`FIREBASE_CREDENTIALS_PATH`용, 백엔드가 실제 발송하는 데 필요)과 APNs Auth Key는 아직 미발급** — 남은 항목으로 아래 유지.
-- [x] **(2026-08-24 실행 검증 완료)** 클라이언트에 `@react-native-firebase/app`+`/messaging` 추가(커밋 `1144f90`). `src/push/registerPushToken.ts`가 권한 요청 → 토큰 발급 → `PUT /api/devices/token`(`src/api/devices.ts`, `client.ts`에 `apiPut` 신규) 전송, 앱 시작 시 1회 호출(`App.tsx`). iOS는 `app.json`에 `aps-environment` entitlement + `UIBackgroundModes: ["remote-notification"]` 수동 추가 필요했음(`@react-native-firebase/messaging` 플러그인은 Android 알림 아이콘 설정만 하고 iOS는 안 건드림). **Android 에뮬레이터에서 실제 토큰 발급 → DB `app_user.fcm_token`에 진짜 FCM 토큰(`fDDC1I...`) 저장되는 것까지 확인** — 에뮬레이터 Play Services가 오래돼서 `SERVICE_VERSION_UPDATE_REQUIRED` 경고가 logcat에 떴지만 토큰 발급 자체는 성공.
-- [x] **(2026-08-30 메인 컴퓨터 세션, 실행 검증 완료)** **서비스 계정 JSON 발급** → `FIREBASE_CREDENTIALS_PATH`(`~/secrets/storia/`, 리포 밖 + `~/.zshrc`에 영구 export)로 백엔드에 주입 → **Android 에뮬레이터로 실제 발송 왕복 확인**: 앱 백그라운드 전환 → `POST /api/conversations/{id}/messages` curl 호출 → 실제 알림함에 "Storia · 렌 (Ren) · 죄송해요, 지금은 답변을 생성할 수 없어요." 배너 도착까지 확인(`adb dumpsys notification`으로 최초 시도 시 `POST_NOTIFICATIONS` 권한 미승인으로 OS가 막고 있던 것도 진단 — `pm grant`로 권한 부여 후 정상 수신, 앱 최초 실행 시 권한 팝업 "허용"만 누르면 되는 정상 동작이라 코드 수정 불필요).
-- [x] **(2026-08-30 실행 검증 완료)** APNs Auth Key(.p8, Key ID `82V493X845`, Team ID `9G5T5K3BP2`) 발급 → Firebase 콘솔 Cloud Messaging 탭 "개발 APNs 인증 키"로 업로드(프로덕션 키는 TestFlight/production 빌드 전환 시 별도 업로드 필요). `eas.json`의 `appleTeamId`도 이 값으로 채움.
-- [x] **(2026-08-30 실행 검증 완료)** iOS에서도 실제 원격 푸시 수신 확인 — APNs 키 업로드 전엔 실제 iPhone 토큰(2026-08-25 세션에 등록된 것)으로 발송 시 `401 Invalid APNs credential`(`THIRD_PARTY_AUTH_ERROR`)이 났으나, 키 업로드 후 같은 토큰으로 재발송하니 에러 없이 발송 성공 + **실제 iPhone에 푸시 배너 도착까지 사용자가 직접 확인**.
-- [x] **(2026-08-30 실행 검증 완료)** 앱을 백그라운드로 두고 메시지를 보내 실제 FCM 푸시가 오는지 확인 — Android/iOS 둘 다 실기기 알림 도착까지 확인 완료(위 두 항목 참고). **4주차 FCM 원격 푸시 항목 전부 종료.**
-- [x] Xcode+CocoaPods 있는 환경에서 `npx expo prebuild`/`expo run:ios`로 `storia-native` 로컬 모듈 링크·컴파일 확인 완료(위 참고). 실제 햅틱 진동/알림 배너가 화면에 뜨는지 눈으로 직접 보는 것만 남음.
-- [x] **(2026-08-24 실행 검증 완료)** Android SDK/에뮬레이터 설치 후 `storia-native`의 Kotlin 모듈 링크·컴파일·실행 확인 완료(위 참고). 남은 건 진동/알림 배너를 실제 기기(에뮬레이터는 진동 체감 불가)에서 눈으로 확인하는 것과 API 33+ 권한 프롬프트 확인뿐.
-- [ ] **(2026-08-25 신규 발견, 트러블슈팅 실패)** 이 머신에 실제 Android 기기(갤럭시 S10, Android 12, 시리얼 `R3CM90JM64W`)가 USB로 연결돼 있어 실기기 테스트를 시도했으나 실패. 처음엔 `adb devices`에 `unauthorized`로 잡혔으나(USB 디버깅 인증 팝업 문제로 추정), 권한 취소 후 재연결/adb 서버 재시작/USB 모드를 "파일 전송"으로 확인/포트 교체/macOS 쪽 "기기 신뢰" 팝업 수락까지 다 시도한 뒤로는 `adb devices`에서 아예 사라짐 — Android Studio Device Manager에도 Physical 기기가 전혀 안 뜸(가상 기기 `storia_test`만 보임). 폰은 **충전은 정상**되는 것으로 봐서 전원 핀은 살아있고 데이터 핀 쪽 핸드셰이크만 실패하는 것으로 추정(케이블/포트 마모 가능성). Android 12라 OS 버전 문제는 아님. 다음 세션에서 다른 케이블/다른 컴퓨터로 재시도해볼 것 — 소프트웨어 쪽으로 시도할 수 있는 건 이번 세션에서 다 시도함.
-- [ ] **(2026-08-25 신규 발견, 도구 관련 / 2026-08-26 원인 가설 + 대안 방법 조사, 미검증)** Android 에뮬레이터(`storia_test`)가 백엔드 JVM 프로세스를 `kill -9`로 죽일 때 같이 죽는 현상을 3회 재현함(원인 미확정). **(2026-08-26 추가 조사)** 이 세션이 돌아가는 머신엔 Android SDK 자체가 설치돼 있지 않아(`~/Library/Android/sdk` 없음) 실제 재현/검증은 못 했음 — 아래는 코드 리뷰 기반 가설과 대안 방법이며 **다음 세션에서 실제 에뮬레이터로 검증 필요**:
-  - **유력 원인 가설**: 그동안 백엔드를 내릴 때 쓴 `lsof -ti:8080 | xargs kill -9`가 포트 8080을 물고 있는 PID를 "전부" 죽이는 명령임 — 만약 에뮬레이터의 네트워킹 관련 프로세스(예: 이전 세션에서 설정했다 남은 `adb reverse` 포워딩, 또는 QEMU의 포트 관련 서브프로세스)가 우연히 같은 포트 조회에 걸리면 백엔드와 함께 죽을 수 있음. **개선안**: 포트로 찾지 말고 `gradlew bootRun` 실행 시 PID를 직접 기록(`gradlew bootRun & echo $! > backend.pid`)해서 그 PID만 `kill`(가능하면 `-9`가 아니라 그레이스풀 종료를 위해 시그널 없이)하도록 바꿀 것 — 이러면 애초에 다른 프로세스를 잘못 죽일 여지가 없어짐.
-  - **네트워크 실패 시나리오를 프로세스를 죽이지 않고 재현하는 방법**: macOS 호스트의 패킷 필터(`pfctl`)로 8080 포트를 일시적으로 차단하는 방식을 검토할 것 — 예: `sudo pfctl -e`(활성화) → 임시 anchor 규칙 파일에 `block drop in proto tcp from any to any port 8080` 작성 → `sudo pfctl -f <파일>`로 로드 → 테스트 후 `sudo pfctl -F all -d`로 해제. 백엔드 프로세스도 에뮬레이터도 건드리지 않고 "연결 거부"만 재현할 수 있어 원래 하려던 테스트(에뮬레이터에서 오류 배너/재시도 확인)에 더 적합함 — `adb reverse` 경로가 아니라 `10.0.2.2` 직결 경로이므로 이 방식이 막는 대상과 실제 요청 경로가 일치하는지 다음 세션에서 먼저 확인할 것.
+- Firebase 프로젝트 생성, `GoogleService-Info.plist`/`google-services.json`(`com.storia.client`) 배치. 클라이언트 `@react-native-firebase/app`+`/messaging`(커밋 `1144f90`), `src/push/registerPushToken.ts` → `PUT /api/devices/token`. iOS는 `app.json`에 `aps-environment` + `UIBackgroundModes: ["remote-notification"]` 수동 추가 필요(플러그인이 iOS는 안 건드림).
+- **서비스 계정 JSON**(`FIREBASE_CREDENTIALS_PATH`, `~/secrets/storia/`) → **Android 에뮬레이터 + 실제 iPhone 둘 다 실제 푸시 배너 도착 확인**. Android 최초엔 `POST_NOTIFICATIONS` 미승인으로 OS가 막고 있었음(정상 동작, 권한 팝업 "허용"으로 해결).
+- **APNs Auth Key**(.p8, Key ID `82V493X845`, Team ID `9G5T5K3BP2`) → Firebase Cloud Messaging "개발 APNs 인증 키"로 업로드. 업로드 전 `401 THIRD_PARTY_AUTH_ERROR` 재현 → 업로드 후 정상. `eas.json`의 `appleTeamId`도 채움. **프로덕션 키는 TestFlight 전환 시 별도 업로드 필요.**
+- `storia-native` 로컬 모듈(iOS Swift / Android Kotlin) 링크·컴파일·실행 확인. 진동/알림 배너를 실기기에서 눈으로 보는 것만 미확인.
+
+**남은 것 (자잘 — 위 "다음 작업"에도 반영):**
+- Android 실기기(갤럭시 S10, Android 12, 시리얼 `R3CM90JM64W`) USB 디버깅 실패 — `adb`가 처음엔 `unauthorized`, 이후 아예 사라짐. 충전은 정상이라 데이터 핀/케이블/포트 마모 추정. 소프트웨어 쪽은 2026-08-25에 다 시도. 다른 케이블/컴퓨터로 재시도.
+- 에뮬레이터가 백엔드 `kill -9` 시 같이 죽는 현상(3회 재현, 원인 미확정). 가설: `lsof -ti:8080 | xargs kill -9`가 관련 없는 PID까지 죽임 → PID 파일 방식으로 이미 전환함(2026-08-30). 프로세스 안 죽이고 네트워크 실패만 재현하려면 `pfctl`로 8080 차단하는 방식 검토(`10.0.2.2` 직결 경로에 맞는지 먼저 확인).
 
 ## 5주차 — 음성 통화, "축소판 A안"으로 확장
 
@@ -119,19 +103,15 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - **왜 S3/클라우드 스토리지가 필요 없는가**: LiveKit Track Egress가 파일 저장 없이 **WebSocket으로 raw PCM을 직접 스트리밍**해주는 옵션을 지원해서(`pcm_s16le`, 보통 48kHz), 백엔드가 그 WS를 직접 받아 처리 — 별도 클라우드 스토리지 계정 불필요.
   - **(2026-08-24 부분 검증)** Xcode+CocoaPods가 이후 이 머신에 설치돼 LiveKit RN SDK(`@livekit/react-native`, `@livekit/react-native-webrtc`, `LiveKitExpoPlugin`)가 `expo run:ios` 빌드에서 실제로 정상 링크·컴파일되는 것까지 확인함(앱 자체가 정상 기동). `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 전부 여전히 미설정이라 실제 통화 왕복(토큰 발급~room 연결~STT~TTS)은 여전히 미검증. `gradlew compileJava`/`compileTestJava`(livekit-server jar를 `javap`으로 실제 확인하며 작성해 1회 컴파일에 성공), `tsc --noEmit` 통과만 확인.
 
-### 남은 작업 (다음 세션 — 자격증명/환경 준비된 뒤)
+### 검증 완료 (5주차 — 축소판 A안 서버+클라 전부)
 
-- [x] **(2026-08-31)** LiveKit Cloud 프로젝트 생성(무료 티어) → `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` 백엔드에 주입, `lk room list`로 자격증명 유효 확인
-- [x] **(2026-08-31)** ngrok 터널(`brew install ngrok` + authtoken) → `LIVEKIT_EGRESS_AUDIO_WS_URL=wss://<subdomain>.ngrok-free.dev/egress/audio` 설정. LiveKit Cloud egress가 이 주소로 실제 되접속하는 것 확인(무료 ngrok URL은 재시작마다 바뀜)
-- [x] **(2026-08-31)** Google Cloud STT/TTS API 키 발급 → `STT_API_KEY`/`TTS_API_KEY` 설정. 직접 curl로 TTS 합성 → 그 오디오 STT 역인식(신뢰도 0.92)까지 왕복 확인
-- [x] Xcode+CocoaPods 있는 환경에서 `expo prebuild`/`expo run:ios`로 LiveKit RN SDK가 정상 링크·컴파일되는 것 확인 완료(위 참고)
-- [x] **(2026-08-31 헤드리스 검증 완료)** 서버측 통화 왕복 전체 — `livekit-cli`로 room에 OGG publish → `POST /api/calls/{id}/token`(200, JWT grants 정확) → `POST /api/calls/{id}/turns` → LiveKit Track Egress가 ngrok 통해 `/egress/audio`로 되접속 → `VoiceEgressWebSocketHandler`가 PCM 프레임 수신(턴당 ~1500프레임/2.9MB) → 트랙 unpublish → `completeTurn` → STT 전사 → USER 메시지 저장 → Gemini 캐릭터 응답 → ASSISTANT 메시지 저장 → `GET /api/calls/turns/{turnId}` `recording`→`processing`→`done` → `GET /api/messages/{id}/audio` MP3(캐릭터 보이스). **남은 건 RN 앱(마이크 실기기/에뮬레이터)으로 `useVoiceCallStore` 클라이언트 흐름 확인뿐** — `lk` publish가 RN 클라이언트의 WebRTC 마이크 트랙을 대신한 것.
+- [x] **(2026-08-31)** 자격증명 발급 — LiveKit Cloud 무료 티어(`LIVEKIT_*`), ngrok 터널(`LIVEKIT_EGRESS_AUDIO_WS_URL`, 무료 URL은 세션마다 갱신), Google Cloud STT/TTS API 키(`STT_API_KEY`/`TTS_API_KEY`). curl로 TTS→STT 역인식(신뢰도 0.92) 왕복 확인. `lk room list`로 자격증명 유효 확인. `livekit-server` SDK `startTrackEgress`/`AccessToken` grant 런타임 동작 확인(`EGRESS_COMPLETE`, JWT grant가 `VoiceCallService.createToken`과 일치).
+- [x] **(2026-08-31 헤드리스 검증)** 서버측 통화 왕복 전체 — `livekit-cli`로 room에 OGG publish → `POST /api/calls/{id}/token` → `POST .../turns` → Track Egress가 ngrok 통해 `/egress/audio`로 되접속 → PCM 프레임 수신 → 트랙 unpublish → `completeTurn` → STT → USER 저장 → Gemini → ASSISTANT 저장 → 턴 상태 `recording`→`processing`→`done` → `GET /api/messages/{id}/audio` MP3.
 - [x] **(2026-08-31 실기기 검증 완료)** RN 앱 클라이언트 흐름 — 연결된 iPhone 12 Pro(iOS 26.6)에 `expo run:ios --device`로 빌드/설치(`EXPO_PUBLIC_API_BASE_URL`=Mac LAN IP, `SENTRY_DISABLE_AUTO_UPLOAD=true`), "📞 통화" → LiveKit Cloud 연결 → `setMicrophoneEnabled(true)` 마이크 publish(권한 팝업 "허용") → 발화 → ■ → `unpublishTrack` → egress 종료 → STT → Gemini(렌 페르소나) → TTS → `expo-audio`가 스피커로 렌 목소리 재생 → idle 복귀. **여러 턴 연속 반복 정상**(재생 후 다음 턴 마이크 재-publish도 OK). 한 턴 12~25초.
   - **실기기 전용 버그 2개 발견/수정**:
     1. **턴이 영원히 완료 안 됨**: `stopListening`이 `room.localParticipant.setMicrophoneEnabled(false)`로 트랙을 unpublish한다고 가정했는데, `livekit-client` 2.22.0에서 이 호출은 **오디오 트랙은 mute만** 함(unpublish는 screen-share 소스만). 그래서 마이크 트랙이 muted 상태로 계속 published → Track Egress가 안 끝남 → 백엔드 `completeTurn` 미실행 → 클라가 75초 폴링 후 "응답이 너무 오래 걸려요". 헤드리스 검증은 `lk` 프로세스를 죽여서(하드 disconnect) 이 버그가 안 드러났음. `stopListening`에서 `startListening`이 저장해둔 publication을 `unpublishTrack(pub.track, true)`로 명시 unpublish하도록 수정.
     2. **응답 음성이 재생 안 됨(에러도 없이)**: `isMessageAudioAvailable`의 HEAD 존재확인 타임아웃이 3초인데, `/api/messages/{id}/audio`가 요청마다 Google TTS를 새로 합성(측정 3~4초) → HEAD abort → `false` 반환 → `playAssistantAudio`가 조용히 idle 복귀. 타임아웃 15초로 상향(`AVAILABILITY_CHECK_TIMEOUT_MS`). 추가로 재생 직전 `setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false })`(WebRTC 녹음세션 직후라 iOS `AVAudioSession`이 playAndRecord→이어피스/무음스위치 준수 상태) + 재생 무한 대기 방지 `PLAYBACK_MAX_MS` 90초 안전 타임아웃.
-- [x] **(2026-08-31)** `livekit-server` SDK의 `startTrackEgress`/`AccessToken` grant 런타임 동작 확인 — `lk egress list`가 `EGRESS_COMPLETE`(에러 없음), 토큰 JWT를 디코드해 `roomJoin`/`canPublish`/`canSubscribe`/`room` grant가 `VoiceCallService.createToken`과 일치함 확인
-- **(2026-08-31 발견/수정한 실제 버그 3개)**:
+- **(2026-08-31 발견/수정한 서버측 실제 버그 3개)**:
   1. **STT가 항상 전사 실패**: LiveKit Track Egress는 트랙을 **interleaved stereo `pcm_s16le`**로 스트리밍하는데 `SttService`가 Google STT에 mono로 넘겨서(`audioChannelCount` 미지정) 인터리브된 샘플을 뭉갠 mono로 읽어 항상 결과 0개였음. `stt.audio-channel-count: 2` 프로퍼티 추가 + 요청에 `audioChannelCount` 전달로 수정. 프로퍼티 파일 밖에선 검증 불가였던 항목.
   2. **긴 응답의 `GET /api/messages/{id}/audio`가 404**: `TtsWebClientConfig`/`SttWebClientConfig`가 WebClient 기본 in-memory 버퍼(256KB)를 그대로 씀 → Google TTS가 MP3 전체를 base64로 한 JSON 바디에 담아 반환하는데, ~400자 한국어 응답이면 이미 256KB 초과 → `DataBufferLimitException` → `TtsService`가 null 반환 → 404. 두 WebClient에 `maxInMemorySize(16MB)` 설정으로 수정(실제 483KB MP3 응답으로 재확인).
   3. **음성 턴 Gemini 503을 조용히 삼킴**: `VoiceCallService`의 Gemini 호출이 `.onErrorReturn(...)`만 있고 `.doOnError` 로그가 없어(REST 경로는 2026-08-24에 이미 고친 안티패턴) Google의 간헐적 `503 Service Unavailable`이 로그 없이 고정 폴백 문구로만 나왔음. `.doOnError` 로그 추가.
@@ -141,17 +121,10 @@ PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. �
   - ✅ 실시간 Google STT 한국어 전사 + 턴 감지
   - ✅ `StoriaLLM`이 Spring REST 호출 → DB에 유저/어시스턴트 메시지 저장 + 캐릭터 페르소나 응답 (로직 중복 없음 설계 그대로 동작)
   - ✅ 에이전트가 TTS 합성해 room에 오디오 트랙 publish, 구독자가 오디오 프레임 수신
-  - ⚠️ 에이전트 음성의 **깨끗한 재생 확인은 미완** — 합성 파이썬 테스트 클라이언트로 캡처한 오디오가 리샘플 아티팩트로 역-전사 안 됨(축소판 A안 RN 재생 검증과 동일하게 실기기 필요)
-  - **`livekit-agents 1.7.x` 대응 `agent.py` 3곳 수정**: (1) `AgentSession(llm=...)` 없으면 `AgentActivity`가 "skip response if no llm is set"로 응답 생성 자체를 건너뜀 → Spring 위임을 `Agent.llm_node` 오버라이드가 아니라 `llm.LLM`/`llm.LLMStream`(`StoriaLLM`) 구현으로 넣음. (2) 워커 헬스체크 포트 8081이 Metro와 충돌 → `WorkerOptions(port=8083)`. (3) Google Cloud TTS 스트리밍은 Chirp 3 HD 보이스만 지원 → `google.TTS(voice_name="ko-KR-Standard-A", use_streaming=False)` 배치 합성. 상세는 `apps/python-sidecar/README.md`.
-  - `requirements.txt`를 검증 버전(`livekit-agents==1.7.1` 등)으로 핀 고정. `VoiceCallService.createToken()`은 2026-08-26에 이미 `CanSubscribe(true)`로 바꿔둠(에이전트 오디오 구독용).
-  - **(참고) 처음 조사 때 남겼던 대안 정리 — 이제 위 방식으로 확정됨:**
-  - 먼저 `io.livekit:livekit-server`(관리용 SDK)가 아니라 실시간 미디어 publish가 가능한 JVM 라이브러리가 있는지 재조사(현재는 없다고 판단했지만 확정은 아님)
-  - **없다면 Python/Node 사이드카 방식이 유력** — Spring 안에 "붙이는" 게 아니라 별도 프로세스로 띄워서 REST로 통신하는 표준 마이크로서비스 패턴:
-    - Python(또는 Node)에 LiveKit **Agents SDK**로 작은 서비스를 하나 만듦. 이 Agent가 room에 봇처럼 들어가서 유저 오디오를 실시간 구독 → STT → TTS 오디오를 그 세션에 다시 publish하는 것까지 SDK가 대부분 처리해줌 — "서버가 라이브 세션에 오디오 되쏘기"라는 가장 어려운 부분이 이미 해결된 상태로 옴
-    - 캐릭터 시스템 프롬프트 조회, 메시지 히스토리 저장 같은 비즈니스 로직은 새로 안 짜고 **Agent가 지금 Spring Boot 백엔드의 기존 REST API(`/api/conversations/...`)를 그대로 호출**하면 됨 — 로직 중복 없음
-    - 지금 손으로 짠 Track Egress + raw WebSocket(`/egress/audio`) 방식보다 오히려 **더 단순해질 가능성** — Agents SDK 자체가 이 문제(실시간 오디오 구독+되쏘기)를 위해 만들어진 프레임워크라서
-    - 트레이드오프: 리포에 언어/런타임이 하나 더 늘어남(Python 또는 Node 프로세스를 별도로 설치·배포·관리) — 배포 파이프라인(7주차)에도 영향
-  - 두 방법 다 부담되면 이번 포트폴리오 스코프에서는 축소판으로 마무리하고, README/기술 블로그에 "왜 완전한 A안은 다음 확장 과제로 남겼는지"를 트레이드오프로 명시(PRD 7절 포트폴리오 활용 방안과 동일한 패턴)
+  - ⚠️ **에이전트 음성의 실기기 재생은 미완** — 합성 파이썬 테스트 클라이언트 캡처가 리샘플 아티팩트로 역-전사 안 됨. 실제 RN 앱으로 확인하려면 클라이언트에 `AudioSession.startAudioSession()` + 원격 오디오 트랙 재생 배선이 필요(축소판은 URL+`expo-audio`라 없음). 새 클라 작업 + 네이티브 재빌드. → 위 "다음 작업" 참고.
+  - **`livekit-agents 1.7.x` 대응 `agent.py` 3곳 수정**: (1) `AgentSession(llm=...)` 없으면 응답 생성 자체를 건너뜀 → Spring 위임을 `llm.LLM`/`llm.LLMStream`(`StoriaLLM`) 구현으로. (2) 워커 헬스체크 포트 8081 Metro 충돌 → 8083. (3) Google TTS 스트리밍은 Chirp 3 HD만 지원 → `google.TTS(voice_name="ko-KR-Standard-A", use_streaming=False)`. 상세는 `apps/python-sidecar/README.md`.
+  - `requirements.txt` `livekit-agents==1.7.1`로 핀 고정. `VoiceCallService.createToken()`은 2026-08-26에 `CanSubscribe(true)`로 변경 완료(에이전트 오디오 구독용).
+  - **왜 사이드카인가**: Spring(JVM)엔 "라이브 LiveKit 세션에 오디오를 다시 publish"하는 표준 경로가 없음 → LiveKit 표준인 Python Agents SDK로 별도 프로세스를 띄우고, 캐릭터 프롬프트/Gemini/영속화/FCM은 새로 안 짜고 기존 Spring REST(`/api/conversations/...`)에 위임. 트레이드오프는 리포에 런타임 하나 추가(배포 파이프라인 7주차에 영향). 상세는 `docs/decisions.md` ADR-004.
 
 ## 6주차 — WebRTC 최소 데모 (C안) → 재평가 결과: 별도 데모 없이 문서화로 종료
 
