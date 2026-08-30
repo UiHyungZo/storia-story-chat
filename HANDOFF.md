@@ -4,14 +4,18 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-08-31 세션 최후반, 메인 컴퓨터 + 연결된 iPhone)** **완전한 A안(python-sidecar 에이전트 음성) 실기기 검증 완료** (커밋 `3b0e76e`). agent 자동 감지 → 마이크 자동 흐름 → 실시간 STT(한국어 여러 턴) → `StoriaLLM` → Spring `/api/conversations/{id}/messages`(DB 저장) → **Chirp3-HD TTS → 스피커로 깨끗한 한국어 음성**, 유저가 응답 내용에 반응하며 연속 대화(풀 듀플렉스). 클라 변경은 JS만이라 fast-refresh로 반영됨(네이티브 재빌드 불필요 — `AudioSession`은 `@livekit/react-native`에 이미 링크돼 있음).
+  - **⚠️ 내일 재확인 1건**: 이 검증 때 `GEMINI_API_KEY`가 **429(무료 일일 할당량 소진)** — 오늘 텍스트/축소판/완전한 A안 테스트를 50회+ 했고 `gemini-3.6-flash`가 추론 모델이라 호출당 thought 토큰 500+ 소모. 그래서 응답 *내용*은 폴백(`"죄송해요, 지금은 답변을 생성할 수 없어요."`)이었고 **그게 또렷하게 재생됨 = 오디오 경로 검증엔 충분**. 태평양시간 자정 리셋 후, 워커 띄우고 통화 1회 → 진짜 캐릭터 응답이 에이전트 음성으로 나오는지만 확인하면 5주차 완전 종료. (오늘 낮 msg 68~79로 같은 경로에 진짜 응답이 흘렀던 건 이미 확인됨. 백엔드 로그 `/tmp/storia_backend.log`에 `429 Too Many Requests from ... streamGenerateContent` 확인함.)
+  - **실기기에서 잡은 버그 4개** (상세 `TODO.md` 5주차 "완전한 A안"): (a) agent 감지 시 `AudioSession.startAudioSession()`을 마이크 publish **전에** 호출해야 함 — 동시/누락 시 iOS 캡처 무음. (b) agent 모드는 마이크를 통화 내내 유지(unpublish/mute 시 워커 STT 굶어 `Audio Timeout`으로 크래시) → `stopListening`이 agent 모드에선 no-op, 🎤는 한 번만 publish 후 숨김. (c) `agent.py` TTS `ko-KR-Standard-A`는 `livekit-plugins-google`(Gemini/Chirp 플러그인)에서 무효 → gemini-2.5-flash-tts로 라우팅("Agent Platform API" 미활성) → **지지직**. `voice_name="ko-KR-Chirp3-HD-Charon"` + `audio_encoding=LINEAR16` + `use_streaming=False` + `sample_rate=48000`로 교체(STT 역-전사 0.91). (d) `storia_client` 백엔드 타임아웃 30→90초(Spring이 Gemini 동기 호출, 30~50초+ 걸림).
+  - **agent 모드 동작**: 클라가 `RoomEvent.ParticipantConnected` + `isAgent`로 워커를 감지하면 `mode: "agent"` — 워커 안 떠 있으면 아무것도 안 바뀌고 축소판 turn 경로 그대로. 워커 재시작하면 LiveKit이 **이미 dispatch된 room엔 재-dispatch 안 함** → 테스트 시 통화 완전 종료 후 room 만료 대기(또는 `lk room delete call-<deviceId>-<characterId>`) 후 새 통화.
+  - **세션 종료 시점 로컬 상태**: 백엔드 재시작함(`/tmp/storia_backend.log`, 음성 env 주입), python-sidecar 워커 `agent.py dev` 실행 중(`/tmp/sidecar_worker.log`, 포트 8083), Docker MariaDB / ngrok(`feline-request-backtrack.ngrok-free.dev`, `livekit.env`와 일치) 계속. 다음 세션에 전부 재기동 필요(아래 "로컬 스택 재기동" — 무료 ngrok URL은 세션마다 바뀜). 워커 실행: `cd apps/python-sidecar && .venv/bin/python agent.py dev`.
 - **(2026-08-31 세션 후반, 메인 컴퓨터 + 연결된 iPhone)** 축소판 A안 **RN 클라이언트 흐름을 실기기(iPhone 12 Pro, iOS 26.6)로 검증 완료** — 5주차 마지막 미검증 항목 해소.
   - **빌드/실행**: `cd apps/client && EXPO_PUBLIC_API_BASE_URL=http://<Mac LAN IP>:8080 SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device "Iker iPhone"` — 네이티브 빌드(Pods+LiveKit WebRTC XCFramework 포함) ~8분, `Build Succeeded` 0 errors. Metro는 `expo run:ios`가 올바른 env로 새로 띄움. `ios/*/Info.plist`에 `NSMicrophoneUsageDescription` 이미 있음(LiveKit expo plugin이 prebuild 때 주입).
   - **검증된 왕복**: "📞 통화" → LiveKit Cloud(일본 리전) 연결 → 마이크 publish(iOS 권한 팝업 "허용") → 발화 → ■ → `unpublishTrack` → egress 종료 → STT(실기기 마이크 오디오 정상 전사) → Gemini(렌 페르소나, 12~25초) → TTS 630KB MP3 → **스피커로 렌 목소리 재생** → idle 복귀. **여러 턴 연속 반복 정상.**
   - **실기기 전용 버그 2개 발견/수정** (`apps/client`, 상세는 `TODO.md` 5주차):
     1. `useVoiceCallStore.stopListening`이 `setMicrophoneEnabled(false)`로 트랙 unpublish된다고 가정 → `livekit-client` 2.22.0은 오디오 트랙을 **mute만** 함(unpublish는 screen-share만). 마이크가 muted로 계속 published → Track Egress 안 끝남 → `completeTurn` 미실행 → 75초 폴링 타임아웃. `startListening`이 저장한 publication을 `unpublishTrack(pub.track, true)`로 명시 unpublish. **헤드리스 검증은 `lk` 프로세스 kill(하드 disconnect)이라 이 버그가 안 드러났음.**
     2. `isMessageAudioAvailable` HEAD 타임아웃 3초인데 `/api/messages/{id}/audio`가 요청마다 TTS 새로 합성(3~4초) → HEAD abort → 재생 조용히 건너뜀. 타임아웃 15초로. + 재생 직전 `setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false })`(WebRTC 녹음세션 직후 iOS 오디오 라우팅), + `PLAYBACK_MAX_MS` 90초 안전 타임아웃.
-  - `tsc --noEmit` / `npm test`(17개) 통과. 커밋 `3596016`에 반영됨.
-  - **남은 것**: (2) python-sidecar 에이전트 음성을 실기기에서 듣는 것 — 에이전트 워커(`cd apps/python-sidecar && source .venv/bin/activate && python agent.py start`)를 띄우면 같은 `call-*` room에 자동 진입. 단 축소판 egress 경로와 **같은 room 이름**이라 둘 다 응답하므로, 에이전트만 테스트하려면 클라가 `startTurnEgress`를 안 부르게 하거나 별도 확인 방법 필요. + 클라이언트에 `AudioSession.startAudioSession()` + 원격 오디오 트랙 재생 배선 없음(새 클라 작업).
+  - `tsc --noEmit` / `npm test`(17개) 통과. 커밋 `3596016`에 반영됨. **(2)는 위 맨 첫 항목에서 완료됨.**
 - **(2026-08-31 세션 전반)** 음성 통화 자격증명 발급 + **서버측 파이프라인 헤드리스 검증** (`livekit-cli`로 room에 OGG publish → 백엔드 → egress → STT → Gemini → TTS → MP3까지 curl로 왕복).
   - **자격증명** (전부 `~/secrets/storia/`, 리포 밖 `chmod 600` — 상세 표는 그 폴더 `README.md`): `livekit.env`에 `LIVEKIT_HOST`(스킴 없는 host — **콘솔은 `LIVEKIT_URL`로 안내하지만 백엔드는 host만 받고 `LiveKitProperties`가 `wss://` 붙임**)/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`, `STT_API_KEY`=`TTS_API_KEY`(GCP API 키 1개, `storia-140e9`에 STT+TTS API 활성화 + 결제 카드 등록, 예산 알림 ₩1,000), `GEMINI_API_KEY`(AI Studio 신형 `AQ.` 포맷). sidecar용 GCP 서비스계정 JSON은 별도(`storia-voice-sidecar@`, API 키 방식과 다른 ADC 인증).
   - **서버측 버그 3개 발견/수정** (상세 `TODO.md` 5주차): (1) LiveKit egress PCM이 **interleaved stereo**인데 `SttService`가 mono로 넘겨 항상 전사 0개 → `stt.audio-channel-count: 2`. (2) `Tts/SttWebClientConfig` 기본 버퍼 256KB → 긴 응답 오디오가 `DataBufferLimitException` 404 → `maxInMemorySize(16MB)`. (3) `VoiceCallService` Gemini 호출에 `.doOnError` 없어 Google 503 조용히 삼킴 → 로그 추가.
@@ -62,7 +66,7 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 
 남은 작업 목록과 우선순위는 [`TODO.md`](./TODO.md)의 "다음 작업" / 7주차 / "배포 목표 재정의" 섹션이 정본. 요약:
 
-- **(5주차 잔여)** python-sidecar 에이전트 음성을 실기기에서 재생 — 클라이언트에 `AudioSession.startAudioSession()` + 원격 오디오 트랙 재생 배선 필요(새 클라 작업 + 네이티브 재빌드).
+- **(5주차 잔여 — 내일)** python-sidecar 에이전트 음성 실기기 검증 완료(커밋 `3b0e76e`, 위 맨 첫 항목). Gemini 키가 오늘 429라 진짜 캐릭터 응답이 에이전트 음성으로 나오는지만 할당량 리셋 후 1회 재확인하면 5주차 종료.
 - **(7주차)** `eas init` → `eas.json` submit 값 채우기 → 개인정보처리방침 공개 URL 퍼블리시 + 스토어 관문 설문 → iOS TestFlight / Android Play 내부 테스트. Apple Developer 가입 필요, Google Play Console은 인증 대기 중.
 - **에러 시나리오 검증**(LiveKit room 연결 후 끊김/턴 타임아웃/`/egress/audio` 프록시 WSS 업그레이드), 배포 시크릿에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 추가.
 - 이미 완료: Sentry 연동(클라+백엔드, DSN만 없음), GitHub Actions CI, 백엔드 Dockerfile, 테스트(백엔드 18 / 클라 17), `GlobalExceptionHandler`.
