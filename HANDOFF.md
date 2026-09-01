@@ -4,8 +4,9 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
-- **(2026-08-31 세션 최후반, 메인 컴퓨터 + 연결된 iPhone)** **완전한 A안(python-sidecar 에이전트 음성) 실기기 검증 완료** (커밋 `3b0e76e`). agent 자동 감지 → 마이크 자동 흐름 → 실시간 STT(한국어 여러 턴) → `StoriaLLM` → Spring `/api/conversations/{id}/messages`(DB 저장) → **Chirp3-HD TTS → 스피커로 깨끗한 한국어 음성**, 유저가 응답 내용에 반응하며 연속 대화(풀 듀플렉스). 클라 변경은 JS만이라 fast-refresh로 반영됨(네이티브 재빌드 불필요 — `AudioSession`은 `@livekit/react-native`에 이미 링크돼 있음).
-  - **⚠️ 내일 재확인 1건**: 이 검증 때 `GEMINI_API_KEY`가 **429(무료 일일 할당량 소진)** — 오늘 텍스트/축소판/완전한 A안 테스트를 50회+ 했고 `gemini-3.6-flash`가 추론 모델이라 호출당 thought 토큰 500+ 소모. 그래서 응답 *내용*은 폴백(`"죄송해요, 지금은 답변을 생성할 수 없어요."`)이었고 **그게 또렷하게 재생됨 = 오디오 경로 검증엔 충분**. 태평양시간 자정 리셋 후, 워커 띄우고 통화 1회 → 진짜 캐릭터 응답이 에이전트 음성으로 나오는지만 확인하면 5주차 완전 종료. (오늘 낮 msg 68~79로 같은 경로에 진짜 응답이 흘렀던 건 이미 확인됨. 백엔드 로그 `/tmp/storia_backend.log`에 `429 Too Many Requests from ... streamGenerateContent` 확인함.)
+- **(2026-09-01 세션, 메인 컴퓨터 + 연결된 iPhone)** **완전한 A안(python-sidecar 에이전트 음성) 재확인 완료 — 5주차 완전 종료.** 지난 세션(`3b0e76e`)에서 Gemini 429라 폴백 문구만 재생됐던 것을 할당량 리셋 후 재검증: 통화 1회에서 로그상 agent 자동 dispatch(`AJ_JkVVFRXYaSAq`, room `call-…-2`) → 실시간 한국어 STT("지금도 계속 그러고 있나?" 등) → 턴 감지(EOT 0.977) → `StoriaLLM` → Spring `/api/conversations/{id}/messages` 위임 → DB user/assistant INSERT → **진짜 렌 페르소나 응답**(*"어머, 미안해요 손님! …마치 태엽이 멈춘 기계처럼… 쨍한 주황색 표지의 작은 책 한 권을…"*, 폴백 아님) → Chirp3-HD TTS room publish(`aec warmup active` = 재생 시작) → 유저가 에이전트 음성 위로 끼어들며(`interruption detected` 22:52:01) **연속 대화** → egress 완료(`Voice turn … completing: 27,626,808 bytes`, WS 정상 종료 1000) → CLIENT_INITIATED 클린 종료. **음성 경로 + 실응답 내용 둘 다 검증됨.**
+  - 재기동은 아래 "로컬 스택 재기동" 그대로. 단 **ngrok URL은 이번엔 안 바뀜** — 계정에 `feline-request-backtrack.ngrok-free.dev` 예약 도메인이 걸려 있어 `ngrok http 8080`만 다시 띄우면 `livekit.env`의 `LIVEKIT_EGRESS_AUDIO_WS_URL` 그대로 유효(3번 스텝 스킵 가능). Gemini 무료 할당량은 태평양시간 자정 리셋.
+  - **(2026-08-31, 커밋 `3b0e76e`)** agent 모드 실기기 최초 검증 시 잡은 것: 클라 변경은 JS만이라 fast-refresh로 반영됨(네이티브 재빌드 불필요 — `AudioSession`은 `@livekit/react-native`에 이미 링크돼 있음).
   - **실기기에서 잡은 버그 4개** (상세 `TODO.md` 5주차 "완전한 A안"): (a) agent 감지 시 `AudioSession.startAudioSession()`을 마이크 publish **전에** 호출해야 함 — 동시/누락 시 iOS 캡처 무음. (b) agent 모드는 마이크를 통화 내내 유지(unpublish/mute 시 워커 STT 굶어 `Audio Timeout`으로 크래시) → `stopListening`이 agent 모드에선 no-op, 🎤는 한 번만 publish 후 숨김. (c) `agent.py` TTS `ko-KR-Standard-A`는 `livekit-plugins-google`(Gemini/Chirp 플러그인)에서 무효 → gemini-2.5-flash-tts로 라우팅("Agent Platform API" 미활성) → **지지직**. `voice_name="ko-KR-Chirp3-HD-Charon"` + `audio_encoding=LINEAR16` + `use_streaming=False` + `sample_rate=48000`로 교체(STT 역-전사 0.91). (d) `storia_client` 백엔드 타임아웃 30→90초(Spring이 Gemini 동기 호출, 30~50초+ 걸림).
   - **agent 모드 동작**: 클라가 `RoomEvent.ParticipantConnected` + `isAgent`로 워커를 감지하면 `mode: "agent"` — 워커 안 떠 있으면 아무것도 안 바뀌고 축소판 turn 경로 그대로. 워커 재시작하면 LiveKit이 **이미 dispatch된 room엔 재-dispatch 안 함** → 테스트 시 통화 완전 종료 후 room 만료 대기(또는 `lk room delete call-<deviceId>-<characterId>`) 후 새 통화.
   - **세션 종료 시점 로컬 상태**: 백엔드 재시작함(`/tmp/storia_backend.log`, 음성 env 주입), python-sidecar 워커 `agent.py dev` 실행 중(`/tmp/sidecar_worker.log`, 포트 8083), Docker MariaDB / ngrok(`feline-request-backtrack.ngrok-free.dev`, `livekit.env`와 일치) 계속. 다음 세션에 전부 재기동 필요(아래 "로컬 스택 재기동" — 무료 ngrok URL은 세션마다 바뀜). 워커 실행: `cd apps/python-sidecar && .venv/bin/python agent.py dev`.
@@ -44,9 +45,9 @@
 - 로컬 iOS 빌드는 `SENTRY_DISABLE_AUTO_UPLOAD=true` 필요(Sentry DSN 없으면 빌드 스크립트가 소스맵 업로드하려다 실패).
 - `EXPO_PUBLIC_*` env var를 바꿨으면 Metro도 재기동(안 하면 기존 Metro가 옛 값을 번들에 박음).
 
-## 현재 상태 (2026-08-31 기준)
+## 현재 상태 (2026-09-01 기준)
 
-PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 없이 종료). **7주차(모니터링/배포)만 남음.** 5주차 축소판 A안은 서버 헤드리스 + 실기기 iPhone 클라이언트까지 검증 완료. 완전한 A안(python-sidecar)은 헤드리스 room 왕복 검증 완료(에이전트 음성 실기기 재생만 미완). 남은 작업 목록은 `TODO.md`의 "다음 작업" 참고.
+PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 없이 종료). **7주차(모니터링/배포)만 남음.** 5주차 축소판 A안은 서버 헤드리스 + 실기기 iPhone 클라이언트까지 검증 완료. **완전한 A안(python-sidecar)도 실기기 에이전트 음성 + 진짜 캐릭터 응답 내용까지 검증 완료(2026-09-01) — 5주차 전 항목 종료.** 남은 작업 목록은 `TODO.md`의 "다음 작업" 참고.
 
 - **백엔드**: Spring Boot 4.0.7(모듈화 스타터 `webmvc`+`websocket`, Java 17) + JPA. `User`/`Character`/`Conversation`/`Message` 엔티티, 캐릭터 3종 시딩(`CharacterSeeder`), Swagger UI, `WebConfig`(로컬 개발용 CORS 전체 허용), `GlobalExceptionHandler`(`@RestControllerAdvice`, `{code, message}` 구조화 응답).
   - REST: `GET /api/characters`, `GET /api/conversations/{characterId}/messages`, `POST /api/conversations/{characterId}/messages`(유저 메시지 저장 + Gemini 동기 호출 — WS 실패 시 폴백 경로).
@@ -59,14 +60,14 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 - **음성 통화 (5주차, "축소판 A안")**: 클라이언트↔LiveKit Cloud는 실제 WebRTC로 마이크 오디오 전송. 서버는 WebRTC 미디어를 직접 안 다루고 LiveKit **Track Egress → WebSocket**(raw interleaved-stereo `pcm_s16le` 48kHz)으로 받아 배치 STT→Gemini→TTS(B안)에 흘려보냄 — 클라우드 스토리지 불필요. 상세 흐름은 `docs/architecture/README.md`, 결정 배경은 `docs/decisions.md` ADR-004.
   - **백엔드**: `io.livekit:livekit-server:0.15.0`(`javap`으로 시그니처 확인 후 작성), `LiveKitProperties`, `voice/` 패키지(`VoiceCallService`, `VoiceTurnRegistry` — 턴 상태 인메모리), `VoiceEgressWebSocketHandler`(`/egress/audio`, raw WS), `SttService`(Google STT 배치), `VoiceCallController`(`/api/calls/{characterId}/token`|`/turns`, `/api/calls/turns/{turnId}`). `TtsService`(`GET /api/messages/{id}/audio`)는 요청마다 재합성, 저장소 없음.
   - **클라이언트**: `@livekit/react-native` + `livekit-client` + `@livekit/react-native-webrtc` + config plugin, `App.tsx`에서 `registerGlobals()`. `useVoiceCallStore`가 LiveKit `Room` 직접 관리 — 턴제(idle→listening→thinking→speaking), `startListening`에서 마이크 publish + `startTurnEgress`, `stopListening`에서 **명시적 `unpublishTrack`**(`setMicrophoneEnabled(false)`는 mute만 함), 폴링 후 `expo-audio`로 재생(재생 직전 `setAudioModeAsync`). `VoiceCallOverlay`/`ChatRoomScreen` "📞 통화" 버튼.
-  - **완전한 A안 (`apps/python-sidecar`)**: LiveKit Agents SDK 워커(`agent.py`)가 자동 dispatch로 `call-*` room에 봇으로 진입 → 실시간 STT → `StoriaLLM`이 기존 Spring REST(`/api/conversations/{characterId}/messages`)에 위임(로직 중복 없음) → TTS를 room에 되쏨. `livekit-agents==1.7.1` 핀. 헤드리스 검증 완료, 에이전트 음성 실기기 재생만 미완.
+  - **완전한 A안 (`apps/python-sidecar`)**: LiveKit Agents SDK 워커(`agent.py`)가 자동 dispatch로 `call-*` room에 봇으로 진입 → 실시간 STT → `StoriaLLM`이 기존 Spring REST(`/api/conversations/{characterId}/messages`)에 위임(로직 중복 없음) → TTS를 room에 되쏨. `livekit-agents==1.7.1` 핀. **헤드리스 + 실기기 에이전트 음성 + 진짜 캐릭터 응답 내용까지 검증 완료(2026-09-01).**
 - **6주차 (C안)**: 5주차에서 실제 WebRTC 연결을 이미 구현했으므로 별도 수동 시그널링 데모 없이 문서화로 종료(`docs/decisions.md` ADR-004 갱신 3).
 
 ## 다음 작업
 
 남은 작업 목록과 우선순위는 [`TODO.md`](./TODO.md)의 "다음 작업" / 7주차 / "배포 목표 재정의" 섹션이 정본. 요약:
 
-- **(5주차 잔여 — 내일)** python-sidecar 에이전트 음성 실기기 검증 완료(커밋 `3b0e76e`, 위 맨 첫 항목). Gemini 키가 오늘 429라 진짜 캐릭터 응답이 에이전트 음성으로 나오는지만 할당량 리셋 후 1회 재확인하면 5주차 종료.
+- **5주차: 전 항목 종료** (2026-09-01 python-sidecar 에이전트 음성 + 진짜 캐릭터 응답 재확인 완료 — 위 맨 첫 항목).
 - **(7주차)** `eas init` → `eas.json` submit 값 채우기 → 개인정보처리방침 공개 URL 퍼블리시 + 스토어 관문 설문 → iOS TestFlight / Android Play 내부 테스트. Apple Developer 가입 필요, Google Play Console은 인증 대기 중.
 - **에러 시나리오 검증**(LiveKit room 연결 후 끊김/턴 타임아웃/`/egress/audio` 프록시 WSS 업그레이드), 배포 시크릿에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 추가.
 - 이미 완료: Sentry 연동(클라+백엔드, DSN만 없음), GitHub Actions CI, 백엔드 Dockerfile, 테스트(백엔드 18 / 클라 17), `GlobalExceptionHandler`.

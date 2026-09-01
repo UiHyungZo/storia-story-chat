@@ -2,18 +2,18 @@
 
 PRD v3([`PRD/Storia_PRD_v3.md`](./PRD/Storia_PRD_v3.md)) 마일스톤 기준. 완료된 항목은 커밋 로그 참고, 여기는 남은 작업만 추적.
 
-## 현재 상태 (2026-08-31 기준)
+## 현재 상태 (2026-09-01 기준)
 
 PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 없이 종료). **7주차(모니터링/배포)만 남음.**
 
 - **1~4주차**: 텍스트 채팅(REST+WS 스트리밍), DB 히스토리, 안정성/캐시, Native Module(iOS Swift + Android Kotlin), FCM 원격 푸시 — 전부 실기기(iPhone) / 에뮬레이터(Android)까지 실행 검증 완료. Gemini(`gemini-3.6-flash`), Firebase 서비스 계정 JSON, APNs Auth Key 발급/연동 완료.
-- **5주차 (음성 통화, 축소판 A안)**: LiveKit Cloud + Google STT/TTS 자격증명 발급, 서버측 파이프라인 헤드리스 검증 + **연결된 iPhone 12 Pro로 클라이언트 전체 흐름 검증 완료**(마이크 WebRTC publish → egress → STT → Gemini → TTS → 스피커 재생, 여러 턴). 이 과정에서 실제 버그 5개(서버 3 + 실기기 클라 2) 발견/수정 — 상세는 아래 5주차 섹션. **완전한 A안(python-sidecar)**도 **연결된 iPhone으로 실기기 검증 완료**(agent 자동 감지 → 마이크 → 실시간 STT → Spring 위임 → Chirp3-HD TTS → 스피커로 깨끗한 음성, 풀 듀플렉스). Gemini 키가 오늘 할당량 소진(429)이라 응답 내용은 폴백이었고, 내일 재확인 예정.
+- **5주차 (음성 통화, 축소판 A안)**: LiveKit Cloud + Google STT/TTS 자격증명 발급, 서버측 파이프라인 헤드리스 검증 + **연결된 iPhone 12 Pro로 클라이언트 전체 흐름 검증 완료**(마이크 WebRTC publish → egress → STT → Gemini → TTS → 스피커 재생, 여러 턴). 이 과정에서 실제 버그 5개(서버 3 + 실기기 클라 2) 발견/수정 — 상세는 아래 5주차 섹션. **완전한 A안(python-sidecar)**도 **연결된 iPhone으로 실기기 검증 완료**(agent 자동 감지 → 마이크 → 실시간 STT → Spring 위임 → Chirp3-HD TTS → 스피커로 깨끗한 음성, 풀 듀플렉스). **(2026-09-01)** Gemini 할당량 리셋 후 재확인 완료 — 진짜 렌 페르소나 응답(폴백 아님)이 에이전트 음성으로 재생되고 유저가 그 위로 끼어들며(`interruption detected`) 연속 대화까지 확인. **5주차 완전 종료.**
 - 자격증명은 전부 `~/secrets/storia/`(리포 밖, `chmod 600`) — `livekit.env`에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY`/`GEMINI_API_KEY`, 별도로 Firebase/APNs/GCP 서비스계정 JSON. 재기동 절차는 `HANDOFF.md` 참고(무료 ngrok URL은 세션마다 갱신 필요).
 
 ### 다음 작업 (우선순위 순)
 
 - [x] **(2026-08-31)** **python-sidecar 에이전트 음성 실기기 검증 완료** (커밋 `3b0e76e`) — iPhone 마이크 → 실시간 STT(한국어 여러 턴) → `StoriaLLM`이 Spring `/api/conversations/{id}/messages`에 위임(DB 저장) → 에이전트 TTS → **스피커로 깨끗한 한국어 음성**, 풀 듀플렉스. 클라에 agent 모드 배선 + `AudioSession`, `agent.py` TTS를 Chirp3-HD로 교체, `storia_client` 타임아웃 90초. 상세는 아래 5주차 "완전한 A안" 항목.
-  - **(내일 재확인)** 이번 검증 때 Gemini 키가 **429(무료 일일 할당량 소진 — 오늘 테스트 50회+, 추론 모델이라 소모 큼)** 라서 응답 *내용*은 폴백 문구였음(`"죄송해요, 지금은 답변을 생성할 수 없어요."`가 또렷하게 재생됨 = 오디오 경로 검증에는 충분). 할당량 리셋 후(태평양시간 자정) 진짜 캐릭터 응답이 에이전트 음성으로 나오는지 1회 재확인. 오늘 낮 msg 68-79로 같은 경로에 진짜 응답이 흘렀던 건 이미 확인됨.
+  - [x] **(2026-09-01) Gemini 할당량 리셋 후 재확인 완료 — 5주차 종료.** 로컬 스택 재기동(docker MariaDB / ngrok 예약 도메인 `feline-request-backtrack.ngrok-free.dev` 그대로 / 백엔드 음성 env / `agent.py dev` 워커 8083) 후 연결된 iPhone으로 통화 1회. 로그로 확인: agent 자동 dispatch(`AJ_JkVVFRXYaSAq`, room `call-…-2`) → 실시간 한국어 STT("지금도 계속 그러고 있나?" 등) → 턴 감지(EOT 0.977) → `StoriaLLM` → Spring 위임 → DB에 user/assistant INSERT → **진짜 렌 페르소나 응답**(*"어머, 미안해요 손님! …마치 태엽이 멈춘 기계처럼… 쨍한 주황색 표지의 작은 책 한 권을…"* — 폴백 문구 아님, Gemini 정상) → Chirp3-HD TTS room publish(`aec warmup active` = 재생 시작) → 유저가 에이전트 음성 위로 끼어들며(`interruption detected` 22:52:01) **연속 대화** → egress 완료(`Voice turn … completing: 27,626,808 bytes`, WS 정상 종료 1000) → CLIENT_INITIATED 클린 종료.
 - [ ] **(7주차)** `eas init`(Expo 계정 로그인) → `app.json`에 `extra.eas.projectId` 채움 → `eas.json`의 `submit.production` 값(Apple ID/ascAppId/Play 서비스계정) 채우기
 - [ ] **(7주차)** 개인정보처리방침 공개 URL 퍼블리시(초안 `docs/legal/privacy-policy.md` 완료, GitHub Pages/Artifact 등) → Play Data Safety / Apple App Privacy + Export Compliance 설문
 - [ ] **(7주차)** iOS Release Build → TestFlight 내부 테스트 / Android Release AAB → Google Play 내부 테스트 (Apple Developer 가입 필요, Google Play Console는 인증 대기 중)
@@ -122,7 +122,8 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
   - ✅ 실시간 Google STT 한국어 전사 + 턴 감지
   - ✅ `StoriaLLM`이 Spring REST 호출 → DB에 유저/어시스턴트 메시지 저장 + 캐릭터 페르소나 응답 (로직 중복 없음 설계 그대로 동작)
   - ✅ 에이전트가 TTS 합성해 room에 오디오 트랙 publish, 구독자가 오디오 프레임 수신
-  - ✅ **(2026-08-31 실기기 검증, 커밋 `3b0e76e`)** 연결된 iPhone으로 실제 왕복 — agent 자동 감지 → 마이크 자동 흐름 → 실시간 STT(한국어 여러 턴) → Spring 위임(DB 저장) → **Chirp3-HD TTS → 스피커로 깨끗한 한국어 음성**(유저가 응답 내용에 반응하며 연속 대화 = 풀 듀플렉스). Gemini 키가 오늘 429(할당량 소진)라 응답 내용은 폴백 문구였고 그게 또렷하게 재생됨 = 오디오 경로 검증 충분. **내일 할당량 리셋 후 진짜 캐릭터 응답 1회 재확인.**
+  - ✅ **(2026-08-31 실기기 검증, 커밋 `3b0e76e`)** 연결된 iPhone으로 실제 왕복 — agent 자동 감지 → 마이크 자동 흐름 → 실시간 STT(한국어 여러 턴) → Spring 위임(DB 저장) → **Chirp3-HD TTS → 스피커로 깨끗한 한국어 음성**(유저가 응답 내용에 반응하며 연속 대화 = 풀 듀플렉스). Gemini 키가 그날 429(할당량 소진)라 응답 내용은 폴백 문구였고 그게 또렷하게 재생됨 = 오디오 경로 검증 충분.
+  - ✅ **(2026-09-01 재확인 완료 — 5주차 종료)** 할당량 리셋 후 통화 1회 재검증. 로그상 agent 자동 dispatch → 실시간 한국어 STT → 턴 감지(EOT 0.977) → `StoriaLLM` → Spring 위임 → DB user/assistant INSERT → **진짜 렌 페르소나 응답**(폴백 아님, Gemini 정상 동작) → Chirp3-HD TTS publish(`aec warmup` = 재생 시작) → 유저가 에이전트 음성 위로 끼어들며(`interruption detected`) **연속 대화** → egress 완료(27.6MB, WS 정상 종료) → 클린 종료. **음성 경로 + 실응답 내용 둘 다 검증됨.**
     - **실기기에서 잡은 것**: (a) agent 감지 시 `AudioSession.startAudioSession()`을 마이크 publish **전에** 불러야 함(동시/누락 시 iOS 캡처가 무음 → 워커가 전사 0개). (b) agent 모드에선 마이크를 통화 내내 유지 — unpublish/mute하면 워커의 스트리밍 STT가 굶어 `Audio Timeout`으로 `AgentSession` 크래시. (c) `agent.py` TTS `voice_name="ko-KR-Standard-A"`는 `livekit-plugins-google`(Gemini/Chirp 플러그인)에서 무효 → gemini-2.5-flash-tts로 라우팅(그건 "Agent Platform API" 필요, 미활성) → **지지직**. Chirp 3 HD로 교체하되 `use_streaming=False` + `audio_encoding=LINEAR16` 필수(Chirp는 스트리밍/PCM 둘 다 400). STT 역-전사 신뢰도 0.91. (d) `storia_client` 백엔드 타임아웃 30→90초.
   - **`livekit-agents 1.7.x` 대응 `agent.py` 수정**: (1) `AgentSession(llm=...)` 없으면 응답 생성 자체를 건너뜀 → Spring 위임을 `llm.LLM`/`llm.LLMStream`(`StoriaLLM`) 구현으로. (2) 워커 헬스체크 포트 8081 Metro 충돌 → 8083. (3) TTS = `google.TTS(voice_name="ko-KR-Chirp3-HD-Charon", audio_encoding=LINEAR16, sample_rate=48000, use_streaming=False)`. 상세는 `apps/python-sidecar/README.md`.
   - `requirements.txt` `livekit-agents==1.7.1`로 핀 고정. `VoiceCallService.createToken()`은 2026-08-26에 `CanSubscribe(true)`로 변경 완료(에이전트 오디오 구독용).
