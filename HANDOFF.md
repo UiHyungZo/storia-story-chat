@@ -9,7 +9,7 @@
   - **(2026-08-31, 커밋 `3b0e76e`)** agent 모드 실기기 최초 검증 시 잡은 것: 클라 변경은 JS만이라 fast-refresh로 반영됨(네이티브 재빌드 불필요 — `AudioSession`은 `@livekit/react-native`에 이미 링크돼 있음).
   - **실기기에서 잡은 버그 4개** (상세 `TODO.md` 5주차 "완전한 A안"): (a) agent 감지 시 `AudioSession.startAudioSession()`을 마이크 publish **전에** 호출해야 함 — 동시/누락 시 iOS 캡처 무음. (b) agent 모드는 마이크를 통화 내내 유지(unpublish/mute 시 워커 STT 굶어 `Audio Timeout`으로 크래시) → `stopListening`이 agent 모드에선 no-op, 🎤는 한 번만 publish 후 숨김. (c) `agent.py` TTS `ko-KR-Standard-A`는 `livekit-plugins-google`(Gemini/Chirp 플러그인)에서 무효 → gemini-2.5-flash-tts로 라우팅("Agent Platform API" 미활성) → **지지직**. `voice_name="ko-KR-Chirp3-HD-Charon"` + `audio_encoding=LINEAR16` + `use_streaming=False` + `sample_rate=48000`로 교체(STT 역-전사 0.91). (d) `storia_client` 백엔드 타임아웃 30→90초(Spring이 Gemini 동기 호출, 30~50초+ 걸림).
   - **agent 모드 동작**: 클라가 `RoomEvent.ParticipantConnected` + `isAgent`로 워커를 감지하면 `mode: "agent"` — 워커 안 떠 있으면 아무것도 안 바뀌고 축소판 turn 경로 그대로. 워커 재시작하면 LiveKit이 **이미 dispatch된 room엔 재-dispatch 안 함** → 테스트 시 통화 완전 종료 후 room 만료 대기(또는 `lk room delete call-<deviceId>-<characterId>`) 후 새 통화.
-  - **세션 종료 시점 로컬 상태**: 백엔드 재시작함(`/tmp/storia_backend.log`, 음성 env 주입), python-sidecar 워커 `agent.py dev` 실행 중(`/tmp/sidecar_worker.log`, 포트 8083), Docker MariaDB / ngrok(`feline-request-backtrack.ngrok-free.dev`, `livekit.env`와 일치) 계속. 다음 세션에 전부 재기동 필요(아래 "로컬 스택 재기동" — 무료 ngrok URL은 세션마다 바뀜). 워커 실행: `cd apps/python-sidecar && .venv/bin/python agent.py dev`.
+  - **세션 종료 시점 로컬 상태 (2026-09-01)**: 재확인 검증 후 **로컬 스택 전부 정리함** — 백엔드(8080)/Metro(8081)/sidecar 워커(8083)/ngrok kill, `docker compose down`. 다음 세션에 전부 재기동 필요(아래 "로컬 스택 재기동"). 워커 실행: `cd apps/python-sidecar && .venv/bin/python agent.py dev`.
 - **(2026-08-31 세션 후반, 메인 컴퓨터 + 연결된 iPhone)** 축소판 A안 **RN 클라이언트 흐름을 실기기(iPhone 12 Pro, iOS 26.6)로 검증 완료** — 5주차 마지막 미검증 항목 해소.
   - **빌드/실행**: `cd apps/client && EXPO_PUBLIC_API_BASE_URL=http://<Mac LAN IP>:8080 SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device "Iker iPhone"` — 네이티브 빌드(Pods+LiveKit WebRTC XCFramework 포함) ~8분, `Build Succeeded` 0 errors. Metro는 `expo run:ios`가 올바른 env로 새로 띄움. `ios/*/Info.plist`에 `NSMicrophoneUsageDescription` 이미 있음(LiveKit expo plugin이 prebuild 때 주입).
   - **검증된 왕복**: "📞 통화" → LiveKit Cloud(일본 리전) 연결 → 마이크 publish(iOS 권한 팝업 "허용") → 발화 → ■ → `unpublishTrack` → egress 종료 → STT(실기기 마이크 오디오 정상 전사) → Gemini(렌 페르소나, 12~25초) → TTS 630KB MP3 → **스피커로 렌 목소리 재생** → idle 복귀. **여러 턴 연속 반복 정상.**
@@ -24,11 +24,12 @@
 
 ### 로컬 스택 재기동 (음성 통화 검증 시)
 
-1. `docker compose up -d` (MariaDB, 포트 3307)
-2. `ngrok http 8080` → **새 URL 확인** (무료 ngrok URL은 세션마다 바뀜)
-3. `~/secrets/storia/livekit.env`의 `LIVEKIT_EGRESS_AUDIO_WS_URL`을 새 ngrok URL(`wss://<new>/egress/audio`)로 수정
+1. `docker compose up -d` (MariaDB, 포트 3307) — Docker Desktop 먼저 실행(`open -a Docker`)
+2. `ngrok http 8080` → URL 확인. **계정에 `feline-request-backtrack.ngrok-free.dev` 예약 도메인이 걸려 있어 재시작해도 같은 URL이 나옴** — `livekit.env`와 일치하면 3번 스킵.
+3. (URL이 바뀐 경우만) `~/secrets/storia/livekit.env`의 `LIVEKIT_EGRESS_AUDIO_WS_URL`을 `wss://<new>/egress/audio`로 수정
 4. `cd apps/backend && set -a && source ~/secrets/storia/livekit.env && export FIREBASE_CREDENTIALS_PATH="$HOME/secrets/storia/storia-140e9-firebase-adminsdk-fbsvc-7fd13b85d2.json" && set +a && ./gradlew bootRun`
-5. 실기기 빌드: `cd apps/client && EXPO_PUBLIC_API_BASE_URL=http://<Mac LAN IP>:8080 SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device "Iker iPhone"`
+5. sidecar 워커(완전한 A안 검증 시): `cd apps/python-sidecar && .venv/bin/python agent.py dev` (포트 8083, 이전 워커가 물고 있으면 `lsof -ti:8083 | xargs kill -9`)
+6. 실기기 빌드: `cd apps/client && EXPO_PUBLIC_API_BASE_URL=http://<Mac LAN IP>:8080 SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device "Iker iPhone"` (Mac LAN IP는 `ipconfig getifaddr en0`)
 
 ### 지난 진행 (2026-08-24 ~ 08-30 요약)
 

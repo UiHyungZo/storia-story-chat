@@ -8,7 +8,7 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 
 - **1~4주차**: 텍스트 채팅(REST+WS 스트리밍), DB 히스토리, 안정성/캐시, Native Module(iOS Swift + Android Kotlin), FCM 원격 푸시 — 전부 실기기(iPhone) / 에뮬레이터(Android)까지 실행 검증 완료. Gemini(`gemini-3.6-flash`), Firebase 서비스 계정 JSON, APNs Auth Key 발급/연동 완료.
 - **5주차 (음성 통화, 축소판 A안)**: LiveKit Cloud + Google STT/TTS 자격증명 발급, 서버측 파이프라인 헤드리스 검증 + **연결된 iPhone 12 Pro로 클라이언트 전체 흐름 검증 완료**(마이크 WebRTC publish → egress → STT → Gemini → TTS → 스피커 재생, 여러 턴). 이 과정에서 실제 버그 5개(서버 3 + 실기기 클라 2) 발견/수정 — 상세는 아래 5주차 섹션. **완전한 A안(python-sidecar)**도 **연결된 iPhone으로 실기기 검증 완료**(agent 자동 감지 → 마이크 → 실시간 STT → Spring 위임 → Chirp3-HD TTS → 스피커로 깨끗한 음성, 풀 듀플렉스). **(2026-09-01)** Gemini 할당량 리셋 후 재확인 완료 — 진짜 렌 페르소나 응답(폴백 아님)이 에이전트 음성으로 재생되고 유저가 그 위로 끼어들며(`interruption detected`) 연속 대화까지 확인. **5주차 완전 종료.**
-- 자격증명은 전부 `~/secrets/storia/`(리포 밖, `chmod 600`) — `livekit.env`에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY`/`GEMINI_API_KEY`, 별도로 Firebase/APNs/GCP 서비스계정 JSON. 재기동 절차는 `HANDOFF.md` 참고(무료 ngrok URL은 세션마다 갱신 필요).
+- 자격증명은 전부 `~/secrets/storia/`(리포 밖, `chmod 600`) — `livekit.env`에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY`/`GEMINI_API_KEY`, 별도로 Firebase/APNs/GCP 서비스계정 JSON. 재기동 절차는 `HANDOFF.md` 참고(ngrok는 예약 도메인 `feline-request-backtrack.ngrok-free.dev`이라 재시작해도 URL 유지 — `livekit.env` 갱신 불필요).
 
 ### 다음 작업 (우선순위 순)
 
