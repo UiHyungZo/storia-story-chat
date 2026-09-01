@@ -1,0 +1,678 @@
+<title>Storia 개인정보처리방침</title>
+<meta name="description" content="Storia 앱이 수집하는 정보와 그 처리 방식 — 익명 디바이스 ID, 대화·음성 데이터, 제3자 위탁, 보관 및 삭제 절차.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;600&family=Public+Sans:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --bg: #f5f5f8;
+    --surface: #ffffff;
+    --ink: #1c1b22;
+    --text: #3c3a46;
+    --ink-soft: #6b6877;
+    --rule: #e5e4ec;
+    --rule-strong: #ceccd9;
+    --accent: #4b41b0;
+    --accent-soft: #ecebf9;
+    --on-accent: #ffffff;
+    --shadow: 0 1px 2px rgba(28, 27, 34, .05), 0 14px 34px -18px rgba(28, 27, 34, .18);
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141319;
+      --surface: #1c1b23;
+      --ink: #f0eef5;
+      --text: #c8c5d3;
+      --ink-soft: #928fa1;
+      --rule: #2c2a37;
+      --rule-strong: #423f51;
+      --accent: #ab9fff;
+      --accent-soft: #241f38;
+      --on-accent: #17121f;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 16px 38px -18px rgba(0, 0, 0, .6);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #141319;
+    --surface: #1c1b23;
+    --ink: #f0eef5;
+    --text: #c8c5d3;
+    --ink-soft: #928fa1;
+    --rule: #2c2a37;
+    --rule-strong: #423f51;
+    --accent: #ab9fff;
+    --accent-soft: #241f38;
+    --on-accent: #17121f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 16px 38px -18px rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Public Sans", "IBM Plex Sans KR", system-ui, -apple-system, sans-serif;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 5vw, 3.5rem) clamp(1.15rem, 5vw, 2rem) 5rem;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    font-family: "Fraunces", "Gowun Batang", Georgia, serif;
+    font-weight: 600;
+    font-size: 1.15rem;
+    letter-spacing: .01em;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .wordmark__mark {
+    display: inline-grid;
+    place-items: center;
+    width: 1.7em;
+    height: 1.7em;
+    border-radius: .46em;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: .82em;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .masthead__doc {
+    margin: 0;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- lede ---------- */
+  .lede { margin: clamp(2.25rem, 6vw, 3.5rem) 0 0; }
+
+  .eyebrow {
+    margin: 0 0 .85rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    margin: 0;
+    font-family: "Fraunces", "Gowun Batang", Georgia, serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 6vw, 2.9rem);
+    line-height: 1.15;
+    letter-spacing: -.005em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  .lede__text {
+    margin: 1.15rem 0 0;
+    font-size: 1.15rem;
+    line-height: 1.65;
+    color: var(--text);
+    max-width: 40ch;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 2.5rem;
+    margin: 1.75rem 0 0;
+    padding: 1rem 0 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .meta > div { display: flex; flex-direction: column; gap: .2rem; }
+
+  .meta dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .68rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .meta dd {
+    margin: 0;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .95rem;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .meta a { color: var(--accent); text-decoration: none; }
+  .meta a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------- table of contents ---------- */
+  .toc {
+    margin: 2.75rem 0 0;
+    padding: 1.4rem 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  .toc h2 {
+    margin: 0 0 .9rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .toc ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: toc;
+    display: grid;
+    gap: .35rem 1.75rem;
+  }
+
+  @media (min-width: 34rem) {
+    .toc ol { grid-template-columns: 1fr 1fr; }
+  }
+
+  .toc li { counter-increment: toc; }
+
+  .toc a {
+    display: flex;
+    gap: .7rem;
+    padding: .3rem 0;
+    color: var(--text);
+    text-decoration: none;
+    line-height: 1.4;
+  }
+
+  .toc a::before {
+    content: counter(toc, decimal-leading-zero);
+    flex: none;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .8rem;
+    color: var(--accent);
+    padding-top: .12em;
+  }
+
+  .toc a:hover { color: var(--ink); }
+  .toc a:hover span { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------- sections ---------- */
+  .sections { margin-top: 1rem; }
+
+  .sec {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .4rem 2.25rem;
+    padding: 2.4rem 0;
+    border-top: 1px solid var(--rule);
+    scroll-margin-top: 1.5rem;
+  }
+
+  @media (min-width: 46rem) {
+    .sec { grid-template-columns: 3.5rem 1fr; }
+  }
+
+  .sec__num {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 500;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--accent);
+    font-variant-numeric: lining-nums;
+  }
+
+  @media (min-width: 46rem) {
+    .sec__num { font-size: 2.15rem; text-align: right; padding-top: .06em; }
+  }
+
+  .sec__body { min-width: 0; }
+
+  .sec__body > * { margin: 0; }
+  .sec__body > * + * { margin-top: 1rem; }
+
+  .sec__body h2 {
+    font-family: "Fraunces", "Gowun Batang", Georgia, serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    line-height: 1.3;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  .sec__body p { color: var(--text); }
+
+  .sec__body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  .note {
+    font-size: .96rem;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- data table ---------- */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 32rem;
+  }
+
+  thead th {
+    text-align: left;
+    font-weight: 600;
+    font-size: .78rem;
+    letter-spacing: .04em;
+    color: var(--ink-soft);
+    background: var(--accent-soft);
+    padding: .8rem 1.1rem;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  tbody th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--ink);
+    padding: .95rem 1.1rem;
+    border-top: 1px solid var(--rule);
+    vertical-align: baseline;
+    width: 34%;
+    white-space: normal;
+  }
+
+  tbody td {
+    padding: .95rem 1.1rem;
+    border-top: 1px solid var(--rule);
+    vertical-align: baseline;
+    color: var(--text);
+    font-size: .98rem;
+  }
+
+  tbody tr:first-child th,
+  tbody tr:first-child td { border-top: none; }
+
+  /* ---------- processor list ---------- */
+  .procs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .procs li {
+    display: grid;
+    gap: .15rem;
+    padding: .95rem 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .procs li:first-child { border-top: none; padding-top: .3rem; }
+
+  @media (min-width: 40rem) {
+    .procs li { grid-template-columns: 15rem 1fr; gap: 1.5rem; align-items: baseline; }
+  }
+
+  .procs__name {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 500;
+    font-size: .95rem;
+    color: var(--ink);
+  }
+
+  .procs__desc { color: var(--text); font-size: .98rem; }
+
+  /* ---------- purpose / plain lists ---------- */
+  ul.plain {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: var(--text);
+  }
+
+  ul.plain li { margin-top: .5rem; }
+  ul.plain li::marker { color: var(--accent); }
+
+  /* ---------- contact ---------- */
+  .contact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .4rem 1rem;
+    padding: 1.15rem 1.4rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  .contact span {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .68rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .contact a {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 1.05rem;
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .contact a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: .5rem 1.5rem;
+    font-size: .85rem;
+    color: var(--ink-soft);
+  }
+
+  footer p { margin: 0; max-width: 46ch; }
+
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .8rem;
+    letter-spacing: .04em;
+  }
+
+  footer a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------- focus ---------- */
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  /* ---------- load motion ---------- */
+  @media (prefers-reduced-motion: no-preference) {
+    .wrap > * {
+      animation: rise .6s cubic-bezier(.22, .61, .36, 1) both;
+    }
+    .lede { animation-delay: .05s; }
+    .toc { animation-delay: .1s; }
+    .sections { animation-delay: .15s; }
+    footer { animation-delay: .2s; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+  }
+
+  /* ---------- print ---------- */
+  @media print {
+    :root {
+      --bg: #fff;
+      --surface: #fff;
+      --ink: #000;
+      --text: #1a1a1a;
+      --ink-soft: #444;
+      --rule: #bbb;
+      --rule-strong: #999;
+      --accent: #2a2a2a;
+      --accent-soft: #f0f0f0;
+      --shadow: none;
+    }
+    body { font-size: 10.5pt; line-height: 1.55; }
+    .wrap { max-width: none; padding: 0; }
+    .toc, .table-wrap, .contact { box-shadow: none; }
+    .sec, .toc, .table-wrap, .procs li, .contact { break-inside: avoid; }
+    a { color: #000; }
+    .wrap > * { animation: none; }
+  }
+</style>
+
+<div class="wrap" id="top" lang="ko">
+
+  <header class="masthead">
+    <a class="wordmark" href="#top">
+      <span class="wordmark__mark" aria-hidden="true">S</span>
+      Storia
+    </a>
+    <p class="masthead__doc">Privacy Policy</p>
+  </header>
+
+  <div class="lede">
+    <p class="eyebrow">개인 포트폴리오 프로젝트</p>
+    <h1>개인정보처리방침</h1>
+    <p class="lede__text">Storia(&ldquo;본 앱&rdquo;)는 AI 캐릭터와 텍스트·음성으로 대화하는 개인 포트폴리오 프로젝트입니다. 본 방침은 본 앱이 수집하는 정보와 그 처리 방식을 설명합니다.</p>
+    <dl class="meta">
+      <div>
+        <dt>시행일</dt>
+        <dd>2026.08.26</dd>
+      </div>
+      <div>
+        <dt>문의</dt>
+        <dd><a href="mailto:lukaend@naver.com">lukaend@naver.com</a></dd>
+      </div>
+    </dl>
+  </div>
+
+  <nav class="toc" aria-label="목차">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1"><span>회원가입 없는 익명 서비스</span></a></li>
+      <li><a href="#s2"><span>수집하는 정보</span></a></li>
+      <li><a href="#s3"><span>정보 이용 목적</span></a></li>
+      <li><a href="#s4"><span>제3자 제공 및 위탁</span></a></li>
+      <li><a href="#s5"><span>보관 기간</span></a></li>
+      <li><a href="#s6"><span>아동의 개인정보</span></a></li>
+      <li><a href="#s7"><span>개인정보 보호를 위한 노력</span></a></li>
+      <li><a href="#s8"><span>방침 변경</span></a></li>
+      <li><a href="#s9"><span>문의처</span></a></li>
+    </ol>
+  </nav>
+
+  <div class="sections">
+
+    <section class="sec" id="s1">
+      <div class="sec__num">1</div>
+      <div class="sec__body">
+        <h2>회원가입 없는 익명 서비스</h2>
+        <p>본 앱은 이메일·전화번호 기반 회원가입이나 로그인을 요구하지 않습니다. 앱을 처음 실행하면 기기 내에 무작위 식별자(UUID, &ldquo;디바이스 ID&rdquo;)가 하나 생성되어 서버와의 통신에 사용됩니다. 이 식별자는 실명, 이메일, 전화번호 등 개인을 특정할 수 있는 정보와 연결되어 있지 않습니다. 앱을 삭제하거나 재설치하면 새 식별자가 발급되며, 이전 대화 기록과의 연결은 끊어집니다.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="s2">
+      <div class="sec__num">2</div>
+      <div class="sec__body">
+        <h2>수집하는 정보</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">항목</th>
+                <th scope="col">설명</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">디바이스 ID</th>
+                <td>위 1항의 무작위 UUID. 대화 기록을 특정 세션에 연결하는 용도로만 사용됩니다.</td>
+              </tr>
+              <tr>
+                <th scope="row">대화 메시지 내용</th>
+                <td>사용자가 AI 캐릭터에게 보낸 텍스트와 캐릭터의 응답. 대화 이어가기(히스토리 복원)를 위해 서버에 저장됩니다.</td>
+              </tr>
+              <tr>
+                <th scope="row">음성 통화 오디오</th>
+                <td>음성 통화 기능 사용 시 마이크 오디오가 실시간으로 서버에 전달되어 텍스트 변환(STT) 및 응답 생성에 사용됩니다. 오디오 파일 자체는 별도로 저장되지 않고, 처리 직후 폐기됩니다.</td>
+              </tr>
+              <tr>
+                <th scope="row">푸시 알림 토큰</th>
+                <td>알림 수신에 동의한 경우 발급되는 FCM(Firebase Cloud Messaging) 토큰. 새 메시지·재참여 알림 발송 목적으로만 사용됩니다.</td>
+              </tr>
+              <tr>
+                <th scope="row">마지막 활동 시각</th>
+                <td>재참여 알림 발송 시점을 판단하기 위해 저장됩니다.</td>
+              </tr>
+              <tr>
+                <th scope="row">진단·충돌 정보</th>
+                <td>앱 충돌이나 오류 발생 시 자동으로 수집되는 스택 트레이스, 기기·OS 버전 등 기술 정보(Sentry). 개인 식별 정보는 포함하지 않습니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">본 앱은 위치 정보, 연락처, 사진첩 등에는 접근하지 않습니다.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="s3">
+      <div class="sec__num">3</div>
+      <div class="sec__body">
+        <h2>정보 이용 목적</h2>
+        <ul class="plain">
+          <li>AI 캐릭터와의 대화 생성 및 이어가기(히스토리 복원)</li>
+          <li>음성 통화 기능 제공(음성 인식 → 대화 생성 → 음성 합성)</li>
+          <li>새 메시지·재참여 푸시 알림 발송</li>
+          <li>앱 오류 진단 및 안정성 개선</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="sec" id="s4">
+      <div class="sec__num">4</div>
+      <div class="sec__body">
+        <h2>제3자 제공 및 위탁</h2>
+        <p>본 앱은 아래 서비스를 이용해 기능을 제공하며, 각 서비스는 해당 목적 범위 내에서만 필요한 데이터를 처리합니다.</p>
+        <ul class="procs">
+          <li>
+            <span class="procs__name">Google Gemini API</span>
+            <span class="procs__desc">사용자 메시지를 전달받아 AI 응답을 생성합니다.</span>
+          </li>
+          <li>
+            <span class="procs__name">Google Cloud STT / TTS</span>
+            <span class="procs__desc">음성 통화 시 음성↔텍스트 변환(Speech-to-Text / Text-to-Speech)을 처리합니다.</span>
+          </li>
+          <li>
+            <span class="procs__name">LiveKit</span>
+            <span class="procs__desc">음성 통화의 실시간 오디오 전송(WebRTC 중계)을 처리합니다.</span>
+          </li>
+          <li>
+            <span class="procs__name">Firebase Cloud Messaging</span>
+            <span class="procs__desc">푸시 알림 발송을 처리합니다. (Google)</span>
+          </li>
+          <li>
+            <span class="procs__name">Sentry</span>
+            <span class="procs__desc">앱 충돌·오류 진단 정보를 수집합니다.</span>
+          </li>
+        </ul>
+        <p>각 서비스는 자체 개인정보처리방침에 따라 운영되며, 본 앱은 서비스 제공에 필요한 최소한의 데이터만 전달합니다. 이 외의 목적으로 개인정보를 판매하거나 제3자에게 제공하지 않습니다.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="s5">
+      <div class="sec__num">5</div>
+      <div class="sec__body">
+        <h2>보관 기간</h2>
+        <p>대화 메시지와 디바이스 ID는 사용자가 앱을 계속 사용하는 동안 보관됩니다. 삭제를 원하시면 아래 문의처로 디바이스 ID(설정 화면 또는 앱 재설치 전 확인 가능) 또는 삭제 요청 사유를 알려주시면 해당 데이터를 삭제해 드립니다.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="s6">
+      <div class="sec__num">6</div>
+      <div class="sec__body">
+        <h2>아동의 개인정보</h2>
+        <p>본 앱은 만 14세 미만 아동을 대상으로 하지 않으며, 아동으로부터 고의로 개인정보를 수집하지 않습니다.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="s7">
+      <div class="sec__num">7</div>
+      <div class="sec__body">
+        <h2>개인정보 보호를 위한 노력</h2>
+        <p>본 앱은 합리적인 수준의 기술적 조치를 통해 데이터를 보호합니다. 다만 본 앱은 상용 서비스가 아닌 포트폴리오 프로젝트로, 상시 운영되는 프로덕션 인프라를 전제로 하지 않는다는 점을 참고해 주시기 바랍니다.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="s8">
+      <div class="sec__num">8</div>
+      <div class="sec__body">
+        <h2>방침 변경</h2>
+        <p>본 방침은 기능 변경에 따라 수정될 수 있으며, 변경 시 본 페이지의 시행일을 갱신합니다.</p>
+      </div>
+    </section>
+
+    <section class="sec" id="s9">
+      <div class="sec__num">9</div>
+      <div class="sec__body">
+        <h2>문의처</h2>
+        <p>개인정보 관련 문의나 삭제 요청은 아래로 연락해 주세요.</p>
+        <div class="contact">
+          <span>이메일</span>
+          <a href="mailto:lukaend@naver.com">lukaend@naver.com</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    <p>Storia · AI 캐릭터 대화 앱 · 개인 포트폴리오 프로젝트. 시행일 2026.08.26.</p>
+    <a href="#top">맨 위로 ↑</a>
+  </footer>
+
+</div>
