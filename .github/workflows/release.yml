@@ -45,6 +45,9 @@ jobs:
       ASC_API_KEY_ISSUER_ID: ${{ secrets.ASC_API_KEY_ISSUER_ID }}
       ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
       BUILD_NUMBER: ${{ github.run_number }}
+      # Runner auto-installs Bundler 4.x, which chokes on lockfile CHECKSUMS in
+      # frozen mode. Pin a stable 2.5.x (matches the Aran project).
+      BUNDLER_VERSION: "2.5.23"
     steps:
       - uses: actions/checkout@v4
 
@@ -67,8 +70,11 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-          bundler-cache: true
-          working-directory: apps/client
+
+      - name: Install gems
+        run: |
+          gem install bundler -v "$BUNDLER_VERSION"
+          bundle install --jobs 3
 
       # Distribution .p12 + App Store provisioning profile into a temp keychain.
       # Mirrors the Aran project's approach — no fastlane match, no cert repo.
@@ -128,6 +134,7 @@ jobs:
       STORIA_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       PLAY_JSON_KEY_FILE: ${{ github.workspace }}/apps/client/fastlane/play-service-account.json
       BUILD_NUMBER: ${{ github.run_number }}
+      BUNDLER_VERSION: "2.5.23"
     steps:
       - uses: actions/checkout@v4
 
@@ -147,8 +154,11 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-          bundler-cache: true
-          working-directory: apps/client
+
+      - name: Install gems
+        run: |
+          gem install bundler -v "$BUNDLER_VERSION"
+          bundle install --jobs 3
 
       - name: Restore google-services.json
         run: echo "${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_B64 }}" | base64 --decode > google-services.json
