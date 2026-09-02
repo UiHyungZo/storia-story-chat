@@ -63,9 +63,17 @@ jobs:
       - name: Restore GoogleService-Info.plist
         run: echo "${{ secrets.IOS_GOOGLE_SERVICES_PLIST_B64 }}" | base64 --decode > GoogleService-Info.plist
 
-      # Generate ios/ (runs pod install with the runner's bundled CocoaPods).
+      # Generate ios/ native project.
       - name: expo prebuild (ios)
-        run: npx expo prebuild --platform ios
+        run: npx expo prebuild --platform ios --no-install
+
+      # prebuild --no-install skips pods; do it explicitly so Storia.xcworkspace
+      # exists and any CocoaPods failure is visible instead of swallowed.
+      - name: pod install
+        run: npx pod-install
+
+      - name: Verify workspace
+        run: test -d ios/Storia.xcworkspace || (echo "::error::Storia.xcworkspace missing after pod install" && ls -la ios && exit 1)
 
       - uses: ruby/setup-ruby@v1
         with:
