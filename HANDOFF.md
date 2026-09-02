@@ -4,6 +4,24 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-09-03 세션) iOS 릴리스 파이프라인 실행 시도 — `build_app`(xcodebuild archive)에서 막힘. 다음 세션 시작점.**
+  - **`develop` → `main` fast-forward 완료.** main이 한참 뒤처져 있던 걸 develop으로 올림. 지금 둘 다 커밋 `be79e79`. 앞으로도 develop 커밋 후 main도 ff-push (release.yml이 기본 브랜치에 있어야 `workflow_dispatch` 버튼이 나옴).
+  - **`release.yml` 이번 세션 수정 3건**: (1) `6c8b258` Bundler `2.5.23` 핀 + `bundler-cache` 제거 (러너 기본 Bundler 4.0.x가 frozen 모드에서 lockfile CHECKSUMS로 터짐). (2) `db826d1` `expo prebuild --no-install` + `npx pod-install` 분리 (prebuild가 workspace를 안 만들어 `build_app`이 `Storia.xcworkspace` 못 찾음). (3) `be79e79` iOS job을 `macos-15` + "Select latest Xcode" 스텝 (macos-14 기본 Xcode 15.4 → RN 0.86은 16.1+ 필요).
+  - **진행 상황**: bundler ✅ → pod install ✅(macos-15에서) → **`build_app` ✗** (Release #4, ~79초). fastlane 요약만 "build/archive error"로 나오고 **실제 xcodebuild 에러가 잘림**. 진짜 로그는 러너의 `/Users/runner/Library/Logs/gym/Storia-Storia.log`에 있음 — **캡처 못 함.**
+  - **다음 세션 첫 할 일**: 그 에러 확보. (a) Release 실행 → ios job → "fastlane ios beta" 스텝 **전체 로그** 펼쳐서 노란색 `xcodebuild` 커맨드 + 빨간 error 줄 읽기, 또는 (b) `release.yml`에 `- uses: actions/upload-artifact@v4` 로 `~/Users/runner/Library/Logs/gym/*.log` 업로드하는 스텝 추가 후 재실행. 흔한 원인: 서명(프로파일이 그 인증서를 포함 안 함 / 잘못된 프로파일), 네이티브 모듈 컴파일 에러, `-allowProvisioningUpdates` 필요, New Arch 관련.
+  - **GitHub Secrets 13/14 입력 완료** (`UiHyungZo/storia-story-chat` → Settings → Secrets → Actions):
+    - Firebase 2: `IOS_GOOGLE_SERVICES_PLIST_B64`, `ANDROID_GOOGLE_SERVICES_JSON_B64`
+    - iOS 7: `BUILD_CERTIFICATE_BASE64`, `BUILD_CERTIFICATE_PASSWORD`, `BUILD_PROVISION_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`, `ASC_API_KEY_ID`(=`BF5X53U7JH`, "uihyung / 앱 관리" 역할), `ASC_API_KEY_ISSUER_ID`, `ASC_API_KEY_CONTENT`
+    - Android 4: `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`(=`storia-upload`), `ANDROID_KEY_PASSWORD`
+    - **미입력 1: `PLAY_SERVICE_ACCOUNT_JSON_B64`** — Google Play 계정 인증 대기로 블록(아래).
+  - **Apple 포털 상태**: App ID `com.storia.client` 등록됨(Push Notifications capability). App Store provisioning profile **"Storia App Store"** 생성됨(인증서 `Apple Distribution: uihyung zo (9G5T5K3BP2)` 기준). **ASC 앱 레코드(나의 앱 → +)는 생성했는지 미확인 — TestFlight 업로드 전 필요, 다음 세션에 확인/생성.**
+  - **로컬 산출물** (`~/Desktop/`):
+    - `storia-secrets/` — base64 blob 모음. **삭제해도 됨** (`rm -rf ~/Desktop/storia-secrets`).
+    - `인증서/certificate_new.p12` — Keychain에서 **새 비번으로 다시 export한** distribution .p12 (원래 Aran 때 비번을 잊어버림). `BUILD_CERTIFICATE_BASE64`/`_PASSWORD` 시크릿이 이걸로 세팅됨. **비번 기록 필요 / 보관.**
+    - `인증서/storia-upload.keystore` — Android 업로드 keystore (alias `storia-upload`). **반드시 백업** (분실 시 Play App Signing 등록 전이면 앱 업데이트 불가).
+  - **Android는 Google Play 개발자 계정 본인 인증 대기** — 콘솔이 "개발자 계정 설정 완료"(공문서 업로드 본인확인 = 며칠 소요 / 전화번호 인증 / Android 기기 액세스 확인) 요구. 인증 전엔 Play 앱 생성·서비스계정·`PLAY_SERVICE_ACCOUNT_JSON_B64`·android job 전부 불가. 인증 시작 여부 미확인 — 3개 다 착수할 것.
+  - **다음 세션 순서**: ① `build_app` 에러 확보 → 수정 → iOS 그린 → TestFlight 빌드 확인 (+ ASC 앱 레코드) → ② Google 인증 완료되면 Play 앱+내부트랙+서비스계정 → `PLAY_SERVICE_ACCOUNT_JSON_B64` → android job (최초 AAB는 콘솔 수동 업로드 필요할 수 있음) → ③ 스토어 관문 설문(Data Safety / App Privacy / Export Compliance).
+
 - **(2026-09-01 세션, 메인 컴퓨터 + 연결된 iPhone)** **완전한 A안(python-sidecar 에이전트 음성) 재확인 완료 — 5주차 완전 종료.** 지난 세션(`3b0e76e`)에서 Gemini 429라 폴백 문구만 재생됐던 것을 할당량 리셋 후 재검증: 통화 1회에서 로그상 agent 자동 dispatch(`AJ_JkVVFRXYaSAq`, room `call-…-2`) → 실시간 한국어 STT("지금도 계속 그러고 있나?" 등) → 턴 감지(EOT 0.977) → `StoriaLLM` → Spring `/api/conversations/{id}/messages` 위임 → DB user/assistant INSERT → **진짜 렌 페르소나 응답**(*"어머, 미안해요 손님! …마치 태엽이 멈춘 기계처럼… 쨍한 주황색 표지의 작은 책 한 권을…"*, 폴백 아님) → Chirp3-HD TTS room publish(`aec warmup active` = 재생 시작) → 유저가 에이전트 음성 위로 끼어들며(`interruption detected` 22:52:01) **연속 대화** → egress 완료(`Voice turn … completing: 27,626,808 bytes`, WS 정상 종료 1000) → CLIENT_INITIATED 클린 종료. **음성 경로 + 실응답 내용 둘 다 검증됨.**
   - 재기동은 아래 "로컬 스택 재기동" 그대로. 단 **ngrok URL은 이번엔 안 바뀜** — 계정에 `feline-request-backtrack.ngrok-free.dev` 예약 도메인이 걸려 있어 `ngrok http 8080`만 다시 띄우면 `livekit.env`의 `LIVEKIT_EGRESS_AUDIO_WS_URL` 그대로 유효(3번 스텝 스킵 가능). Gemini 무료 할당량은 태평양시간 자정 리셋.
   - **(2026-08-31, 커밋 `3b0e76e`)** agent 모드 실기기 최초 검증 시 잡은 것: 클라 변경은 JS만이라 fast-refresh로 반영됨(네이티브 재빌드 불필요 — `AudioSession`은 `@livekit/react-native`에 이미 링크돼 있음).
