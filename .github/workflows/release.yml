@@ -38,7 +38,7 @@ jobs:
     if: >-
       github.event_name == 'push' ||
       contains(fromJSON('["both","ios"]'), inputs.platform)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     env:
       ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
@@ -50,6 +50,15 @@ jobs:
       BUNDLER_VERSION: "2.5.23"
     steps:
       - uses: actions/checkout@v4
+
+      # RN 0.86 needs Xcode >= 16.1; macos-15 ships newer Xcodes but may not
+      # default to one. Pick the newest installed (matches the Aran project).
+      - name: Select latest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using $LATEST"
+          sudo xcode-select -s "$LATEST/Contents/Developer"
+          xcodebuild -version
 
       - uses: actions/setup-node@v4
         with:
