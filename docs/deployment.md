@@ -3,7 +3,7 @@
 클라이언트 릴리스는 **Fastlane + GitHub Actions**로 자동화한다(EAS 아님 — 근거는 [`decisions.md`](./decisions.md) ADR-008). 백엔드는 상시 배포하지 않는다(ADR-007).
 
 - 워크플로: [`.github/workflows/release.yml`](../.github/workflows/release.yml)
-- Fastlane: [`apps/client/fastlane/`](../apps/client/fastlane/) (`Fastfile` / `Appfile` / `Matchfile`)
+- Fastlane: [`apps/client/fastlane/`](../apps/client/fastlane/) (`Fastfile` / `Appfile`)
 - Android 서명 주입 플러그인: [`apps/client/plugins/withAndroidReleaseSigning.js`](../apps/client/plugins/withAndroidReleaseSigning.js)
 
 ## 개요
@@ -11,12 +11,16 @@
 | | iOS | Android |
 |---|---|---|
 | 러너 | `macos-14` (public repo라 무료) | `ubuntu-latest` |
-| 빌드 | `expo prebuild` → `fastlane gym` | `expo prebuild` → `gradle bundleRelease` |
-| 서명 | `fastlane match` (별도 private repo) | 업로드 keystore (base64 시크릿) |
+| 빌드 | `expo prebuild` → `fastlane gym` (manual signing) | `expo prebuild` → `gradle bundleRelease` |
+| 서명 | distribution `.p12` + provisioning profile 을 임시 keychain 에 import (base64 시크릿, `match` 안 씀) | 업로드 keystore (base64 시크릿) |
 | 업로드 | `upload_to_testflight` (내부 테스터) | `upload_to_play_store` track `internal`, `release_status: draft` |
 | 버전 | `CURRENT_PROJECT_VERSION` = `github.run_number` | `versionCode` = `github.run_number` (플러그인이 `STORIA_VERSION_CODE` 주입) |
 
 `app.json`의 `version`("1.0.0")이 마케팅 버전. 빌드 번호만 CI가 자동 증가.
+
+> **iOS 서명은 Aran 프로젝트(`~/Desktop/Aran/Aran/.github/workflows/cd.yml`)와 동일한 방식.**
+> Distribution 인증서(`Apple Distribution: uihyung zo (9G5T5K3BP2)`)와 ASC API 키는 **계정(팀) 단위**라 Aran 것을 그대로 재사용한다 — Aran repo 의 GitHub Secrets(`BUILD_CERTIFICATE_BASE64`, `BUILD_CERTIFICATE_PASSWORD`, `ASC_API_KEY_*`)를 Storia repo 에 복사하면 됨. 앱마다 새로 만들어야 하는 건 **provisioning profile 하나**(`com.storia.client` 용)뿐.
+> 로컬 원본: `~/Desktop/인증서/certificate.p12` (Distribution 인증서), `~/Desktop/인증서/AuthKey_*.p8` (ASC API 키).
 
 ## 릴리스 커팅
 
@@ -46,17 +50,19 @@ Repo → Settings → Secrets and variables → Actions → *New repository secr
 
 ### iOS
 
+**대부분 Aran repo 에서 그대로 복사.** Aran → Settings → Secrets 에서 값을 보고 Storia 에 같은 이름으로 넣으면 됨 (GitHub 은 값을 다시 보여주진 않으니, 로컬 원본 파일에서 재생성).
+
 | 시크릿 | 값 | 만드는 법 |
 |---|---|---|
-| `ASC_KEY_ID` | App Store Connect API 키 ID | ASC → Users and Access → Integrations → **App Store Connect API** → 팀 키 생성(역할: App Manager) |
-| `ASC_ISSUER_ID` | 같은 화면 상단의 Issuer ID | 〃 |
-| `ASC_KEY_CONTENT` | `.p8` 파일 내용을 base64 | `base64 -i AuthKey_XXXXXX.p8 \| pbcopy` (키는 **1회만** 다운로드 가능 — 원본 보관) |
-| `APPLE_ID` | Apple 계정 이메일 | — |
-| `MATCH_GIT_URL` | 인증서 저장용 **별도 private repo** SSH URL (`git@github.com:<you>/storia-certificates.git`) | 아래 "1회성 셋업" 3번 |
-| `MATCH_PASSWORD` | match 저장소 암호화 패스프레이즈 | `fastlane match` 최초 실행 시 직접 지정 |
-| `MATCH_SSH_PRIVATE_KEY` | `storia-certificates` 에 read 권한 있는 deploy key의 **개인키 전체** | `ssh-keygen -t ed25519 -f match_key -N ""` → `match_key.pub` 를 그 repo의 Deploy keys 에 등록 → `match_key`(개인키) 를 이 시크릿에 |
+| `ASC_API_KEY_ID` | App Store Connect API 키 ID | Aran 것 재사용. 없으면 ASC → Users and Access → Integrations → **App Store Connect API** → 팀 키 생성(역할: App Manager). Key ID 는 `~/Desktop/인증서/AuthKey_<ID>.p8` 파일명 |
+| `ASC_API_KEY_ISSUER_ID` | 같은 화면 상단의 Issuer ID | 〃 |
+| `ASC_API_KEY_CONTENT` | `.p8` 파일 내용을 base64 | `base64 -i ~/Desktop/인증서/AuthKey_XXXXXX.p8 \| pbcopy` (ASC API 키인 쪽 — APNs 키와 헷갈리지 말 것, ASC 콘솔에서 Key ID 대조) |
+| `BUILD_CERTIFICATE_BASE64` | distribution `.p12` 를 base64 | `base64 -i ~/Desktop/인증서/certificate.p12 \| pbcopy` (또는 Keychain Access 에서 "Apple Distribution: uihyung zo" 우클릭 → 내보내기) |
+| `BUILD_CERTIFICATE_PASSWORD` | 그 `.p12` 의 비밀번호 | Aran 설정 때 지정한 값. 모르면 Keychain 에서 새 비밀번호로 다시 export |
+| `BUILD_PROVISION_PROFILE_BASE64` | **`com.storia.client` 용** App Store provisioning profile 을 base64 | 아래 "1회성 셋업" 2번 — 이게 유일하게 새로 만드는 것 |
+| `KEYCHAIN_PASSWORD` | CI 임시 keychain 비밀번호 (아무 값) | 임의 문자열 |
 
-`APPLE_TEAM_ID`(`9G5T5K3BP2`)는 `Appfile` 에 기본값으로 박혀 있어 시크릿 불필요.
+`APPLE_TEAM_ID`(`9G5T5K3BP2`)·`APPLE_ID`(`lukaend@naver.com`)는 `Appfile` 에 기본값으로 박혀 있어 시크릿 불필요.
 
 ### Android
 
@@ -70,22 +76,13 @@ Repo → Settings → Secrets and variables → Actions → *New repository secr
 
 ## 1회성 셋업 (자동화 불가 — 사람이 한 번)
 
-1. **ASC API 키 발급** → `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_CONTENT`.
-2. **App Store Connect 에 앱 레코드 생성** — bundle ID `com.storia.client`, 이름 "Storia", SKU 아무거나. (앱이 없으면 `pilot` 업로드가 404.)
-3. **인증서 저장소 (`match`)**:
-   ```bash
-   # storia-certificates 라는 private repo 를 GitHub 에 새로 만든 뒤
-   cd apps/client
-   bundle install
-   export MATCH_GIT_URL=git@github.com:<you>/storia-certificates.git
-   export MATCH_PASSWORD=<원하는 패스프레이즈>
-   # ASC API 키로 포털 인증 (환경변수 3개 export 후)
-   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_CONTENT=$(base64 -i AuthKey_XXX.p8) \
-     bundle exec fastlane run match type:appstore \
-       api_key_path:<(fastlane run app_store_connect_api_key ...) 2>/dev/null || \
-   bundle exec fastlane match appstore   # 대화형으로도 가능
-   ```
-   → distribution 인증서 + `com.storia.client` App Store 프로파일이 생성돼 `storia-certificates` repo 에 암호화 저장된다. 그 repo에 deploy key 를 붙여 `MATCH_SSH_PRIVATE_KEY` 준비.
+1. **App Store Connect 에 앱 레코드 생성** — bundle ID `com.storia.client`, 이름 "Storia", SKU 아무거나. (앱이 없으면 `pilot` 업로드가 404.)
+2. **`com.storia.client` provisioning profile 생성** (iOS 에서 유일하게 새로 만드는 것):
+   - developer.apple.com → Certificates, IDs & Profiles → **Identifiers** → `com.storia.client` App ID 등록 (Push Notifications capability 켜기 — FCM 용).
+   - **Profiles** → `+` → **App Store** 배포 → App ID `com.storia.client` 선택 → 인증서는 기존 `Apple Distribution: uihyung zo` 선택 → 이름 예: `Storia App Store` → 생성 → `.mobileprovision` 다운로드.
+   - `base64 -i Storia_App_Store.mobileprovision | pbcopy` → `BUILD_PROVISION_PROFILE_BASE64`.
+   - (대안: `cd apps/client && bundle exec fastlane run get_provisioning_profile app_identifier:com.storia.client api_key_path:... ` 로 CLI 자동 생성.)
+3. **iOS 나머지 시크릿은 Aran 것 재사용** — `BUILD_CERTIFICATE_BASE64` / `BUILD_CERTIFICATE_PASSWORD` / `ASC_API_KEY_*` 를 위 "GitHub Secrets → iOS" 표대로 로컬 원본(`~/Desktop/인증서/`)에서 재생성해 Storia repo 에 넣는다. 인증서·API 키는 팀 단위라 앱이 달라도 그대로 동작.
 4. **Android 업로드 keystore**:
    ```bash
    keytool -genkeypair -v -keystore storia-upload.keystore \

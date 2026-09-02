@@ -145,9 +145,9 @@ PRD v3 마일스톤(1~7주차) 코드는 전부 작성 완료했고, 로컬 환�
 목표는 스토어 정식 출시가 아니라 **"RN으로 iOS/Android 양쪽 실제 배포 파이프라인까지 처리할 수 있음"을 증명하는 것**입니다. 목표선은 TestFlight + Google Play 내부 테스트까지 — 상세 배경은 [TODO.md의 "배포 목표 재정의"](./TODO.md) 참고.
 
 - [x] GitHub Actions CI (테스트), 백엔드 Dockerfile
-- [x] **Fastlane + GitHub Actions 릴리스 파이프라인** (`.github/workflows/release.yml`, `apps/client/fastlane/`) — iOS `match`+`gym`+`pilot`→TestFlight / Android `bundleRelease`+`supply`→Play 내부 테스트. 런북: [`docs/deployment.md`](./docs/deployment.md), 결정 배경: [ADR-008](./docs/decisions.md)
+- [x] **Fastlane + GitHub Actions 릴리스 파이프라인** (`.github/workflows/release.yml`, `apps/client/fastlane/`) — iOS `.p12` manual signing + `gym`+`pilot`→TestFlight / Android `bundleRelease`+`supply`→Play 내부 테스트. 런북: [`docs/deployment.md`](./docs/deployment.md), 결정 배경: [ADR-008](./docs/decisions.md)
 - [x] Apple Developer Program / Google Play Console 가입
-- [ ] 1회성 셋업(ASC API 키, `match` 인증서 repo, 업로드 keystore, Play 서비스계정) + GitHub Secrets 입력 → 파이프라인 실행
+- [ ] 1회성 셋업(provisioning profile, 업로드 keystore, Play 서비스계정 — iOS 인증서·ASC 키는 기존 것 재사용) + GitHub Secrets 입력 → 파이프라인 실행
 - [ ] iOS/Android 실기기 검증 (현재까지는 시뮬레이터/에뮬레이터만; iOS는 일부 실기기 검증됨)
 
 백엔드는 상시 운영하지 않고, TestFlight/Play 내부 테스트 심사나 실제 데모 시점에만 로컬/LAN으로 기동하는 것으로 충분합니다(둘 다 정식 스토어 리뷰가 없어 리뷰어가 백엔드를 실제로 호출하지 않음). 근거는 `docs/decisions.md` ADR-007 참고.

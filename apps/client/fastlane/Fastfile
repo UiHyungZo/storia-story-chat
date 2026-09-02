@@ -3,11 +3,14 @@
 # Assumes the native projects already exist (`npx expo prebuild` is run by the
 # GitHub Actions workflow before these lanes, so local and CI stay identical).
 #
-# iOS   -> build signed IPA, upload to TestFlight
+# iOS     -> build signed IPA (manual signing), upload to TestFlight
 # Android -> build signed AAB, upload to Play "internal" track
 #
-# Every credential comes from the environment. See docs/deployment.md for the
-# full secret list and the one-time local setup.
+# iOS signing mirrors the Aran project: the workflow imports a distribution
+# .p12 into a temp keychain and installs the provisioning profile, then exports
+# PROVISIONING_PROFILE_SPECIFIER. No `fastlane match`, no separate repo.
+#
+# Every credential comes from the environment. See docs/deployment.md.
 
 default_platform(:ios)
 
@@ -16,29 +19,28 @@ default_platform(:ios)
 # to a timestamp.
 BUILD_NUMBER = (ENV["BUILD_NUMBER"] && !ENV["BUILD_NUMBER"].empty? ? ENV["BUILD_NUMBER"] : Time.now.strftime("%y%m%d%H%M")).to_i
 
-def load_asc_api_key
-  app_store_connect_api_key(
-    key_id: ENV.fetch("ASC_KEY_ID"),
-    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
-    key_content: ENV.fetch("ASC_KEY_CONTENT"), # base64 of the .p8
-    is_key_content_base64: true,
-    in_house: false
-  )
-end
-
 platform :ios do
   desc "Build a signed IPA and ship it to TestFlight"
   lane :beta do
-    setup_ci # ephemeral keychain on CI, no-op locally
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_API_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_API_KEY_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_API_KEY_CONTENT"), # base64 of the .p8
+      is_key_content_base64: true,
+      in_house: false
+    )
 
-    api_key = load_asc_api_key
+    # Name of the App Store provisioning profile the workflow installed.
+    profile_name = ENV.fetch("PROVISIONING_PROFILE_SPECIFIER")
 
-    # App Store distribution cert + provisioning profile from the private
-    # `storia-certificates` repo (MATCH_GIT_URL). readonly on CI.
-    match(
-      type: "appstore",
-      api_key: api_key,
-      readonly: is_ci
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "ios/Storia.xcodeproj",
+      team_id: "9G5T5K3BP2",
+      targets: ["Storia"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name,
+      bundle_identifier: "com.storia.client"
     )
 
     increment_build_number(
@@ -51,13 +53,14 @@ platform :ios do
       scheme: "Storia",
       configuration: "Release",
       export_method: "app-store",
-      export_options: {
-        provisioningProfiles: {
-          "com.storia.client" => "match AppStore com.storia.client"
-        }
-      },
       output_directory: "build/ios",
       output_name: "Storia.ipa",
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: {
+          "com.storia.client" => profile_name
+        }
+      },
       clean: true
     )
 

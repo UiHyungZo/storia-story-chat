@@ -7,8 +7,9 @@ name: Release
 # Android -> signed AAB -> Google Play "internal" track (draft)
 #
 # All credentials are repo secrets. See docs/deployment.md for the full list
-# and the one-time local setup (App Store Connect app record, `fastlane match`,
-# upload keystore, Play service account).
+# and the one-time setup (App Store Connect app record, com.storia.client
+# provisioning profile, Android upload keystore, Play service account). iOS
+# signing reuses the Aran project's distribution .p12 + ASC API key.
 
 on:
   push:
@@ -40,12 +41,9 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 60
     env:
-      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+      ASC_API_KEY_ISSUER_ID: ${{ secrets.ASC_API_KEY_ISSUER_ID }}
+      ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
@@ -72,19 +70,42 @@ jobs:
           bundler-cache: true
           working-directory: apps/client
 
-      # Deploy key with read access to the private storia-certificates repo.
-      - name: Configure SSH for match
+      # Distribution .p12 + App Store provisioning profile into a temp keychain.
+      # Mirrors the Aran project's approach — no fastlane match, no cert repo.
+      - name: Install signing certificate and provisioning profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.MATCH_SSH_PRIVATE_KEY }}" > ~/.ssh/match_key
-          chmod 600 ~/.ssh/match_key
-          echo "Host github.com" >> ~/.ssh/config
-          echo "  IdentityFile ~/.ssh/match_key" >> ~/.ssh/config
-          echo "  IdentitiesOnly yes" >> ~/.ssh/config
-          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          CERT_PATH="$RUNNER_TEMP/dist_certificate.p12"
+          PP_PATH="$RUNNER_TEMP/storia_pp.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          echo "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > "$PP_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" -P "$BUILD_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
+          NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
+          cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          echo "PROVISIONING_PROFILE_SPECIFIER=$NAME" >> "$GITHUB_ENV"
 
       - name: fastlane ios beta
         run: bundle exec fastlane ios beta
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
 
       - uses: actions/upload-artifact@v4
         if: always()

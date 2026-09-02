@@ -136,14 +136,16 @@ Storia 개발 과정에서 내린 주요 기술/설계 결정을 기록한다. �
 **배경**: PRD final은 배포를 "EAS Build"로 적었고 `apps/client/eas.json`도 스켈레톤이 작성돼 있었다. 실제 지원 타겟 채용 공고 7건을 재검토한 결과(`memory/target-job-postings`), 특정 빌드 툴을 요구하는 공고는 없었다. 비버웍스만 "Fastlane·GitHub Actions·Bitrise·EAS 등"으로 동급 예시를 들었고, 나머지는 전부 결과 중심이다 — 크러쉬팝 "네이티브 앱 CI/CD 환경을 구축·운영한 경험", 제타 "짧은 배포 주기로 안정적으로 배포할 수 있는 빌드 및 배포 환경을 개선", CJ ENM "자동화된 스토어 배포 파이프라인". 또 공고의 "React Native(Expo)"·"Expo"는 **프레임워크**를 가리키는 것이지 EAS 클라우드 서비스가 아니다 — 그건 이미 config plugin / prebuild / dev-client / 로컬 네이티브 모듈로 충족돼 있다.
 
 **결정**: 릴리스 빌드·서명·스토어 업로드를 **Fastlane**으로 구성하고 **GitHub Actions**(`.github/workflows/release.yml`)로 오케스트레이션한다. `eas.json`은 삭제한다.
-- iOS: `match`(별도 private repo `storia-certificates`) + `gym` + `pilot`. App Store Connect API 키로 포털 인증.
+- iOS: **distribution `.p12` + provisioning profile 을 base64 시크릿으로** 넣고 워크플로가 임시 keychain 에 import(`security import` + `security cms`) → `gym`(manual signing) → `pilot`. `fastlane match` 는 쓰지 않는다. App Store Connect API 키로 업로드. **기존 Aran 프로젝트(`~/Desktop/Aran/Aran`)가 이미 이 방식으로 동작 중이라 `.github/workflows/cd.yml` 패턴을 그대로 가져왔다** — distribution 인증서·ASC API 키는 팀 단위라 Aran 것을 재사용하고, `com.storia.client` provisioning profile 하나만 새로 만든다.
 - Android: 업로드 keystore(base64 시크릿) + `gradle bundleRelease` + `supply`(track `internal`, `release_status: draft`).
 - `android/`가 `expo prebuild`로 매번 재생성되므로 release signingConfig는 config plugin(`plugins/withAndroidReleaseSigning.js`)으로 주입한다. 프로퍼티가 없으면 debug 서명으로 폴백해 로컬 빌드·CI 테스트 잡이 안 깨진다.
 - 빌드 번호 / `versionCode`는 `github.run_number`.
 
+> 최초 계획은 `match`(별도 private `storia-certificates` repo)였으나, Aran 셋업에 이미 `.p12` 직접 방식과 재사용 가능한 인증서·API 키가 있는 것을 확인하고 전환했다 — private repo·deploy key·`MATCH_PASSWORD` 가 통째로 불필요해지고, 새로 만드는 건 앱별 provisioning profile 뿐.
+
 **트레이드오프**:
-- EAS 대비 초기 셋업이 많다 — 코드 서명(`match` 저장소 + deploy key + `MATCH_PASSWORD`), keystore 관리, Play 서비스계정을 사람이 한 번 준비해야 한다(`docs/deployment.md`).
-- 서명 인증서를 직접 관리하므로 keystore 분실 리스크가 생긴다(Play App Signing 등록으로 완화).
+- EAS 대비 초기 셋업이 있다 — provisioning profile 발급, keystore 생성, Play 서비스계정을 사람이 한 번 준비(`docs/deployment.md`). 단 iOS 인증서/API 키는 Aran 것 재사용이라 부담이 작다.
+- 서명 인증서를 직접 관리하므로 분실/만료 리스크가 있다(인증서 만료 2027-06, keystore 는 Play App Signing 등록으로 완화).
 - 반대로 얻는 것: macOS 러너가 public repo라 무료라 비용 차이는 없고, "파이프라인을 직접 구축했다"(코드 서명·프로비저닝·`supply` 이해)가 "EAS 서비스를 소비했다"보다 타겟 공고의 우대 문구에 정확히 대응한다. 특정 vendor에 묶이지 않는다.
 
 **영향**: 앞으로 릴리스 관련 변경은 `apps/client/fastlane/` + `release.yml`에서 한다. EAS를 다시 검토하려면 이 ADR을 갱신할 것. 백엔드 배포(ADR-007)는 여전히 범위 밖.
