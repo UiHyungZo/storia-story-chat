@@ -11,9 +11,14 @@ Storia는 클라이언트(RN)와 백엔드(Spring Boot)를 모두 직접 구현�
 * Empty/Error 케이스를 정상 흐름으로 취급하고 테스트에 포함
 * 실시간 채널(WebSocket/WebRTC)이 추가되어도 REST 폴백 경로가 깨지지 않는지 회귀 검증
 
-## 현재 상태
+## 현재 상태 (2026-09-02)
 
-`BackendApplicationTests`(컨텍스트 로드 확인용 스모크 테스트) 1개만 존재. 실질적인 단위/통합 테스트는 아직 없음. 클라이언트 쪽 테스트도 없음.
+* **백엔드 — 18개** (`./gradlew test`, H2 인메모리): Service 단위(Mockito) `CharacterServiceTest`/`ConversationServiceTest`/`MessageServiceTest`, graceful-degrade `TtsServiceTest`/`SttServiceTest`, `MessageRepositoryTest`(`@DataJpaTest`), `CharacterControllerTest`(`@WebMvcTest`+`@MockitoBean`), `GlobalExceptionHandlerTest`, `BackendApplicationTests`(스모크).
+* **클라이언트 단위 — 17개** (`npm test`, `jest-expo`): `avatarColorFor`, `config.ts`(`API_BASE_URL` 플랫폼 분기), `useCharacterStore`/`useConversationStore`(상태 전이 + 3주차 버그 2건 회귀).
+* **클라이언트 UI — 17개** (`@testing-library/react-native` v13): `CharacterListItem`(2), `MessageBubble`(3), `VoiceCallOverlay`(7), `CharacterListScreen`(5). 스토어는 명시적 factory로 mock(네이티브 의존성 회피), 셀렉터는 `mockImplementation((sel) => sel(fakeState))`.
+* CI(`ci.yml`)가 push/PR마다 `./gradlew test` + `tsc --noEmit` + `jest --ci` 실행.
+
+**남은 것**: `ChatRoomScreen` 컴포넌트 테스트(스토어 3개 + navigation), Maestro E2E 스모크 1개(시뮬레이터 필요 — 배포 실기기 검증과 묶어서), WebSocket 스트리밍/폴백 통합 테스트.
 
 ---
 
@@ -48,28 +53,21 @@ Storia는 클라이언트(RN)와 백엔드(Spring Boot)를 모두 직접 구현�
 
 ---
 
-# Client — Jest + React Native Testing Library
+# Client — Jest (`jest-expo`) + React Native Testing Library
 
 ## 대상
 
-* Zustand 스토어(`useCharacterStore`, `useConversationStore`) — 상태 전이 로직
-* `CharacterListScreen`, `ChatRoomScreen` — 로딩/에러/빈 목록 렌더링
-* `CharacterListItem`, `MessageBubble` — 프레젠테이션 컴포넌트 스냅샷/렌더 검증
-
-## 필수 테스트 케이스
-
-```text
-캐릭터 목록 로딩 중 스켈레톤/로딩 표시
-API 실패 시 에러 메시지 + 재시도 버튼 표시
-재시도 버튼 탭 시 재요청 발생
-채팅방 진입 시 히스토리 메시지 순서대로 렌더링
-메시지 전송 중 입력창 비활성화(중복 전송 방지)
-```
+* Zustand 스토어(`useCharacterStore`, `useConversationStore`) — 렌더링 없이 스토어 API 직접 호출 (`src/store/__tests__/`)
+* `CharacterListScreen` — 로딩/에러/재시도/네비게이션 (`src/screens/__tests__/`)
+* `CharacterListItem`, `MessageBubble`, `VoiceCallOverlay` — 렌더 + 인터랙션 (`src/components/__tests__/`)
 
 ## 규칙
 
-* 네트워크 호출은 반드시 Mock (`msw` 또는 fetch mock) — 실제 백엔드에 의존하는 테스트 금지
-* 스토어 테스트는 컴포넌트 렌더링 없이 스토어 API만 직접 호출해 상태 검증 (속도 우선)
+* 네트워크·네이티브 모듈은 **명시적 factory로 mock** — `jest.mock(path, () => ({...}))`. automock(`jest.mock(path)`)은 실제 모듈을 먼저 로드하려다 `AsyncStorage`/LiveKit/`expo-audio` 등에서 터진다.
+* 셀렉터 훅(`useStore(s => s.x)`)을 mock할 땐 `mockImplementation((selector) => selector(fakeState))`.
+* 스타일 검증이 필요하면 소스에 `testID`를 붙인다(예: `MessageBubble`의 `message-bubble-{user|assistant}`). 부모 체인 탐색(`.parent.parent`)은 composite fiber를 만나 깨지기 쉬움.
+* RNTL v13은 matcher(`toBeOnTheScreen`/`toHaveStyle`/`toBeDisabled`)를 자동 확장 — 별도 setup 파일 불필요.
+* `react-test-renderer`는 `react`와 **정확히 같은 버전**으로 핀(현재 `19.2.3`). 안 하면 npm이 최신으로 올려 peer 충돌.
 
 ---
 
@@ -80,7 +78,7 @@ API 실패 시 에러 메시지 + 재시도 버튼 표시
 
 ---
 
-# CI 연동 (7주차 — 향후)
+# CI 연동
 
-* GitHub Actions에서 `./gradlew test`(백엔드), `npm test`(클라이언트) 실행
-* 실패 시 배포 파이프라인(Fastlane/Docker) 진행 차단
+* `.github/workflows/ci.yml` — push/PR마다 `./gradlew test`(백엔드, H2) + `tsc --noEmit` + `jest --ci`(클라이언트)를 별도 job으로 실행.
+* 릴리스(`.github/workflows/release.yml`, Fastlane)는 태그 트리거로 별도 — `ci.yml`과 독립적이며 서로를 게이트하지 않는다(태그는 이미 머지된 커밋에만 붙음).

@@ -62,7 +62,8 @@
         }
       ],
       "@react-native-firebase/messaging",
-      "./plugins/withModularHeaders"
+      "./plugins/withModularHeaders",
+      "./plugins/withAndroidReleaseSigning"
     ]
   }
 }

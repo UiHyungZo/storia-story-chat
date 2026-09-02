@@ -15,7 +15,7 @@
   - 음성 통화: B안(클라이언트 STT) + 별도 C안(WebRTC 데모) → **"축소판 A안"**(클라이언트↔LiveKit 실제 WebRTC + 서버는 Track Egress로 오디오만 수신). 클라이언트 STT 제거, C안은 별도 데모 없이 선행 충족으로 종료. `docs/decisions.md` [[ADR-004]] 갱신 1~3.
   - 완전한 양방향 실시간(원래 정의의 A안)은 여전히 범위 밖이나, **Python 사이드카 스켈레톤**(`apps/python-sidecar/`)을 선택적 확장 경로로 리포에 포함.
   - Android Native Module(Kotlin): "범위 밖" → **구현**.
-  - 배포: Fastlane → **EAS Build**, Firebase App Distribution → **Google Play 내부 테스트**, 상시 클라우드 배포 → **로컬/LAN + 필요 시 기동**. 목표선 = TestFlight + Play 내부 테스트. [[ADR-007]].
+  - 배포: **Fastlane + GitHub Actions**([[ADR-008]], `docs/deployment.md`), Firebase App Distribution → **Google Play 내부 테스트**, 상시 클라우드 배포 → **로컬/LAN + 필요 시 기동**. 목표선 = TestFlight + Play 내부 테스트. [[ADR-007]].
   - STT/TTS: Google Cloud STT + Google Cloud TTS로 확정(ElevenLabs·클라이언트 STT 미사용).
 
 ---
@@ -184,12 +184,12 @@
 
 > **목표선 재정의**: 스토어 정식 출시가 아니라 **"RN으로 iOS/Android 양쪽 실제 배포 파이프라인까지 처리할 수 있음"을 증명**하는 것. **TestFlight + Google Play 내부 테스트까지**가 목표. 이미 Swift 개인 앱을 App Store에 정식 출시한 경험이 있어 재증명 가치가 낮음 — [[ADR-007]].
 
-- **iOS**: **EAS Build**(Fastlane 아님, `apps/client/eas.json`의 `development`/`preview`/`production` 프로파일) → TestFlight 내부 테스트. `submit.production.ios`(appleId/ascAppId/appleTeamId)는 계정 확보 후 채움.
-- **Android**: **Google Play Console 가입 + 내부 테스트 트랙**(Firebase App Distribution 아님). EAS Build로 AAB. 내부 테스트는 정식 리뷰·"20인 14일" 요건이 없음.
+- **iOS**: **Fastlane + GitHub Actions**(`apps/client/fastlane/`, `.github/workflows/release.yml`) → `match`(별도 private repo) 서명 → `gym` → `pilot` → TestFlight 내부 테스트. EAS 아님 — [[ADR-008]]. 상세는 [`docs/deployment.md`](../docs/deployment.md).
+- **Android**: **Google Play Console + 내부 테스트 트랙**(Firebase App Distribution 아님). Fastlane `gradle bundleRelease` → `supply`(track `internal`). `android/`가 prebuild로 재생성되므로 release 서명은 config plugin(`plugins/withAndroidReleaseSigning.js`)이 주입. 내부 테스트는 정식 리뷰·"20인 14일" 요건이 없음.
 - **Backend**: **상시 클라우드 배포 안 함.** 평소엔 로컬/LAN으로 기동하고, TestFlight/Play 내부 테스트 심사나 실제 데모 시점에만 띄운다(둘 다 리뷰어가 백엔드를 호출하지 않음). 클라우드 제공자(AWS vs GCP)는 지원할 공고 요구사항 보고 결정 — [[ADR-007]]. OS 레벨 평문 HTTP 예외(iOS ATS `NSAllowsLocalNetworking`, Android cleartext)는 필요(이미 반영). 집 밖 시연 시 ngrok 예비.
-- **CI**: `.github/workflows/ci.yml` — push/PR마다 백엔드(`./gradlew test`, H2라 DB 불필요) + 클라이언트(`npm ci` → `tsc --noEmit` → `jest --ci`). 계정/시크릿 불필요.
+- **CI**: `.github/workflows/ci.yml` — push/PR마다 백엔드(`./gradlew test`, H2라 DB 불필요) + 클라이언트(`npm ci` → `tsc --noEmit` → `jest --ci`). 계정/시크릿 불필요. `release.yml`(태그 트리거)과 독립.
 - **컨테이너**: `apps/backend/Dockerfile`(multi-stage: JDK 빌드 → JRE 런타임).
-- **보류**: Fastlane, 실제 클라우드 배포/CD, Terraform 등 IaC — 실제 계정 확보 후 진행(추측성 스켈레톤 방지, 비용·비가역성 때문에 사용자 승인 전제).
+- **보류**: 실제 클라우드 배포/CD, Terraform 등 IaC — 실제 계정 확보 후 진행(추측성 스켈레톤 방지, 비용·비가역성 때문에 사용자 승인 전제).
 
 ---
 
@@ -226,9 +226,9 @@
 | 푸시 | FCM(백엔드 `firebase-admin`), `@react-native-firebase/app`+`/messaging`(클라 토큰), Native Module 로컬 알림 |
 | 모니터링 | Sentry (`@sentry/react-native` + `io.sentry:sentry-spring-boot-4`) |
 | 테스트 | Jest(`jest-expo`) / JUnit5 + Spring Boot Test (+ H2) |
-| CI | GitHub Actions (테스트만) |
+| CI | GitHub Actions — `ci.yml`(테스트) + `release.yml`(Fastlane 릴리스, 태그 트리거) |
 | 컨테이너 | Docker (백엔드 multi-stage Dockerfile) |
-| 클라이언트 빌드/배포 | EAS Build → TestFlight(iOS) / Google Play 내부 테스트(Android) |
+| 클라이언트 빌드/배포 | Fastlane + GitHub Actions → TestFlight(iOS, `match`+`gym`+`pilot`) / Google Play 내부 테스트(Android, `bundleRelease`+`supply`) — [[ADR-008]] |
 | 완전한 A안 확장 (선택) | `apps/python-sidecar/` — Python 3.10~3.14 + LiveKit Agents SDK(`livekit-agents`, `livekit-plugins-google`, `livekit-plugins-silero`) |
 
 > Native Module 때문에 Expo Go는 불가 — Development Build 필수.
@@ -245,7 +245,7 @@
 | 4주차 | Native Module — **iOS(Swift) + Android(Kotlin) 둘 다**(원래 Android는 범위 밖). FCM 백엔드(Admin SDK) + 클라이언트 토큰 등록. `lastActiveAt` 트래킹 + 재참여 스케줄러. 전역 예외 처리기. |
 | 5주차 | 음성 통화 — B안(클라 STT + 서버 TTS)로 시작 → **"축소판 A안"으로 확장**(클라↔LiveKit 실제 WebRTC, 서버는 Track Egress로 PCM 수신 → 배치 STT/Gemini/TTS → 오디오 URL). 클라이언트 STT 제거. |
 | 6주차 | C안(WebRTC 시그널링 최소 데모) **재평가 → 별도 코드 없이 종료**(5주차가 선행 충족). 문서 정리만. |
-| 7주차 | Sentry(클라+백엔드), 자동화 테스트(백엔드 18 / 클라 17), GitHub Actions CI, 백엔드 Dockerfile. **배포 목표 재정의**(TestFlight + Play 내부 테스트). EAS Build 설정, 개인정보처리방침 초안, 앱 아이콘. Python 사이드카 스켈레톤 merge. Fastlane/CD/실클라우드 배포는 계정 확보까지 보류. |
+| 7주차 | Sentry(클라+백엔드), 자동화 테스트(백엔드 18 / 클라 단위 17 + **RNTL UI 17**), GitHub Actions CI, 백엔드 Dockerfile. **배포 목표 재정의**(TestFlight + Play 내부 테스트). **Fastlane + GitHub Actions 릴리스 파이프라인**([[ADR-008]], EAS 폐기), 개인정보처리방침, 앱 아이콘. Python 사이드카 스켈레톤 merge. 실클라우드 배포/CD는 계정 확보까지 보류. |
 
 ---
 

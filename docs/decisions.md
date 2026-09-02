@@ -126,3 +126,24 @@ Storia 개발 과정에서 내린 주요 기술/설계 결정을 기록한다. �
 **트레이드오프**: 상시 운영이 아니므로 "몇 달째 안정적으로 서비스 중"이라는 실적은 못 만든다 — 이력서/인터뷰에서는 "배포 파이프라인과 배포 자체를 완주한 경험"으로 설명하고, 상시 가용성이 필요한 롤이라면 별도로 설명이 필요할 수 있음. 데모 직전엔 리소스를 다시 켜고 실제로 붙는지 재확인하는 절차가 매번 필요함(자동화하지 않으면 수동 단계로 남음).
 
 **영향**: 배포 관련 작업(Fastlane, 클라우드 배포, GitHub Actions CD)은 실제 계정이 준비된 뒤 진행하며, 인프라를 코드(Terraform 등)로 관리해두면 켜고 끄는 절차 자체도 재현 가능해져서 유리함 — 다음 세션에서 배포 파이프라인을 짤 때 "상시 기동" 전제로 설계하지 말 것. `TODO.md` 7주차 항목 참고.
+
+---
+
+## ADR-008: 클라이언트 릴리스 파이프라인은 EAS Build가 아니라 Fastlane + GitHub Actions
+
+**날짜**: 7주차, 배포 파이프라인 착수 (2026-09-02)
+
+**배경**: PRD final은 배포를 "EAS Build"로 적었고 `apps/client/eas.json`도 스켈레톤이 작성돼 있었다. 실제 지원 타겟 채용 공고 7건을 재검토한 결과(`memory/target-job-postings`), 특정 빌드 툴을 요구하는 공고는 없었다. 비버웍스만 "Fastlane·GitHub Actions·Bitrise·EAS 등"으로 동급 예시를 들었고, 나머지는 전부 결과 중심이다 — 크러쉬팝 "네이티브 앱 CI/CD 환경을 구축·운영한 경험", 제타 "짧은 배포 주기로 안정적으로 배포할 수 있는 빌드 및 배포 환경을 개선", CJ ENM "자동화된 스토어 배포 파이프라인". 또 공고의 "React Native(Expo)"·"Expo"는 **프레임워크**를 가리키는 것이지 EAS 클라우드 서비스가 아니다 — 그건 이미 config plugin / prebuild / dev-client / 로컬 네이티브 모듈로 충족돼 있다.
+
+**결정**: 릴리스 빌드·서명·스토어 업로드를 **Fastlane**으로 구성하고 **GitHub Actions**(`.github/workflows/release.yml`)로 오케스트레이션한다. `eas.json`은 삭제한다.
+- iOS: `match`(별도 private repo `storia-certificates`) + `gym` + `pilot`. App Store Connect API 키로 포털 인증.
+- Android: 업로드 keystore(base64 시크릿) + `gradle bundleRelease` + `supply`(track `internal`, `release_status: draft`).
+- `android/`가 `expo prebuild`로 매번 재생성되므로 release signingConfig는 config plugin(`plugins/withAndroidReleaseSigning.js`)으로 주입한다. 프로퍼티가 없으면 debug 서명으로 폴백해 로컬 빌드·CI 테스트 잡이 안 깨진다.
+- 빌드 번호 / `versionCode`는 `github.run_number`.
+
+**트레이드오프**:
+- EAS 대비 초기 셋업이 많다 — 코드 서명(`match` 저장소 + deploy key + `MATCH_PASSWORD`), keystore 관리, Play 서비스계정을 사람이 한 번 준비해야 한다(`docs/deployment.md`).
+- 서명 인증서를 직접 관리하므로 keystore 분실 리스크가 생긴다(Play App Signing 등록으로 완화).
+- 반대로 얻는 것: macOS 러너가 public repo라 무료라 비용 차이는 없고, "파이프라인을 직접 구축했다"(코드 서명·프로비저닝·`supply` 이해)가 "EAS 서비스를 소비했다"보다 타겟 공고의 우대 문구에 정확히 대응한다. 특정 vendor에 묶이지 않는다.
+
+**영향**: 앞으로 릴리스 관련 변경은 `apps/client/fastlane/` + `release.yml`에서 한다. EAS를 다시 검토하려면 이 ADR을 갱신할 것. 백엔드 배포(ADR-007)는 여전히 범위 밖.

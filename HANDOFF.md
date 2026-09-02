@@ -36,7 +36,9 @@
 - **1~4주차 전부 실행 검증 완료**: 텍스트 채팅(REST + WS 스트리밍), DB 히스토리 저장/복원, 안정성/캐시, Native Module(iOS Swift + Android Kotlin), FCM 원격 푸시(Android 에뮬레이터 + 실제 iPhone 둘 다 실제 배너 도착). Docker/Android SDK(헤드리스 설치)/Xcode 26.4 전부 이 머신에 준비됨.
 - **자격증명**: Gemini(`gemini-3.6-flash` — `gemini-2.0-flash`는 Google 쪽 종료), Firebase 서비스계정 JSON(`FIREBASE_CREDENTIALS_PATH`, `~/.zshrc`에 영구 export), APNs Auth Key(.p8, Firebase Cloud Messaging에 업로드 — **프로덕션 키는 TestFlight 전환 시 별도**), LiveKit Cloud, Google STT/TTS API 키, GCP 서비스계정 JSON(sidecar) — 전부 `~/secrets/storia/`(리포 밖). 상세 표는 그 폴더의 `README.md`.
 - **주요 발견/수정** (상세는 아래 "중요한 결정 사항 / 함정"): `GeminiService.CHUNK_TIMEOUT` 30→60초(추론 모델), `EMPTY_MESSAGES` 상수(채팅방 진입 무한 루프 크래시, 커밋 `e0ec8cb`), `JacksonConfig`의 명시적 `ObjectMapper` 빈(없으면 bootRun 기동 불가), RNFirebase SPM↔static-framework 충돌, iOS ATS 예외, 실기기 UX 버그 2개(키보드 가림 / 전송 버튼 무피드백).
-- **앱 아이콘**(Storia 브랜딩), `eas.json`(빌드 프로파일), Sentry 연동, GitHub Actions CI, 백엔드 Dockerfile — 전부 완료. `eas init`/실제 Sentry DSN만 남음.
+- **앱 아이콘**(Storia 브랜딩), Sentry 연동, GitHub Actions CI, 백엔드 Dockerfile — 전부 완료. 실제 Sentry DSN만 남음.
+- **(2026-09-02) 릴리스 파이프라인 = Fastlane + GitHub Actions** (EAS 폐기, `eas.json` 삭제 — [[ADR-008]]). `apps/client/fastlane/` + `.github/workflows/release.yml` + `plugins/withAndroidReleaseSigning.js`. 파이프라인 코드는 완성·gradle 평가까지 검증. 실행 전 1회성 셋업(ASC API 키, `storia-certificates` match repo, 업로드 keystore, Play 서비스계정) + GitHub Secrets 15개 필요 — 전체 런북은 `docs/deployment.md`.
+- **(2026-09-02) 클라이언트 UI 테스트 17개** — `@testing-library/react-native@13`. 컴포넌트/스크린 4개 파일. `npm test` 34개(단위 17 + UI 17) 통과.
 - **개인정보처리방침 공개 URL 퍼블리시 완료 (2026-09-01)** — Notion 웹 게시: `https://atlantic-castanet-88b.notion.site/Storia-3ceed8c75c3d8058b5b7d974df7e4d73` (`docs/legal/privacy-policy.md` Import). 디자인 버전 `docs/legal/privacy-policy.html`(Fraunces+고운바탕, 인쇄 스타일 포함) = Claude Artifact `https://claude.ai/code/artifact/829101b2-b6fd-4c75-9d02-4882a6539b47`(백업). 스토어 등록 시 Notion URL 사용.
 - **Android 실기기(갤럭시 S10) USB 디버깅 실패** — 소프트웨어 쪽 다 시도, 케이블/포트 마모 추정. 다른 케이블/컴퓨터로 재시도.
 
@@ -70,9 +72,11 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 남은 작업 목록과 우선순위는 [`TODO.md`](./TODO.md)의 "다음 작업" / 7주차 / "배포 목표 재정의" 섹션이 정본. 요약:
 
 - **5주차: 전 항목 종료** (2026-09-01 python-sidecar 에이전트 음성 + 진짜 캐릭터 응답 재확인 완료 — 위 맨 첫 항목).
-- **(7주차)** `eas init` → `eas.json` submit 값 채우기 → 스토어 관문 설문(Data Safety / App Privacy / Export Compliance) → iOS TestFlight / Android Play 내부 테스트. Apple Developer 가입 필요, Google Play Console은 인증 대기 중. (개인정보처리방침 공개 URL은 완료 — 위 참고.)
+- **(7주차) 릴리스 파이프라인 실행** — `release.yml` + `apps/client/fastlane/` 완성됨(2026-09-02). 남은 건 사람이 하는 1회성 셋업 + GitHub Secrets 입력: ASC API 키, ASC 앱 레코드, `storia-certificates` private repo + `fastlane match appstore` + deploy key, Android 업로드 keystore, Play Console 앱 + 서비스계정 JSON + 최초 AAB 수동 업로드, `app.json` `aps-environment`→`production`. **전체 런북: `docs/deployment.md`.** 유료 계정(Apple Developer / Play Console)은 준비 완료.
+- **(7주차)** 스토어 관문 설문(Play Data Safety / Apple App Privacy / Export Compliance — 수집 항목은 `privacy-policy.md` 2절). 개인정보처리방침 공개 URL은 완료.
 - **에러 시나리오 검증**(LiveKit room 연결 후 끊김/턴 타임아웃/`/egress/audio` 프록시 WSS 업그레이드), 배포 시크릿에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 추가.
-- 이미 완료: Sentry 연동(클라+백엔드, DSN만 없음), GitHub Actions CI, 백엔드 Dockerfile, 테스트(백엔드 18 / 클라 17), `GlobalExceptionHandler`.
+- **Maestro E2E 1개** — "앱 실행→캐릭터 선택→메시지 전송→응답" 스모크. 시뮬레이터 필요해 배포 실기기 검증과 묶어서 진행.
+- 이미 완료: Sentry 연동(클라+백엔드, DSN만 없음), GitHub Actions CI + release.yml, 백엔드 Dockerfile, 테스트(백엔드 18 / 클라 단위 17 + UI 17), `GlobalExceptionHandler`.
 
 **배포 목표**: TestFlight + Google Play 내부 테스트까지. 정식 스토어 출시는 범위 밖(이미 Swift 앱 App Store 출시 경험 있음). 백엔드는 localhost/LAN 유지로 충분 — 내부 테스트 트랙은 리뷰어가 백엔드를 호출하지 않음(상세는 아래 "중요한 결정 사항").
 

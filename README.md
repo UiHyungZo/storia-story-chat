@@ -118,13 +118,13 @@ Sentry(선택 사항, 없으면 비활성화):
 export EXPO_PUBLIC_SENTRY_DSN=your-sentry-dsn
 ```
 
-클라이언트 테스트(`jest-expo`):
+클라이언트 테스트(`jest-expo` + `@testing-library/react-native` — 단위 17 + UI 17):
 
 ```bash
 npm test
 ```
 
-CI는 push/PR마다 위 두 테스트 스위트를 각각 별도 job으로 돌립니다 (`.github/workflows/ci.yml`, 계정/시크릿 불필요).
+CI는 push/PR마다 위 두 테스트 스위트를 각각 별도 job으로 돌립니다 (`.github/workflows/ci.yml`, 계정/시크릿 불필요). 릴리스는 별도 워크플로 `release.yml`(태그 트리거, Fastlane) — [배포 현황](#배포-현황) 참고.
 
 ## 구현 범위
 
@@ -136,7 +136,7 @@ PRD v3 마일스톤(1~7주차) 코드는 전부 작성 완료했고, 로컬 환�
 - **Native Module**: iOS(Swift, `RCTBridgeModule`)/Android(Kotlin, `ReactContextBaseJavaModule`) 둘 다 Haptic + 포그라운드 로컬 알림 구현 (`apps/client/modules/storia-native`, `expo prebuild`로도 살아남는 로컬 모듈 구조)
 - **푸시 알림**: FCM 백엔드 연동 + 클라이언트 SDK 토큰 등록, 재참여(re-engagement) 스케줄러
 - **음성 통화**: 클라이언트↔LiveKit 구간은 실제 WebRTC, 서버는 Track Egress로 오디오만 받아 기존 배치 STT/Gemini/TTS 파이프라인에 흘려보내는 절충안("축소판 A안") — 왜 완전한 양방향 실시간 대신 이 구조를 택했는지는 [기술 블로그 초안](./docs/blog-webrtc-tradeoffs.md) 참고
-- **모니터링/테스트**: Sentry(클라이언트+백엔드), 백엔드 18개/클라이언트 17개 자동화 테스트, GitHub Actions CI, 백엔드 Dockerfile, 전역 REST 예외 처리기
+- **모니터링/테스트**: Sentry(클라이언트+백엔드), 자동화 테스트(백엔드 18 / 클라이언트 단위 17 + RNTL UI 17), GitHub Actions CI + Fastlane 릴리스 워크플로, 백엔드 Dockerfile, 전역 REST 예외 처리기
 
 **의도적으로 범위 밖에 둔 것**: 정식 로그인(디바이스 ID 기반 익명 세션으로 대체), 다중 대화 세션, TURN 서버, 완전한 양방향 실시간 음성(서버가 합성 음성을 WebRTC로 실시간 재전송), 상시 운영 클라우드 배포 — 근거는 [PRD 9절](./PRD/Storia_PRD_final.md)과 [ADR](./docs/decisions.md) 참고.
 
@@ -145,8 +145,9 @@ PRD v3 마일스톤(1~7주차) 코드는 전부 작성 완료했고, 로컬 환�
 목표는 스토어 정식 출시가 아니라 **"RN으로 iOS/Android 양쪽 실제 배포 파이프라인까지 처리할 수 있음"을 증명하는 것**입니다. 목표선은 TestFlight + Google Play 내부 테스트까지 — 상세 배경은 [TODO.md의 "배포 목표 재정의"](./TODO.md) 참고.
 
 - [x] GitHub Actions CI (테스트), 백엔드 Dockerfile
-- [ ] Apple Developer Program / Google Play Console 가입
-- [ ] iOS/Android 실기기 검증 (현재까지는 시뮬레이터/에뮬레이터만)
-- [ ] EAS Build로 릴리즈 빌드 → TestFlight/Play 내부 테스트 배포
+- [x] **Fastlane + GitHub Actions 릴리스 파이프라인** (`.github/workflows/release.yml`, `apps/client/fastlane/`) — iOS `match`+`gym`+`pilot`→TestFlight / Android `bundleRelease`+`supply`→Play 내부 테스트. 런북: [`docs/deployment.md`](./docs/deployment.md), 결정 배경: [ADR-008](./docs/decisions.md)
+- [x] Apple Developer Program / Google Play Console 가입
+- [ ] 1회성 셋업(ASC API 키, `match` 인증서 repo, 업로드 keystore, Play 서비스계정) + GitHub Secrets 입력 → 파이프라인 실행
+- [ ] iOS/Android 실기기 검증 (현재까지는 시뮬레이터/에뮬레이터만; iOS는 일부 실기기 검증됨)
 
 백엔드는 상시 운영하지 않고, TestFlight/Play 내부 테스트 심사나 실제 데모 시점에만 로컬/LAN으로 기동하는 것으로 충분합니다(둘 다 정식 스토어 리뷰가 없어 리뷰어가 백엔드를 실제로 호출하지 않음). 근거는 `docs/decisions.md` ADR-007 참고.

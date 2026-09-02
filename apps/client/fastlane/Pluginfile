@@ -1,0 +1,2 @@
+# fastlane plugins
+# Currently none. `bundle exec fastlane add_plugin <name>` appends here.

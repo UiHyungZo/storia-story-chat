@@ -9,7 +9,10 @@ export function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
   return (
     <View style={[styles.row, isUser ? styles.rowUser : styles.rowAssistant]}>
-      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
+      <View
+        testID={isUser ? "message-bubble-user" : "message-bubble-assistant"}
+        style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}
+      >
         <Text style={isUser ? styles.textUser : styles.textAssistant}>{message.content}</Text>
       </View>
     </View>

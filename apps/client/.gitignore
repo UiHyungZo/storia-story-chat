@@ -46,3 +46,15 @@ yarn-error.*
 modules/*/android/build/
 modules/*/android/.cxx/
 modules/*/ios/build/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/README.md
+fastlane/play-service-account.json
+fastlane/test_output/
+fastlane/.env*
+*.keystore
+build/ios/
+*.ipa
+*.aab

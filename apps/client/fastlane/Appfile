@@ -1,0 +1,13 @@
+# Both platforms share the same identifier.
+app_identifier "com.storia.client"
+
+# Apple: values come from the environment (CI secrets / local .env), never hard-coded.
+apple_id ENV["APPLE_ID"]                       # Apple account email, used by `deliver`/`pilot` for the account, not signing
+itc_team_id ENV["ASC_TEAM_ID"]                 # App Store Connect team (optional; only if the account is in several)
+team_id ENV["APPLE_TEAM_ID"] || "9G5T5K3BP2"   # Apple Developer portal team
+
+# Android: the Play service-account JSON path, injected by CI (see fastlane/Fastfile).
+for_platform :android do
+  json_key_file ENV["PLAY_JSON_KEY_FILE"] || "fastlane/play-service-account.json"
+  package_name "com.storia.client"
+end
