@@ -55,16 +55,34 @@ jobs:
       # declares `swift-tools-version: 6.2`, which only Xcode 26+ toolchains
       # support (Xcode 16.x's Swift 6.1 fails package resolution outright:
       # "package 'apple' is using Swift tools version 6.2.0 but the installed
-      # version is 6.1.0") — so the newest overall really is required, not
-      # just the newest that happens to build. A 26.x Swift compiler used to
-      # reject an unrelated expression in that same package as ambiguous;
-      # that's now fixed by bumping expo-modules-jsi past 57.0.4 (see
-      # package-lock.json), so picking newest-overall is safe again.
-      - name: Select latest Xcode
+      # version is 6.1.0") — so some 26.x is required, but NOT just whichever
+      # is newest: local testing against every 26.x on this machine (26.0.1,
+      # 26.1.1, 26.4.0 — the macos-15 runner only goes up to 26.3) building
+      # expo-modules-jsi's xcframework directly (its own build-xcframework.sh)
+      # showed real per-point-release Swift compiler differences in that one
+      # third-party package, unrelated to any of our own code:
+      #   26.0.1 / 26.1.1 -> "'weak' must be a mutable variable" on
+      #     `weak let runtime: ...` (a newer Swift 6.2 feature those builds
+      #     don't yet support)
+      #   26.3 (the runner's newest) -> "'RuntimeScheduler' cannot be
+      #     annotated with SWIFT_RETURNS_RETAINED ... because it is not
+      #     returning a SWIFT_SHARED_REFERENCE type", even though the class
+      #     IS annotated SWIFT_SHARED_REFERENCE — looks like a compiler
+      #     regression in that specific point release
+      #   26.4.0 (not on the runner yet) -> builds clean
+      # 26.2 is the one point release nobody's tried yet; picking it
+      # explicitly instead of "newest installed" until the runner image
+      # ships 26.4.
+      - name: Select Xcode 26.2
         run: |
-          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          echo "Using $LATEST"
-          sudo xcode-select -s "$LATEST/Contents/Developer"
+          XCODE_PATH=$(ls -d /Applications/Xcode_26.2*.app 2>/dev/null | sort -V | tail -1)
+          if [[ -z "$XCODE_PATH" ]]; then
+            echo "::error::Xcode 26.2 not found on this runner"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          echo "Using $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
           xcodebuild -version
 
       - uses: actions/setup-node@v4
