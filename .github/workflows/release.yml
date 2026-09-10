@@ -73,9 +73,11 @@ jobs:
       # nested xcodebuild in expo-modules-jsi's build script) honors it.
       - name: Select Xcode 26.4
         run: |
-          XCODE_PATH="/Applications/Xcode_26.4.0.app"
-          if [[ ! -d "$XCODE_PATH" ]]; then
-            echo "::error::Xcode 26.4.0 not found at $XCODE_PATH"
+          # This machine names Xcode installs with a hyphen (Xcode-26.4.0.app);
+          # hosted runners use an underscore (Xcode_26.3.0.app) — match either.
+          XCODE_PATH=$(ls -d /Applications/Xcode?26.4*.app 2>/dev/null | sort -V | tail -1)
+          if [[ -z "$XCODE_PATH" ]]; then
+            echo "::error::Xcode 26.4 not found in /Applications"
             ls -d /Applications/Xcode*.app
             exit 1
           fi
