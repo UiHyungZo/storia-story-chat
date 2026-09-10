@@ -61,6 +61,13 @@ jobs:
       ASC_API_KEY_ISSUER_ID: ${{ secrets.ASC_API_KEY_ISSUER_ID }}
       ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
       BUILD_NUMBER: ${{ github.run_number }}
+      # setup-ruby (and other actions/toolkit-based setup-* actions) hardcode
+      # /Users/runner/hostedtoolcache as their macOS default when
+      # RUNNER_TOOL_CACHE isn't set — a hosted-runner assumption that doesn't
+      # hold on this box, so mkdir'ing it fails with EACCES. Set it explicitly
+      # here instead of relying on the runner's own .env file, which didn't
+      # reach the action's environment.
+      RUNNER_TOOL_CACHE: /Users/ikercasillas/actions-runner/_work/_tool
       # Runner auto-installs Bundler 4.x, which chokes on lockfile CHECKSUMS in
       # frozen mode. Pin a stable 2.5.x (matches the Aran project).
       BUNDLER_VERSION: "2.5.23"
