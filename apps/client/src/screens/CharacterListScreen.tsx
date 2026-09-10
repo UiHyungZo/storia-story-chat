@@ -1,6 +1,7 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect } from "react";
-import { ActivityIndicator, FlatList, Pressable, SafeAreaView, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { CharacterListItem } from "../components/CharacterListItem";
 import { useCharacterStore } from "../store/useCharacterStore";
 import { RootStackParamList } from "../types";
