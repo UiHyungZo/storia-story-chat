@@ -51,14 +51,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # RN 0.86 needs Xcode >= 16.1. macos-15 also ships Xcode 26.x, whose
-      # newer Swift compiler fails to build expo-modules-jsi 57.0.4 with
-      # "type of expression is ambiguous without a type annotation" in
-      # JavaScriptCodable+Date.swift (third-party code we don't control) —
-      # so pin the newest 16.x instead of blindly grabbing the newest overall.
-      - name: Select Xcode 16.x
+      # RN 0.86 needs Xcode >= 16.1, and expo-modules-jsi's local SPM package
+      # declares `swift-tools-version: 6.2`, which only Xcode 26+ toolchains
+      # support (Xcode 16.x's Swift 6.1 fails package resolution outright:
+      # "package 'apple' is using Swift tools version 6.2.0 but the installed
+      # version is 6.1.0") — so the newest overall really is required, not
+      # just the newest that happens to build. A 26.x Swift compiler used to
+      # reject an unrelated expression in that same package as ambiguous;
+      # that's now fixed by bumping expo-modules-jsi past 57.0.4 (see
+      # package-lock.json), so picking newest-overall is safe again.
+      - name: Select latest Xcode
         run: |
-          LATEST=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           echo "Using $LATEST"
           sudo xcode-select -s "$LATEST/Contents/Developer"
           xcodebuild -version
