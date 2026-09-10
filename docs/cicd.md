@@ -94,7 +94,7 @@ on:
 | # | 스텝 | 하는 일 | 왜 |
 |---|---|---|---|
 | 1 | `actions/checkout` | 소스 체크아웃 | |
-| 2 | **Select latest Xcode** | `ls /Applications/Xcode*.app \| sort -V \| tail -1` → `sudo xcode-select -s` | 러너 기본 Xcode가 낮을 수 있음. RN 0.86은 **Xcode ≥ 16.1** 필요 |
+| 2 | **Select Xcode 16.x** | `ls /Applications/Xcode_16*.app \| sort -V \| tail -1` → `sudo xcode-select -s` | 러너 기본 Xcode가 낮을 수 있음. RN 0.86은 **Xcode ≥ 16.1** 필요. 러너엔 16.0~16.4와 26.0~26.3이 같이 있는데, 무조건 최신(26.x)을 고르면 `expo-modules-jsi`가 그 Swift 컴파일러로 안 빌드됨(아래 8절 #5) — **16.x 중 최신(16.4)만** 고름 |
 | 3 | `actions/setup-node` (20) | Node + npm 캐시 | |
 | 4 | `npm ci` | 클라이언트 의존성 | prebuild/pod install이 `node_modules`를 읽음 |
 | 5 | **Restore GoogleService-Info.plist** | base64 시크릿 → `apps/client/GoogleService-Info.plist` | 이 파일은 `.gitignore` 처리됨. `app.json`이 참조하므로 prebuild 전에 있어야 함 |
@@ -331,9 +331,9 @@ git tag v1.0.0 && git push origin v1.0.0        # iOS + Android 둘 다
 | 2 | `bundle` exit 16 — `empty CHECKSUMS entry for "rake" ... frozen mode` | 러너가 자동 설치한 **Bundler 4.0.15**가 스스로 만든 락파일의 CHECKSUMS를 frozen 모드에서 못 고침. `ruby/setup-ruby`의 `bundler-cache: true`가 frozen/deployment를 켬 | `BUNDLER_VERSION: "2.5.23"` 고정, `bundler-cache` 제거, 명시적 `gem install bundler -v 2.5.23 && bundle install` | `6c8b258` |
 | 3 | `build_app`: `Workspace file not found ... ios/Storia.xcworkspace` | `expo prebuild`가 CI에서 `pod install`을 안 하거나 조용히 실패 → `.xcworkspace`(pod install 산출물) 없음 | `expo prebuild --no-install` + `npx pod-install` + workspace 존재 검증 스텝 | `db826d1` |
 | 4 | `pod install`: `React Native requires XCode >= 16.1. Found 15.4` | `macos-14` 러너 기본 Xcode가 15.4. RN 0.86은 16.1+ 필요 | iOS job을 `macos-15`로, "Select latest Xcode" 스텝 추가 | `be79e79` |
-| 5 | *(미해결)* `build_app`(xcodebuild archive) 실패 ~79초, 실제 에러가 fastlane 요약에서 잘림 | 조사 중 — gym 상세 로그 확보 필요 | 다음 세션 | — |
+| 5 | `build_app`: `JavaScriptCodable+Date.swift:53:50: error: type of expression is ambiguous without a type annotation` (`abs(milliseconds) <= maxJavaScriptDateMilliseconds` 줄, `expo-modules-jsi` 내부 코드) | `gh run view <id> --log-failed`로 실제 gym 로그 확보해서 확인. "Select latest Xcode" 스텝이 `sort -V \| tail -1`로 러너에 같이 깔린 **Xcode 26.3.0**(신형)을 고름 → 그 Swift 컴파일러가 `expo-modules-jsi 57.0.4`의 이 표현식을 애매하다고 거부(우리가 못 고치는 서드파티 코드) | 스텝을 `Xcode_16*.app`만 대상으로 좁혀 **16.4**(러너 기본값)를 고르도록 변경 — RN 0.86 요구사항(≥16.1)은 여전히 충족 | — |
 
-**패턴**: 파이프라인은 한 관문씩 뚫린다 — 브랜치 → bundler → pod install → Xcode → (현재) 실제 컴파일/서명. 각 실패는 다음 관문을 드러낸다.
+**패턴**: 파이프라인은 한 관문씩 뚫린다 — 브랜치 → bundler → pod install → Xcode → 실제 컴파일/서명. 각 실패는 다음 관문을 드러낸다. **교훈**: "최신 버전 고르기"는 러너에 베타/신형 툴체인이 같이 있으면 오히려 위험할 수 있음 — 요구사항을 만족하는 가장 보수적인 버전을 고르는 게 안전.
 
 ---
 

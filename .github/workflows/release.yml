@@ -51,11 +51,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # RN 0.86 needs Xcode >= 16.1; macos-15 ships newer Xcodes but may not
-      # default to one. Pick the newest installed (matches the Aran project).
-      - name: Select latest Xcode
+      # RN 0.86 needs Xcode >= 16.1. macos-15 also ships Xcode 26.x, whose
+      # newer Swift compiler fails to build expo-modules-jsi 57.0.4 with
+      # "type of expression is ambiguous without a type annotation" in
+      # JavaScriptCodable+Date.swift (third-party code we don't control) —
+      # so pin the newest 16.x instead of blindly grabbing the newest overall.
+      - name: Select Xcode 16.x
         run: |
-          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          LATEST=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
           echo "Using $LATEST"
           sudo xcode-select -s "$LATEST/Contents/Developer"
           xcodebuild -version
