@@ -4,7 +4,25 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
-- **(2026-09-03 세션) iOS 릴리스 파이프라인 실행 시도 — `build_app`(xcodebuild archive)에서 막힘. 다음 세션 시작점.**
+- **(2026-09-10/11 세션) iOS 릴리스 파이프라인 — 막힌 원인은 확정, 해결책은 아직 없음. 다음 세션 시작점.**
+  - **gym 로그(2026-09-03에 못 구했던 그 로그) 확보 완료** — `release.yml`에 `~/Library/Logs/gym/*.log`를 항상 업로드하는 `upload-artifact` 스텝 추가(`64eeb20`), 또는 그냥 fastlane 스텝 로그를 펼쳐서(`gh run view --log-failed`) 확인. 진짜 에러는:
+    - 1차: `JavaScriptCodable+Date.swift:53:50: error: type of expression is ambiguous without a type annotation` — `expo-modules-jsi 57.0.4`의 서드파티 코드, 우리 코드 아님.
+    - **수정**: `npm update expo-modules-jsi`로 `57.0.4` → `57.0.8`(`expo-modules-core`의 `~57.0.4` 허용 범위 안, `package.json` 안 건드림). npm 레지스트리에서 이후 패치들의 해당 파일을 diff해서 57.0.8이 정확히 이 줄을 고쳐놨다는 걸 확인하고 올림(`7b0d3ba`). **이 수정은 유효하고 계속 유지됨.**
+  - **그 다음 막힌 진짜 벽**: `expo-modules-jsi`의 로컬 SPM 패키지(`apple/Package.swift`)가 `swift-tools-version: 6.2`를 선언 — Xcode 16.x는 이 요구사항 자체를 만족 못 함(패키지 해석 단계에서 즉시 실패). **그럼 26.x면 되냐 하면 아님**: 이 Mac에 설치된 모든 26.x Xcode(26.0.1, 26.1.1, 26.4.0)로 `expo-modules-jsi`의 자체 빌드 스크립트(`apple/scripts/build-xcframework.sh`)를 직접 돌려서 실측:
+    - `26.0.1` / `26.1.1`: `'weak' must be a mutable variable` — 그 패키지 소스의 `weak let runtime: ...`를 그 시점 Swift 컴파일러가 거부(Swift 6.2 기능 미지원).
+    - `26.3`(호스티드 macos-15의 "Select latest Xcode"가 실제로 고르는 버전, 2026-09-10/11 두 번 다 재현): `RuntimeScheduler`의 `SWIFT_RETURNS_RETAINED`/`SWIFT_SHARED_REFERENCE` 페어링을 "not returning a SWIFT_SHARED_REFERENCE type"으로 거부 — 클래스가 정확히 그 매크로로 어노테이션돼있는데도 거부하는 걸로 봐서 그 시점 컴파일러 버그로 판단.
+    - `26.4.0`: **클린 빌드 성공.** 근데 호스티드 macos-15 이미지엔 아직 없음(공식 이미지 문서 재확인, 다음 예고는 Xcode 27 프리뷰뿐 — 26.4 ETA 불명).
+    - 즉 **호스티드 러너가 제공하는 Xcode 중 이걸 빌드할 수 있는 버전이 하나도 없음** — 16.x/26.0.1/26.1.1/26.2/26.3 전부 실패, 26.4만 되는데 러너엔 없음.
+  - **self-hosted 러너로 우회 시도 → 전부 되돌림.** 이 Mac(Xcode 26.4 있음)을 GitHub Actions self-hosted runner로 등록(`d89b9e1`)하고, `RUNNER_TOOL_CACHE`/`/Users/runner/hostedtoolcache` 권한/`libgmp` 의존성 등 잡다한 문제를 순서대로 해결해서 `fastlane ios beta`(실제 빌드) 단계까지 도달했음. 근데 **사용자가 "내 컴퓨터에 원격 코드 실행 권한을 주는 게 맞나" 재고 후 전부 철회 요청** — GitHub 쪽 러너 등록 해제, `~/actions-runner`/`/Users/runner` 로컬 파일 전부 삭제, `gh auth logout`까지 완료. **`release.yml`은 self-hosted 이전 상태(호스티드 `macos-15`, "Select latest Xcode")로 리버트 완료(`908b22b`)** — 지금 `main`이 이 상태.
+    - **다음에 self-hosted를 다시 꺼내려면 반드시 먼저 명시적으로 사용자에게 물어볼 것.** "계속 디버깅해" 같은 일반 승인에 포함되는 걸로 간주하지 말 것 — 한 번 승인했다가 나중에 재고해서 전부 철회한 전례가 있음.
+  - **2026-09-10/11 세션 마지막 확인**: 리버트된 `release.yml`로 사용자가 직접 Actions 탭에서 재실행 → 예측대로 `build_app`이 Xcode 26.3의 `RuntimeScheduler` 컴파일러 버그로 다시 실패(로그 확인함). **다음 세션 시작 시점에도 이 상태 그대로.**
+  - **다음 세션에 결정할 것 (사용자와 상의)**:
+    1. 당분간 이 Mac에서 수동으로 `cd apps/client && bundle exec fastlane ios beta` 직접 실행해 TestFlight 업로드(CI 자동화 없이, 가장 빠름)
+    2. 호스티드 이미지가 Xcode 26.4 추가할 때까지 iOS 자동배포 보류 — Android(아래 참고, 이제 진행 가능)부터 먼저 마무리
+    3. `expo-modules-jsi`의 `RuntimeScheduler.h`를 `patch-package`로 직접 고쳐서 호스티드 CI 유지 시도 — `SWIFT_RETURNS_RETAINED`/ARC 관련 코드라 잘못 고치면 메모리 버그로 이어질 수 있어 검증이 까다로움. 시도한다면 로컬 26.4에서 먼저 회귀 없는지 검증 후 26.2/26.3에서 통과하는지 확인.
+  - **(2026-09-10) Google Play 개발자 계정 본인 인증 완료** — 아래 2026-09-03 항목에서 막혀있던 것 풀림. Play 앱 생성 → 서비스계정 JSON 발급 → `PLAY_SERVICE_ACCOUNT_JSON_B64` 시크릿 입력 → 최초 AAB 수동 업로드 순서로 진행 가능(아직 미착수).
+
+- **(2026-09-03 세션, 위 항목으로 대체됨 — GitHub Secrets 표/Apple 포털 상태만 여전히 유효) iOS 릴리스 파이프라인 실행 시도 — `build_app`(xcodebuild archive)에서 막힘.**
   - **`develop` → `main` fast-forward 완료.** main이 한참 뒤처져 있던 걸 develop으로 올림. 지금 둘 다 커밋 `be79e79`. 앞으로도 develop 커밋 후 main도 ff-push (release.yml이 기본 브랜치에 있어야 `workflow_dispatch` 버튼이 나옴).
   - **`release.yml` 이번 세션 수정 3건**: (1) `6c8b258` Bundler `2.5.23` 핀 + `bundler-cache` 제거 (러너 기본 Bundler 4.0.x가 frozen 모드에서 lockfile CHECKSUMS로 터짐). (2) `db826d1` `expo prebuild --no-install` + `npx pod-install` 분리 (prebuild가 workspace를 안 만들어 `build_app`이 `Storia.xcworkspace` 못 찾음). (3) `be79e79` iOS job을 `macos-15` + "Select latest Xcode" 스텝 (macos-14 기본 Xcode 15.4 → RN 0.86은 16.1+ 필요).
   - **진행 상황**: bundler ✅ → pod install ✅(macos-15에서) → **`build_app` ✗** (Release #4, ~79초). fastlane 요약만 "build/archive error"로 나오고 **실제 xcodebuild 에러가 잘림**. 진짜 로그는 러너의 `/Users/runner/Library/Logs/gym/Storia-Storia.log`에 있음 — **캡처 못 함.**
@@ -19,7 +37,7 @@
     - `storia-secrets/` — base64 blob 모음. **삭제해도 됨** (`rm -rf ~/Desktop/storia-secrets`).
     - `인증서/certificate_new.p12` — Keychain에서 **새 비번으로 다시 export한** distribution .p12 (원래 Aran 때 비번을 잊어버림). `BUILD_CERTIFICATE_BASE64`/`_PASSWORD` 시크릿이 이걸로 세팅됨. **비번 기록 필요 / 보관.**
     - `인증서/storia-upload.keystore` — Android 업로드 keystore (alias `storia-upload`). **반드시 백업** (분실 시 Play App Signing 등록 전이면 앱 업데이트 불가).
-  - **Android는 Google Play 개발자 계정 본인 인증 대기** — 콘솔이 "개발자 계정 설정 완료"(공문서 업로드 본인확인 = 며칠 소요 / 전화번호 인증 / Android 기기 액세스 확인) 요구. 인증 전엔 Play 앱 생성·서비스계정·`PLAY_SERVICE_ACCOUNT_JSON_B64`·android job 전부 불가. 인증 시작 여부 미확인 — 3개 다 착수할 것.
+  - ~~**Android는 Google Play 개발자 계정 본인 인증 대기**~~ — **(2026-09-10) 인증 완료됨, 위 최신 항목 참고.** 이제 Play 앱 생성·서비스계정·`PLAY_SERVICE_ACCOUNT_JSON_B64`·android job 진행 가능.
   - **다음 세션 순서**: ① `build_app` 에러 확보 → 수정 → iOS 그린 → TestFlight 빌드 확인 (+ ASC 앱 레코드) → ② Google 인증 완료되면 Play 앱+내부트랙+서비스계정 → `PLAY_SERVICE_ACCOUNT_JSON_B64` → android job (최초 AAB는 콘솔 수동 업로드 필요할 수 있음) → ③ 스토어 관문 설문(Data Safety / App Privacy / Export Compliance).
 
 - **(2026-09-01 세션, 메인 컴퓨터 + 연결된 iPhone)** **완전한 A안(python-sidecar 에이전트 음성) 재확인 완료 — 5주차 완전 종료.** 지난 세션(`3b0e76e`)에서 Gemini 429라 폴백 문구만 재생됐던 것을 할당량 리셋 후 재검증: 통화 1회에서 로그상 agent 자동 dispatch(`AJ_JkVVFRXYaSAq`, room `call-…-2`) → 실시간 한국어 STT("지금도 계속 그러고 있나?" 등) → 턴 감지(EOT 0.977) → `StoriaLLM` → Spring `/api/conversations/{id}/messages` 위임 → DB user/assistant INSERT → **진짜 렌 페르소나 응답**(*"어머, 미안해요 손님! …마치 태엽이 멈춘 기계처럼… 쨍한 주황색 표지의 작은 책 한 권을…"*, 폴백 아님) → Chirp3-HD TTS room publish(`aec warmup active` = 재생 시작) → 유저가 에이전트 음성 위로 끼어들며(`interruption detected` 22:52:01) **연속 대화** → egress 완료(`Voice turn … completing: 27,626,808 bytes`, WS 정상 종료 1000) → CLIENT_INITIATED 클린 종료. **음성 경로 + 실응답 내용 둘 다 검증됨.**
@@ -90,7 +108,8 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 남은 작업 목록과 우선순위는 [`TODO.md`](./TODO.md)의 "다음 작업" / 7주차 / "배포 목표 재정의" 섹션이 정본. 요약:
 
 - **5주차: 전 항목 종료** (2026-09-01 python-sidecar 에이전트 음성 + 진짜 캐릭터 응답 재확인 완료 — 위 맨 첫 항목).
-- **(7주차) 릴리스 파이프라인 실행** — `release.yml` + `apps/client/fastlane/` 완성됨(2026-09-02). 남은 건 사람이 하는 1회성 셋업 + GitHub Secrets 입력: ASC 앱 레코드, `com.storia.client` App ID + App Store provisioning profile 발급, iOS Secrets(Aran 값 재사용 `BUILD_CERTIFICATE_*`/`ASC_API_KEY_*` + 신규 `BUILD_PROVISION_PROFILE_BASE64`/`KEYCHAIN_PASSWORD`), Android 업로드 keystore, Play Console 앱 + 서비스계정 JSON + 최초 AAB 수동 업로드, `app.json` `aps-environment`→`production`. **전체 런북: `docs/deployment.md`.** 유료 계정(Apple Developer / Play Console)은 준비 완료.
+- **(7주차) iOS 릴리스 파이프라인 — 막힘 지속.** 호스티드 `macos-15`의 어떤 Xcode로도 `expo-modules-jsi`를 못 빌드함(위 2026-09-10/11 항목 참고). 다음 세션에 사용자와 상의해 수동 로컬 빌드/보류/patch-package 중 결정 필요.
+- **(7주차) Android 릴리스 파이프라인 — 진행 가능.** Google Play 개발자 계정 인증 완료(2026-09-10). 남은 건: Play 앱 생성, 서비스계정 JSON 발급, `PLAY_SERVICE_ACCOUNT_JSON_B64` 시크릿 입력, 최초 AAB 수동 업로드. **전체 런북: `docs/deployment.md`.**
 - **(7주차)** 스토어 관문 설문(Play Data Safety / Apple App Privacy / Export Compliance — 수집 항목은 `privacy-policy.md` 2절). 개인정보처리방침 공개 URL은 완료.
 - **에러 시나리오 검증**(LiveKit room 연결 후 끊김/턴 타임아웃/`/egress/audio` 프록시 WSS 업그레이드), 배포 시크릿에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 추가.
 - **Maestro E2E 1개** — "앱 실행→캐릭터 선택→메시지 전송→응답" 스모크. 시뮬레이터 필요해 배포 실기기 검증과 묶어서 진행.
