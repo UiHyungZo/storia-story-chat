@@ -38,58 +38,34 @@ jobs:
     if: >-
       github.event_name == 'push' ||
       contains(fromJSON('["both","ios"]'), inputs.platform)
-    # GitHub-hosted macos-15 dropped: every Xcode it offers (16.x, and 26.0.1
-    # through 26.3) fails to build expo-modules-jsi's local SPM package.
-    # 16.x can't satisfy its `swift-tools-version: 6.2`. 26.0.1/26.1.1 reject
-    # `weak let runtime: ...` ("'weak' must be a mutable variable" — a Swift
-    # 6.2 feature those point releases don't support yet). 26.2/26.3 reject
-    # RuntimeScheduler's SWIFT_RETURNS_RETAINED/SWIFT_SHARED_REFERENCE pairing
-    # as invalid even though it's correctly annotated (a compiler regression
-    # in those two point releases specifically) — confirmed by building the
-    # package directly (its own build-xcframework.sh) against every 26.x
-    # Xcode on this machine. Only 26.4.0 builds it clean, and the hosted
-    # image doesn't have 26.4 yet (next runner-images note only mentions an
-    # Xcode 27 preview, no ETA for 26.4). So this job runs on this Mac
-    # instead, which already has 26.4.0 — see docs/deployment.md for the
-    # self-hosted runner setup. Not installed as an always-on service, in
-    # keeping with ADR-007 (no idle cloud/local resources) — start it with
-    # `~/actions-runner/run.sh` before cutting a release, stop it after.
-    runs-on: [self-hosted, storia-ios]
+    runs-on: macos-15
     timeout-minutes: 60
     env:
       ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
       ASC_API_KEY_ISSUER_ID: ${{ secrets.ASC_API_KEY_ISSUER_ID }}
       ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
       BUILD_NUMBER: ${{ github.run_number }}
-      # setup-ruby (and other actions/toolkit-based setup-* actions) hardcode
-      # /Users/runner/hostedtoolcache as their macOS default when
-      # RUNNER_TOOL_CACHE isn't set — a hosted-runner assumption that doesn't
-      # hold on this box, so mkdir'ing it fails with EACCES. Set it explicitly
-      # here instead of relying on the runner's own .env file, which didn't
-      # reach the action's environment.
-      RUNNER_TOOL_CACHE: /Users/ikercasillas/actions-runner/_work/_tool
       # Runner auto-installs Bundler 4.x, which chokes on lockfile CHECKSUMS in
       # frozen mode. Pin a stable 2.5.x (matches the Aran project).
       BUNDLER_VERSION: "2.5.23"
     steps:
       - uses: actions/checkout@v4
 
-      # DEVELOPER_DIR (not `sudo xcode-select -s`) so this doesn't change the
-      # machine's global default Xcode — it's this developer's own Mac, not a
-      # disposable VM. Every later step (pod install, fastlane/gym, the
-      # nested xcodebuild in expo-modules-jsi's build script) honors it.
-      - name: Select Xcode 26.4
+      # RN 0.86 needs Xcode >= 16.1, and expo-modules-jsi's local SPM package
+      # declares `swift-tools-version: 6.2`, which only Xcode 26+ toolchains
+      # support (Xcode 16.x's Swift 6.1 fails package resolution outright:
+      # "package 'apple' is using Swift tools version 6.2.0 but the installed
+      # version is 6.1.0") — so the newest overall really is required, not
+      # just the newest that happens to build. A 26.x Swift compiler used to
+      # reject an unrelated expression in that same package as ambiguous;
+      # that's now fixed by bumping expo-modules-jsi past 57.0.4 (see
+      # package-lock.json), so picking newest-overall is safe again.
+      - name: Select latest Xcode
         run: |
-          # This machine names Xcode installs with a hyphen (Xcode-26.4.0.app);
-          # hosted runners use an underscore (Xcode_26.3.0.app) — match either.
-          XCODE_PATH=$(ls -d /Applications/Xcode?26.4*.app 2>/dev/null | sort -V | tail -1)
-          if [[ -z "$XCODE_PATH" ]]; then
-            echo "::error::Xcode 26.4 not found in /Applications"
-            ls -d /Applications/Xcode*.app
-            exit 1
-          fi
-          echo "DEVELOPER_DIR=$XCODE_PATH/Contents/Developer" >> "$GITHUB_ENV"
-          "$XCODE_PATH/Contents/Developer/usr/bin/xcodebuild" -version
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using $LATEST"
+          sudo xcode-select -s "$LATEST/Contents/Developer"
+          xcodebuild -version
 
       - uses: actions/setup-node@v4
         with:
