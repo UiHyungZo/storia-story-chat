@@ -48,6 +48,11 @@ jobs:
       # Runner auto-installs Bundler 4.x, which chokes on lockfile CHECKSUMS in
       # frozen mode. Pin a stable 2.5.x (matches the Aran project).
       BUNDLER_VERSION: "2.5.23"
+      # No Sentry project/DSN yet, so @sentry/react-native's Xcode build
+      # phase would otherwise try to upload source maps and fail the whole
+      # archive with "An organization ID or slug is required" (same reason
+      # local `expo run:ios` needs this — see docs/deployment.md).
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
     steps:
       - uses: actions/checkout@v4
 
