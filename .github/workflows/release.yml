@@ -48,11 +48,15 @@ jobs:
       # Runner auto-installs Bundler 4.x, which chokes on lockfile CHECKSUMS in
       # frozen mode. Pin a stable 2.5.x (matches the Aran project).
       BUNDLER_VERSION: "2.5.23"
-      # No Sentry project/DSN yet, so @sentry/react-native's Xcode build
-      # phase would otherwise try to upload source maps and fail the whole
-      # archive with "An organization ID or slug is required" (same reason
-      # local `expo run:ios` needs this — see docs/deployment.md).
+      # No Sentry auth token / CI wiring for source map upload yet, so
+      # @sentry/react-native's Xcode build phase would otherwise try to
+      # upload source maps and fail the whole archive with "An organization
+      # ID or slug is required" (same reason local `expo run:ios` needs this
+      # — see docs/deployment.md). Crash reporting itself works fine without
+      # uploaded source maps (App.tsx reads EXPO_PUBLIC_SENTRY_DSN below) —
+      # just with minified stack traces until upload is set up.
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -191,10 +195,11 @@ jobs:
       PLAY_JSON_KEY_FILE: ${{ github.workspace }}/apps/client/fastlane/play-service-account.json
       BUILD_NUMBER: ${{ github.run_number }}
       BUNDLER_VERSION: "2.5.23"
-      # Same reason as the iOS job: no Sentry project/DSN yet, so the RN
-      # Sentry Gradle plugin's bundle task would otherwise fail with
-      # "An organization ID or slug is required".
+      # Same reason as the iOS job: no Sentry auth token / CI wiring for
+      # source map upload yet, so the RN Sentry Gradle plugin's bundle task
+      # would otherwise fail with "An organization ID or slug is required".
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
     steps:
       - uses: actions/checkout@v4
 
