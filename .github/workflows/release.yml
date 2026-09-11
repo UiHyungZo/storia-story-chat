@@ -38,7 +38,7 @@ jobs:
     if: >-
       github.event_name == 'push' ||
       contains(fromJSON('["both","ios"]'), inputs.platform)
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
@@ -53,18 +53,33 @@ jobs:
 
       # RN 0.86 needs Xcode >= 16.1, and expo-modules-jsi's local SPM package
       # declares `swift-tools-version: 6.2`, which only Xcode 26+ toolchains
-      # support (Xcode 16.x's Swift 6.1 fails package resolution outright:
-      # "package 'apple' is using Swift tools version 6.2.0 but the installed
-      # version is 6.1.0") — so the newest overall really is required, not
-      # just the newest that happens to build. A 26.x Swift compiler used to
-      # reject an unrelated expression in that same package as ambiguous;
-      # that's now fixed by bumping expo-modules-jsi past 57.0.4 (see
-      # package-lock.json), so picking newest-overall is safe again.
-      - name: Select latest Xcode
+      # support (Xcode 16.x's Swift 6.1 fails package resolution outright).
+      # Xcode 26.0.1/26.1.1 then reject `weak let` in that package (Swift 6.2
+      # doesn't have it yet), and 26.2/26.3 reject RuntimeScheduler.h's
+      # SWIFT_RETURNS_RETAINED/SWIFT_SHARED_REFERENCE pairing as "not
+      # returning a SWIFT_SHARED_REFERENCE type" even though the class is
+      # correctly annotated — a toolchain bug fixed by 26.4. So we can't just
+      # pick "latest installed": we need >=26.4 specifically. `macos-15` never
+      # got past 26.3, so this job runs on `macos-26`, whose image ships
+      # 26.4.1/26.5/26.6 — pin to the 26.4.x we've verified with a local
+      # clean build rather than trusting its "latest" (26.6, untested here).
+      - name: Select Xcode 26.4
         run: |
-          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          echo "Using $LATEST"
-          sudo xcode-select -s "$LATEST/Contents/Developer"
+          MATCH=""
+          for app in /Applications/Xcode*.app; do
+            ver=$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "")
+            if [[ "$ver" == 26.4* ]]; then
+              MATCH="$app"
+              break
+            fi
+          done
+          if [[ -z "$MATCH" ]]; then
+            echo "::error::No Xcode 26.4.x found on this runner image (expo-modules-jsi needs it — see comment above)"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          echo "Using $MATCH"
+          sudo xcode-select -s "$MATCH/Contents/Developer"
           xcodebuild -version
 
       - uses: actions/setup-node@v4

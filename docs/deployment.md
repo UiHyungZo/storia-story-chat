@@ -10,7 +10,7 @@
 
 | | iOS | Android |
 |---|---|---|
-| 러너 | `macos-14` (public repo라 무료) | `ubuntu-latest` |
+| 러너 | `macos-26` (public repo라 무료 — Xcode 26.4+ 필요, 아래 참고) | `ubuntu-latest` |
 | 빌드 | `expo prebuild` → `fastlane gym` (manual signing) | `expo prebuild` → `gradle bundleRelease` |
 | 서명 | distribution `.p12` + provisioning profile 을 임시 keychain 에 import (base64 시크릿, `match` 안 씀) | 업로드 keystore (base64 시크릿) |
 | 업로드 | `upload_to_testflight` (내부 테스터) | `upload_to_play_store` track `internal`, `release_status: draft` |

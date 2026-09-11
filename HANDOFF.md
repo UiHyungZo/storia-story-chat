@@ -4,7 +4,9 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
-- **(2026-09-10/11 세션) iOS 릴리스 파이프라인 — 막힌 원인은 확정, 해결책은 아직 없음. 다음 세션 시작점.**
+- **(2026-09-11 세션) iOS 릴리스 파이프라인 — `macos-26` 러너로 전환해 해결 시도.** 아래 2026-09-10/11 항목에서 "호스티드 러너 중 26.4를 제공하는 게 없다"고 결론 냈던 건 `macos-15` 이미지만 확인한 리서치 공백이었음 — GitHub이 2026-02-26에 GA로 푼 `macos-26` 이미지엔 이미 Xcode 26.4.1/26.5/26.6이 설치돼 있음(로컬에서 클린 빌드 확인된 26.4.0과 같은 버전대). `release.yml`의 iOS job을 `runs-on: macos-26`으로 바꾸고, "Select latest Xcode" 스텝을 "26.4.x를 명시적으로 찾아 선택"(없으면 명확히 fail)으로 교체함 — `macos-26`의 기본 Xcode가 26.6(미검증)이라 무작정 latest를 고르지 않음. `docs/deployment.md` 개요 표도 갱신. **CI에서 실제로 그린 나오는지는 아직 미검증 — 다음 세션(또는 이 세션 후속)에서 `workflow_dispatch platform: ios`로 확인 필요.** 안 되면 그 로그 보고 대응(예: macos-26 이미지의 다른 preinstalled 툴 버전 차이로 새 에러가 날 수 있음). patch-package(RuntimeScheduler.h 헤더 패치)는 이 전환이 안 먹힐 때만 폴백으로 고려 — self-hosted 재시도는 여전히 사용자 명시 승인 필요(아래 항목 유지).
+
+- **(2026-09-10/11 세션, 위 항목으로 대체됨 — 진단 내용 자체는 여전히 유효) iOS 릴리스 파이프라인 — 막힌 원인은 확정, 해결책은 아직 없음.**
   - **gym 로그(2026-09-03에 못 구했던 그 로그) 확보 완료** — `release.yml`에 `~/Library/Logs/gym/*.log`를 항상 업로드하는 `upload-artifact` 스텝 추가(`64eeb20`), 또는 그냥 fastlane 스텝 로그를 펼쳐서(`gh run view --log-failed`) 확인. 진짜 에러는:
     - 1차: `JavaScriptCodable+Date.swift:53:50: error: type of expression is ambiguous without a type annotation` — `expo-modules-jsi 57.0.4`의 서드파티 코드, 우리 코드 아님.
     - **수정**: `npm update expo-modules-jsi`로 `57.0.4` → `57.0.8`(`expo-modules-core`의 `~57.0.4` 허용 범위 안, `package.json` 안 건드림). npm 레지스트리에서 이후 패치들의 해당 파일을 diff해서 57.0.8이 정확히 이 줄을 고쳐놨다는 걸 확인하고 올림(`7b0d3ba`). **이 수정은 유효하고 계속 유지됨.**
@@ -108,7 +110,7 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 남은 작업 목록과 우선순위는 [`TODO.md`](./TODO.md)의 "다음 작업" / 7주차 / "배포 목표 재정의" 섹션이 정본. 요약:
 
 - **5주차: 전 항목 종료** (2026-09-01 python-sidecar 에이전트 음성 + 진짜 캐릭터 응답 재확인 완료 — 위 맨 첫 항목).
-- **(7주차) iOS 릴리스 파이프라인 — 막힘 지속.** 호스티드 `macos-15`의 어떤 Xcode로도 `expo-modules-jsi`를 못 빌드함(위 2026-09-10/11 항목 참고). 다음 세션에 사용자와 상의해 수동 로컬 빌드/보류/patch-package 중 결정 필요.
+- **(7주차) iOS 릴리스 파이프라인 — `macos-26` 러너 전환으로 해결 시도, CI 검증 대기.** 위 2026-09-11 항목 참고. `workflow_dispatch platform: ios`로 그린 확인 필요 — 안 되면 patch-package 폴백 고려.
 - **(7주차) Android 릴리스 파이프라인 — 진행 가능.** Google Play 개발자 계정 인증 완료(2026-09-10). 남은 건: Play 앱 생성, 서비스계정 JSON 발급, `PLAY_SERVICE_ACCOUNT_JSON_B64` 시크릿 입력, 최초 AAB 수동 업로드. **전체 런북: `docs/deployment.md`.**
 - **(7주차)** 스토어 관문 설문(Play Data Safety / Apple App Privacy / Export Compliance — 수집 항목은 `privacy-policy.md` 2절). 개인정보처리방침 공개 URL은 완료.
 - **에러 시나리오 검증**(LiveKit room 연결 후 끊김/턴 타임아웃/`/egress/audio` 프록시 WSS 업그레이드), 배포 시크릿에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 추가.
