@@ -13,7 +13,7 @@
 | 워크플로 | 파일 | 트리거 | 하는 일 | 러너 |
 |---|---|---|---|---|
 | **CI** | `.github/workflows/ci.yml` | 모든 `push` / `pull_request` (main, develop) | 백엔드 + 클라이언트 테스트 | `ubuntu-latest` |
-| **Release (CD)** | `.github/workflows/release.yml` | 태그 `v*` push, 또는 수동 실행 | iOS→TestFlight / Android→Play 내부 테스트 | iOS: `macos-15`, Android: `ubuntu-latest` |
+| **Release (CD)** | `.github/workflows/release.yml` | 태그 `v*` push, 또는 수동 실행 | iOS→TestFlight / Android→Play 내부 테스트 | iOS: `macos-26`, Android: `ubuntu-latest` |
 
 **두 워크플로는 독립적이다.** CI는 코드가 바뀔 때마다 돌고, Release는 "이제 배포한다"는 의도적 액션(태그 또는 버튼)에서만 돈다. 서로를 게이트하지 않는다 — 태그는 이미 CI를 통과해 머지된 커밋에만 붙기 때문이다.
 
@@ -89,12 +89,12 @@ on:
 
 ---
 
-## 4. iOS job 단계별 (`macos-15`)
+## 4. iOS job 단계별 (`macos-26`)
 
 | # | 스텝 | 하는 일 | 왜 |
 |---|---|---|---|
 | 1 | `actions/checkout` | 소스 체크아웃 | |
-| 2 | **Select latest Xcode** | `ls /Applications/Xcode*.app \| sort -V \| tail -1` → `sudo xcode-select -s` | 러너 기본 Xcode가 낮을 수 있음. RN 0.86은 **Xcode ≥ 16.1** 필요. 러너엔 16.0~16.4와 26.0~26.3이 같이 있는데, `expo-modules-jsi`의 로컬 SPM 패키지가 `swift-tools-version: 6.2`를 선언해서 **26.x가 아니면 애초에 패키지 해석 자체가 실패**함(아래 8절 #6) — 16.x로 좁히는 건 오진이었고, 최신(26.x) 그대로 두는 게 맞음. 대신 26.x의 Swift 6.2가 걸어 넘어졌던 별개의 애매한 표현식 버그는 `expo-modules-jsi`를 57.0.4→57.0.8로 올려서 해결(아래 8절 #5) |
+| 2 | **Select Xcode 26.4** | `/Applications/Xcode*.app`을 순회하며 `Info.plist`의 `CFBundleShortVersionString`이 `26.4`로 시작하는 걸 찾아 `xcode-select -s` (없으면 명시적으로 fail) | RN 0.86은 Xcode ≥16.1 필요하고, `expo-modules-jsi`의 로컬 SPM 패키지가 `swift-tools-version: 6.2`를 선언해서 **26.x 계열만 애초에 옵션**(16.x는 패키지 해석 자체가 실패, 아래 8절 #6). 근데 26.x 안에서도 세부 버전마다 다른 컴파일러 버그가 있었음 — 26.0.1/26.1.1은 `weak let`을 거부(Swift 6.2엔 없는 문법), 26.2/26.3은 `RuntimeScheduler.h`의 `SWIFT_RETURNS_RETAINED`/`SWIFT_SHARED_REFERENCE` 어노테이션 페어링을 "not returning a SWIFT_SHARED_REFERENCE type"으로 거부(클래스가 정확히 그 매크로로 어노테이션돼있는데도 — 그 시점 컴파일러 자체의 버그로 판단), **26.4에서 고쳐짐**(로컬에서 26.4.0 클린 빌드로 확인). `macos-15` 이미지는 26.3까지만 갖고 있어서 "latest 아무거나"를 골라도 항상 이 버그를 만남 → **러너를 `macos-26` 이미지(26.4.1/26.5/26.6 보유)로 바꾸고**, 그 이미지의 "latest"(26.6, 미검증)를 그냥 믿는 대신 로컬 클린 빌드로 검증된 **26.4 계열을 명시적으로 골라** 리스크를 낮춤(아래 8절 #7~#8) |
 | 3 | `actions/setup-node` (20) | Node + npm 캐시 | |
 | 4 | `npm ci` | 클라이언트 의존성 | prebuild/pod install이 `node_modules`를 읽음 |
 | 5 | **Restore GoogleService-Info.plist** | base64 시크릿 → `apps/client/GoogleService-Info.plist` | 이 파일은 `.gitignore` 처리됨. `app.json`이 참조하므로 prebuild 전에 있어야 함 |
@@ -183,6 +183,17 @@ end
 - **`build_app`** — `xcodebuild archive` 후 `-exportArchive`. Pods가 있으니 `.xcworkspace`(프로젝트 아님)를 써야 함.
 - **`upload_to_testflight`** — `skip_waiting_for_build_processing: true`라 업로드만 하고 끝(Apple 처리는 몇 분 뒤 완료). `distribute_external: false` = 내부 테스터만.
 
+### 4.3 job-level env: Sentry
+
+```yaml
+env:
+  SENTRY_DISABLE_AUTO_UPLOAD: "true"
+  EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+```
+
+- `@sentry/react-native`가 심어둔 Xcode 빌드 스크립트(소스맵 업로드 + "Upload Debug Symbols to Sentry" 스텝)는 `SENTRY_AUTH_TOKEN`/org 설정 없이 돌면 `error: An organization ID or slug is required (provide with --org)`로 **아카이브 전체를 실패**시킴. sourcemap 업로드용 CI 연동(auth token)은 아직 안 만들어서 `SENTRY_DISABLE_AUTO_UPLOAD=true`로 끔 — 로컬 `expo run:ios`가 이미 같은 이유로 이 값을 씀(`docs/deployment.md`).
+- `EXPO_PUBLIC_SENTRY_DSN`은 Metro 번들 시점에 `process.env`에서 인라인되므로, `expo prebuild`가 아니라 **빌드(JS 번들링이 일어나는) 스텝 전체가 실행되는 job 레벨**에 있어야 함. `App.tsx`는 DSN이 비어있으면 `Sentry.init({ enabled: false })`로 무해하게 꺼짐 — 값이 있으면 그때부터 크래시 리포팅이 켜짐. 소스맵 업로드가 꺼져있어 스택트레이스는 당분간 minified 상태.
+
 ---
 
 ## 5. Android job 단계별 (`ubuntu-latest`)
@@ -240,6 +251,16 @@ end
 
 멱등(이미 패치됐으면 skip)하고, 패치 실패 시 명시적으로 throw한다.
 
+### job-level env: Sentry (iOS와 동일한 이유)
+
+```yaml
+env:
+  SENTRY_DISABLE_AUTO_UPLOAD: "true"
+  EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+```
+
+RN Sentry Gradle 플러그인이 붙이는 `:app:createBundleReleaseJsAndAssets_SentryUpload...` 태스크가 iOS와 똑같이 "An organization ID or slug is required"로 `gradle bundle` 전체를 실패시킴 — 같은 env var로 끔.
+
 ---
 
 ## 6. 처음부터 세팅하기 (2026-09-02~03에 실제로 한 순서)
@@ -273,7 +294,7 @@ keytool -genkeypair -v \
 ```
 > keystore 원본은 **반드시 백업**. 분실 시 Play App Signing 등록 전이면 앱 업데이트 불가.
 
-### 6.4 GitHub Secrets 14개
+### 6.4 GitHub Secrets 15개
 
 `base64 -i <파일> | pbcopy` 로 파일을 base64로 만들어 붙여넣는다. `pbcopy < 파일.txt` 방식이 복사 실수가 없다. 전체 표는 [`deployment.md`](./deployment.md).
 
@@ -284,6 +305,7 @@ keytool -genkeypair -v \
 | iOS ASC | `ASC_API_KEY_ID`, `ASC_API_KEY_ISSUER_ID`, `ASC_API_KEY_CONTENT` |
 | Android | `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` |
 | Play | `PLAY_SERVICE_ACCOUNT_JSON_B64` |
+| 모니터링 | `EXPO_PUBLIC_SENTRY_DSN` (DSN은 클라이언트 앱에 그대로 박히는 공개 식별자라 비밀값 취급 불필요하지만, 시크릿으로 넣어두면 코드/워크플로 변경 없이 값만 갈아끼울 수 있어 그렇게 함) |
 
 - `KEYCHAIN_PASSWORD`는 임의 문자열(임시 keychain 여닫는 용).
 - `.p12` 비번을 잊었으면 Keychain Access에서 "Apple Distribution..." 인증서를 새 비번으로 다시 export → `BUILD_CERTIFICATE_BASE64`/`_PASSWORD` 둘 다 갱신.
@@ -333,8 +355,14 @@ git tag v1.0.0 && git push origin v1.0.0        # iOS + Android 둘 다
 | 4 | `pod install`: `React Native requires XCode >= 16.1. Found 15.4` | `macos-14` 러너 기본 Xcode가 15.4. RN 0.86은 16.1+ 필요 | iOS job을 `macos-15`로, "Select latest Xcode" 스텝 추가 | `be79e79` |
 | 5 | `build_app`: `JavaScriptCodable+Date.swift:53:50: error: type of expression is ambiguous without a type annotation` (`abs(milliseconds) <= maxJavaScriptDateMilliseconds` 줄, `expo-modules-jsi` 내부 코드) | `gh run view <id> --log-failed`로 실제 gym 로그 확보해서 확인. 러너의 최신 Xcode(26.3.0)의 Swift 6.2 컴파일러가 `expo-modules-jsi 57.0.4`의 이 표현식을 애매하다고 거부(서드파티 코드, 당장은 못 고침) | **(1차 시도, 오진)** Xcode를 16.x로 좁힘 → 관문을 하나 더 진행시켰지만 근본 해결 아니었음(#6에서 새 실패). **(최종 수정)** npm 레지스트리에서 이후 패치들을 대조해보니 `expo-modules-jsi@57.0.8`이 정확히 이 줄을 `milliseconds.magnitude <= ...`로 바꿔 고쳐놨음 — `npm update expo-modules-jsi`로 57.0.4→57.0.8(둘 다 `expo-modules-core`의 `~57.0.4` 허용 범위 안). Xcode 선택은 "최신 전체"로 되돌림(#6 참고, 16.x는애초에 옵션이 아니었음) | `64eeb20` 이후 커밋 |
 | 6 | `build_app`: `xcodebuild: error: Could not resolve package dependencies: package 'apple' is using Swift tools version 6.2.0 but the installed version is 6.1.0` (#5의 "1차 시도"로 Xcode 16.4를 고른 뒤 발생) | gym 실시간 요약이 이유 줄을 또 잘라먹어서(#5와 같은 패턴) `release.yml`에 `~/Library/Logs/gym/*.log` `upload-artifact` 스텝 추가 후 재실행, 아티팩트에서 원본 로그 확인 → `expo-modules-jsi`의 `apple/Package.swift`가 `swift-tools-version: 6.2`를 선언, Swift 6.2는 Xcode 26+에만 있음 — **16.x는 애초에 옵션이 아니었다는 뜻**(#5의 1차 수정이 틀린 진단이었음을 확인) | Xcode 선택을 다시 "최신 전체"로(26.x가 필수). 26.x에서 걸리던 #5의 애매한 표현식은 57.0.8로 이미 해결돼있어 재발 안 함 | `64eeb20` 이후 커밋 |
+| 7 | `build_app`: `RuntimeScheduler.h`의 `SWIFT_RETURNS_RETAINED`/`SWIFT_SHARED_REFERENCE` 페어링을 "not returning a SWIFT_SHARED_REFERENCE type"으로 거부 — 클래스가 정확히 그 매크로로 어노테이션돼있는데도 거부됨. `macos-15`가 제공하는 26.x 전부(26.0.1/26.1.1/26.2/26.3) 시도했지만 전부 실패(26.0.1/26.1.1은 이 에러 대신 `weak let` 문법 자체를 거부) | 로컬에 있는 모든 26.x Xcode로 `expo-modules-jsi`의 자체 빌드 스크립트(`apple/scripts/build-xcframework.sh`)를 직접 돌려 실측 — 26.4.0에서만 **클린 빌드 성공**. 즉 그 시점 26.2/26.3 컴파일러 자체의 버그로 확정, 우리 코드/서드파티 소스로 고칠 수 있는 게 아님. self-hosted 러너(이 Mac엔 26.4 있음)로 우회 시도까지 갔었으나, "내 컴퓨터에 원격 코드 실행 권한을 주는 게 맞나" 재고 후 전부 철회(러너 등록 해제, 로컬 파일 삭제) — 재시도 전 명시적 승인 필요로 남겨둠 | — |
+| 8 | (#7 해결) 위 문제를 patch-package로 헤더 우회하려다, 먼저 리서치해보니 GitHub이 2026-02-26에 GA로 푼 **`macos-26`** 호스티드 이미지에 이미 Xcode 26.4.1/26.5/26.6이 설치돼있음을 발견(`macos-15` 이미지 문서만 보고 "26.4 ETA 불명"이라 결론 냈던 게 리서치 공백이었음) | `runs-on: macos-15` → `macos-26`, "Select latest Xcode"를 "26.4.x를 명시적으로 찾아 선택"(없으면 fail)으로 교체 — 그 이미지의 기본 latest(26.6)는 로컬에서 검증 안 된 버전이라 그대로 믿지 않음. **결과: `RuntimeScheduler` 컴파일 지점을 통과, 몇 달간 막혔던 관문 돌파** | `cab3cd2` |
+| 9 | #8 배포 직후, 완전히 다른 데서 실패: `error: sentry-cli - ... An organization ID or slug is required (provide with --org)` — iOS는 `xcodebuild archive` 중 "Bundle React Native code and images" 스텝에서, Android는 `:app:createBundleReleaseJsAndAssets_SentryUpload...` Gradle 태스크에서 **똑같은 에러**로 실패 | `@sentry/react-native`가 심어둔 빌드 스크립트가 Sentry org/auth token 없이 소스맵·디버그심볼을 업로드하려다 실패. 로컬 `expo run:ios`는 이미 `SENTRY_DISABLE_AUTO_UPLOAD=true`로 이걸 피해가고 있었는데, CI(`release.yml`)엔 이 env var가 아예 없었음 | 두 job env에 `SENTRY_DISABLE_AUTO_UPLOAD: "true"` 추가 | iOS `2e818ae`, Android `87482e5` |
+| 10 | (기능 추가, 실패 아님) Sentry DSN이 없어서 크래시 리포팅이 그동안 완전히 비활성 상태였음 | — | Sentry 프로젝트 생성(org `ikerstory`, project `storia-client`, React Native 플랫폼) → DSN을 `EXPO_PUBLIC_SENTRY_DSN` GitHub Secret으로 등록 → 두 job env에 주입. 소스맵 자동 업로드(auth token 필요)는 아직 안 함 — `SENTRY_DISABLE_AUTO_UPLOAD`는 유지, 크래시 이벤트 자체는 이제 수신됨 | `e4159c1` |
 
-**패턴**: 파이프라인은 한 관문씩 뚫린다 — 브랜치 → bundler → pod install → Xcode → 실제 컴파일/서명. 각 실패는 다음 관문을 드러낸다. **교훈 1**: 러너에 여러 Xcode가 같이 있을 때 실패를 "버전을 낮춰서" 피하고 싶어지지만, 다른 의존성이 그 신형 버전을 실제로 요구하는 경우(`swift-tools-version` 등)가 있으니 버전을 좁히기 전에 왜 최신이 필요한지부터 확인할 것 — 여기선 되돌아가는 삽질 한 번(#5→#6)을 했음. **교훈 2**: gym의 실시간 요약은 다줄짜리 `xcodebuild` 에러 메시지를 반복적으로 잘라먹으므로, 서명/컴파일 실패를 디버깅할 땐 애초에 gym 원본 로그를 아티팩트로 남기고 시작할 것 — fastlane 요약만 보고 추측하지 말 것.
+**결과 (2026-09-11)**: `platform: ios` workflow_dispatch 그린 — `Storia.ipa` 아티팩트 생성 + TestFlight에 빌드 1.0.0 (18) "처리 중"으로 업로드 성공. **iOS 릴리스 파이프라인 첫 완주.**
+
+**패턴**: 파이프라인은 한 관문씩 뚫린다 — 브랜치 → bundler → pod install → Xcode → 실제 컴파일/서명 → (이번엔) Sentry 빌드 스크립트. 각 실패는 다음 관문을 드러낸다. **교훈 1**: 러너에 여러 Xcode가 같이 있을 때 실패를 "버전을 낮춰서" 피하고 싶어지지만, 다른 의존성이 그 신형 버전을 실제로 요구하는 경우(`swift-tools-version` 등)가 있으니 버전을 좁히기 전에 왜 최신이 필요한지부터 확인할 것 — 여기선 되돌아가는 삽질 한 번(#5→#6)을 했음. **교훈 2**: gym의 실시간 요약은 다줄짜리 `xcodebuild` 에러 메시지를 반복적으로 잘라먹으므로, 서명/컴파일 실패를 디버깅할 땐 애초에 gym 원본 로그를 아티팩트로 남기고 시작할 것 — fastlane 요약만 보고 추측하지 말 것. **교훈 3**: "호스티드 러너 중엔 필요한 버전이 없다"는 결론은 확인한 러너 이미지 하나(`macos-15`)에만 해당하는 얘기일 수 있다 — GitHub은 macOS 메이저 버전마다 별도 이미지(`macos-26` 등)를 내는데, 오래된 이미지만 보고 "전체 호스티드 환경에 없다"로 성급히 일반화하면 self-hosted 같은 훨씬 무거운 우회로를 괜히 먼저 시도하게 된다 — 다른 이미지 라인업부터 확인할 것. **교훈 4**: 로컬 개발 환경에서만 필요했던 env var(`SENTRY_DISABLE_AUTO_UPLOAD` 등)는 CI가 로컬과 다른 셸 환경이라는 이유만으로 누락되기 쉽다 — 새 외부 SDK를 도입할 때 로컬용 `.env`/실행 커맨드에 넣은 값은 CI 워크플로에도 대응 항목이 있는지 항상 같이 체크할 것.
 
 ---
 
