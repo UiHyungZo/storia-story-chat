@@ -191,6 +191,10 @@ jobs:
       PLAY_JSON_KEY_FILE: ${{ github.workspace }}/apps/client/fastlane/play-service-account.json
       BUILD_NUMBER: ${{ github.run_number }}
       BUNDLER_VERSION: "2.5.23"
+      # Same reason as the iOS job: no Sentry project/DSN yet, so the RN
+      # Sentry Gradle plugin's bundle task would otherwise fail with
+      # "An organization ID or slug is required".
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
     steps:
       - uses: actions/checkout@v4
 
