@@ -30,6 +30,7 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 - [ ] **(7주차)** iOS Release Build → TestFlight 내부 테스트 / Android Release AAB → Google Play 내부 테스트 — 파이프라인(`release.yml`)은 완성됨, 위 "1회성 셋업" + Secrets 입력만 하면 실행 가능. Apple Developer / Google Play Console 유료 계정은 **준비 완료(2026-09-02)**.
 - [ ] Android 실기기 USB 재시도(다른 케이블) — 소프트웨어 쪽은 2026-08-25에 다 시도, 케이블/포트 마모 추정
 - [ ] 자잘: 메시지 전송/로드 실패 배너 "다시 시도" 탭 동작(탭 자동화 필요), 에뮬레이터-백엔드 동시 종료 버그 pfctl 검증
+- [ ] **(2026-09-11 발견, 우선순위 낮음)** 메시지 히스토리 로드에 페이지네이션이 없음 — `GET /api/conversations/{characterId}/messages`(`ConversationController`)가 `Pageable`/`limit` 없이 캐릭터당 전체 대화 히스토리를 매번 통째로 반환하고, 클라이언트(`useConversationStore.loadMessages`)도 ChatRoom 진입마다 무조건 이 전체 목록을 다시 fetch함(로컬 AsyncStorage 캐시는 화면을 먼저 채우는 용도일 뿐, fetch 자체를 생략하진 않음). 조건부 요청(`ETag`/`If-Modified-Since`)이나 delta 동기화도 없음. 메시지 수가 적은 지금은 체감 문제 없지만, 대화가 오래 쌓이면 방 진입마다 payload/DB 부하가 계속 커짐 — 나중에 여유 있을 때 커서 기반 페이지네이션(`limit`+`before-id`, 최신 N개 우선 로드 + 위로 스크롤 시 추가 로드) 검토.
 
 ## 1주차 — 마무리 갭
 
