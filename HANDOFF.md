@@ -4,6 +4,12 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-09-13 세션 후반) 실기기 검증 시도 — `RoomEvent.Disconnected`/`VoiceTurnRegistry` 스윕 코드는 커밋 완료(`578a5c3`), 실기기 확인은 앱 미실행 문제로 막힘. 다음 세션 첫 할 일.**
+  - 로컬 스택 기동(Docker MariaDB, 백엔드, ngrok) → `expo run:ios --device "Iker iPhone"`. **1차 시도 실패**: `xcodebuild: error: ... The developer disk image could not be mounted` — `xcrun xctrace list devices`엔 "Devices Offline"으로 표시돼 있었음. 원인은 **폰이 슬립 상태였던 것**(사용자 확인) — 화면 깨우니 즉시 "Online"으로 전환.
+  - **2차 재시도: 빌드 성공**(`Build Succeeded`, 39 warnings/0 errors), `devicectl device info apps`로 `com.storia.client` 1.0.0 설치 확인까지 됨. **그런데 실제로 폰 화면에 앱이 뜨지 않음** — `expo run:ios`가 설치 후 자동 실행(launch) 단계 자체를 건너뛴 것으로 보여 수동으로 `xcrun devicectl device process launch --device <id> com.storia.client` 실행 → CLI는 `Launched application with com.storia.client bundle identifier`로 성공 응답을 주지만, 직후 `xcrun devicectl device info processes`에 `storia`/`Storia` 프로세스가 전혀 안 잡힘(즉시 크래시했거나 애초에 스폰이 안 된 것으로 추정). `lockState` 확인 결과 화면 잠금 상태는 아니었음(`passcodeRequired: false`, `unlockedSinceBoot: true`).
+  - **미해결 — 다음 세션 첫 할 일**: 아이폰에서 설정 → 일반 → **VPN 및 기기 관리**에 들어가 개발자 프로파일이 "신뢰" 대기 상태인지 확인(신뢰 안 된 상태면 조용히 실행이 막힐 수 있음). 그래도 안 되면 Xcode 직접 열어서(`ios/Storia.xcworkspace`) Xcode의 실행 버튼으로 시도 → Xcode가 실제 크래시 로그/에러 팝업을 보여줄 것. 사용자가 급하게 자리를 비워야 해서 이 지점에서 세션 중단, 진단 미완료.
+  - **세션 종료 시점 로컬 스택 전부 정리함**: 백엔드(8080)/Metro(8081)/expo run:ios 프로세스/ngrok kill, `docker compose down`(MariaDB 컨테이너+네트워크 제거). 다음 세션 재기동은 아래 "로컬 스택 재기동" 절차 그대로.
+
 - **(2026-09-12) 스토어 관문 설문 3종(Play Data Safety, Apple App Privacy, Export Compliance) 전부 완료 — 7주차 종료.**
   - **Android 옵트인 링크 재확인 완료** — 전날 "항목을 찾을 수 없습니다"였던 전파 지연 문제 해소, 실제 폰 설치 확인.
   - **Play Data Safety + 앱 콘텐츠 필수 선언**: Play Console UI가 개편돼서 메뉴 위치가 "정책 및 프로그램"에서 **"모니터링 및 개선 → 정책 및 프로그램 → 앱 콘텐츠"**로 이동함(`docs/deployment.md` 갱신 필요). 데이터 보안(기기ID/대화내용/음성오디오(일시적 처리 체크)/FCM토큰/진단정보, 계정 생성 방식은 "허용하지 않음", 전송 중 암호화는 백엔드가 LAN 평문 HTTP라 정직하게 "아니오"), 콘텐츠 등급(IARC, 전체이용가 4+), 타겟층 및 콘텐츠, 광고 ID(미사용)/정부 앱(아니오)/금융 기능(없음)/건강 앱(없음), 개인정보처리방침 URL(Notion) 등록까지 전부 게시 완료(대시보드 "앱 설정 완료" 9/11 체크). **포그라운드 서비스 권한(`FOREGROUND_SERVICE_MEDIA_PLAYBACK`) 선언은 의도적으로 보류** — 데모 영상(백그라운드 전환 시 오디오 유지되는 화면 녹화 → 유튜브 일부공개 업로드) 제출이 필수인데, 이건 프로덕션 심사 때만 걸리는 항목이라 내부 테스트만 목표인 지금은 불필요. 나중에 정식 출시하게 되면 그때 처리.
