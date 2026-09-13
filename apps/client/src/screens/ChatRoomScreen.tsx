@@ -1,9 +1,9 @@
 import { useHeaderHeight } from "@react-navigation/elements";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { FlashList } from "@shopify/flash-list";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -62,17 +62,14 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   }, [characterId, loadMessages, disconnect, endCall]);
 
   const displayMessages = useMemo(() => {
-    const reversed = [...messages].reverse();
-    if (streamingContent) {
-      const placeholder: Message = {
-        id: STREAMING_PLACEHOLDER_ID,
-        role: "assistant",
-        content: streamingContent,
-        createdAt: new Date().toISOString(),
-      };
-      reversed.unshift(placeholder);
-    }
-    return reversed;
+    if (!streamingContent) return messages;
+    const placeholder: Message = {
+      id: STREAMING_PLACEHOLDER_ID,
+      role: "assistant",
+      content: streamingContent,
+      createdAt: new Date().toISOString(),
+    };
+    return [...messages, placeholder];
   }, [messages, streamingContent]);
 
   const handleSend = async (retryContent?: string) => {
@@ -120,12 +117,12 @@ export function ChatRoomScreen({ route, navigation }: Props) {
             <Text style={styles.statusText}>답변을 생각하는 중이에요… (캐릭터에 따라 20~40초 정도 걸릴 수 있어요)</Text>
           </View>
         )}
-        <FlatList
+        <FlashList
           style={styles.flex}
           data={displayMessages}
           keyExtractor={(item) => item.id.toString()}
-          inverted
           renderItem={({ item }) => <MessageBubble message={item} />}
+          maintainVisibleContentPosition={{ startRenderingFromBottom: true }}
         />
         {sendError && (
           <Pressable style={styles.sendErrorBanner} onPress={() => handleSend(sendError.content)}>

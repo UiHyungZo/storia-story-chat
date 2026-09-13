@@ -38,6 +38,10 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 - [ ] Android 실기기 USB 재시도(다른 케이블) — 소프트웨어 쪽은 2026-08-25에 다 시도, 케이블/포트 마모 추정
 - [ ] 자잘: 메시지 전송/로드 실패 배너 "다시 시도" 탭 동작(탭 자동화 필요), 에뮬레이터-백엔드 동시 종료 버그 pfctl 검증
 - [ ] **(2026-09-11 발견, 우선순위 낮음)** 메시지 히스토리 로드에 페이지네이션이 없음 — `GET /api/conversations/{characterId}/messages`(`ConversationController`)가 `Pageable`/`limit` 없이 캐릭터당 전체 대화 히스토리를 매번 통째로 반환하고, 클라이언트(`useConversationStore.loadMessages`)도 ChatRoom 진입마다 무조건 이 전체 목록을 다시 fetch함(로컬 AsyncStorage 캐시는 화면을 먼저 채우는 용도일 뿐, fetch 자체를 생략하진 않음). 조건부 요청(`ETag`/`If-Modified-Since`)이나 delta 동기화도 없음. 메시지 수가 적은 지금은 체감 문제 없지만, 대화가 오래 쌓이면 방 진입마다 payload/DB 부하가 계속 커짐 — 나중에 여유 있을 때 커서 기반 페이지네이션(`limit`+`before-id`, 최신 N개 우선 로드 + 위로 스크롤 시 추가 로드) 검토.
+- [x] **(2026-09-13) 채팅 메시지 리스트 성능 실측 — `FlatList` → `@shopify/flash-list`(v2) 교체.** 포트폴리오용 "before/after 측정치 있는 성능 개선" 사례를 만들기 위해 진행. 로컬 DB에 더미 메시지 1000개를 심은 테스트 대화방(캐릭터 "노아", 측정 후 삭제함)을 실기기(iPhone)에서 열어 RN 내장 Perf Monitor로 스크롤 중 UI/JS FPS + RAM을 전/후 각각 측정(2회 반복으로 재현성 확인).
+  - **결과**: UI FPS는 양쪽 다 60 고정. JS FPS 평균은 45→42로 큰 차이 없지만, **최저치는 34→6~8로 오히려 더 나빠짐**(빠르고 긴 플링 스크롤 때 순간적으로 크게 끊김 — 2회 다 재현됨, `maintainVisibleContentPosition`이 큰 스크롤 점프에서 위치를 재계산하는 비용으로 추정되나 근본 원인은 미검증). 반면 **스크롤 중 RAM 증가폭은 85MB→33~34MB로 확실히 개선**(셀 재활용 확인).
+  - **FlashList v2는 `inverted` prop을 지원 안 함**(v2에서 제거됨) — `ChatRoomScreen.tsx`를 `maintainVisibleContentPosition={{ startRenderingFromBottom: true }}` 방식으로 전환. `displayMessages`(`useMemo`)도 기존 "최신순으로 뒤집기"에서 "시간순 그대로 두고 스트리밍 placeholder는 배열 끝에 append"로 변경. `tsc --noEmit` + 테스트 34개 통과.
+  - **결론은 일부러 트레이드오프 그대로 기록** — 메모리는 개선, JS FPS 최저치는 악화. 원인 심화 분석/완화(예: fling 속도 제한, `estimatedItemSize` 힌트)는 보류(우선순위 낮음).
 
 ## 1주차 — 마무리 갭
 

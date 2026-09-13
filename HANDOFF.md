@@ -4,6 +4,12 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-09-13, 별도 세션) 채팅 메시지 리스트 성능 실측 — `FlatList` → `@shopify/flash-list`(v2) 교체 완료.** 포트폴리오/이력서용 "before/after 측정치 있는 성능 개선" 사례 필요해서 진행(`TODO.md` 참고).
+  - **측정 방법**: 로컬 MariaDB에 SQL로 더미 메시지 1000개를 새 테스트 대화방(user 11 = 실기기 deviceId, character 3 "노아")에 직접 심음(API 호출 없이 — Gemini 등 비용 발생 없음). 실기기(iPhone)에서 그 방을 열고 RN 내장 Perf Monitor(개발자 메뉴 → Toggle Performance Monitor)로 빠른 스크롤 중 UI/JS FPS + RAM을 화면 녹화 → `ffmpeg`로 0.5초 간격 프레임을 뽑아 격자 이미지(contact sheet)로 만들어 판독. FlatList/FlashList 각각 측정, FlashList는 재현성 확인차 2회 반복.
+  - **결과**: UI FPS는 양쪽 다 60 고정. **JS FPS 평균은 45→42로 비슷하지만 최저치는 34→6~8로 더 나빠짐**(빠르고 긴 플링 스크롤 순간 크게 끊김, 2회 다 재현 — `maintainVisibleContentPosition`의 큰 점프 시 위치 재계산 비용으로 추정, 근본 원인 미검증). **스크롤 중 RAM 증가폭은 85MB→33~34MB로 확실히 개선**(셀 재활용 확인, 2회 다 거의 동일한 수치로 재현됨).
+  - **FlashList v2는 `inverted` prop이 없음**(v2에서 제거됨). `ChatRoomScreen.tsx`를 `maintainVisibleContentPosition={{ startRenderingFromBottom: true }}`로 전환하고, `displayMessages`도 "최신순으로 뒤집기"→"시간순 유지 + 스트리밍 placeholder를 배열 끝에 append"로 바꿈. 네이티브 코드 포함 패키지라 `expo run:ios --device`로 재빌드 필요했음(정상 빌드/설치 확인).
+  - **결론은 트레이드오프 그대로 기록** — 메모리는 개선, JS FPS 최저치는 악화. 원인 심화 분석/완화(fling 속도 제한, `estimatedItemSize` 힌트 등)는 보류. 측정용 더미 대화방/메시지는 SQL로 정리(삭제) 완료 — DB에 남은 테스트 흔적 없음.
+
 - **(2026-09-13 세션 후반 이어서, 별도 세션) 실기기 미실행 문제 해결 완료 + `RoomEvent.Disconnected` 실기기 검증까지 완료.**
   - **원인은 신뢰/프로파일 문제가 아니었음.** `xcrun devicectl device info files --domain-type systemCrashLogs`로 기기에서 직접 크래시 로그를 pull(`devicectl device copy from ... --domain-type systemCrashLogs`)해서 확인 — dyld 심볼 누락 크래시였음: `Symbol not found: _$s14ExpoModulesJSI15JavaScriptActorC14assumeIsolatedyxxyYbKACYcXEKRi_zlFZ`, `ExpoModulesCore.framework`가 참조하는데 `ExpoModulesJSI.framework`엔 없음.
   - DerivedData(`~/Library/Developer/Xcode/DerivedData/Storia-*`) + `ios/` 전부 삭제 후 클린 재빌드 → **동일 크래시 재현(바이너리 UUID 완전히 동일)** — 캐시 스테일 문제가 아니라 진짜 패키지 버전 불일치였다는 뜻.
