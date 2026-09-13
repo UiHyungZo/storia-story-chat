@@ -18,7 +18,8 @@
         "UIBackgroundModes": ["remote-notification"],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
