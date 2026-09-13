@@ -137,8 +137,8 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 - **(2026-09-13 완료) 에러 시나리오 검증**(LiveKit room 연결 후 끊김/턴 타임아웃/`/egress/audio` 프록시 WSS 업그레이드) — lk-cli 헤드리스 + 로컬 nginx reverse proxy로 재현. 결과 요약(상세는 `TODO.md` 7주차 항목):
   - WSS 리버스 프록시 업그레이드 정상 동작 확인(nginx 액세스 로그 `101 Switching Protocols`).
   - 하드킬(비정상 종료)도 LiveKit이 이탈을 감지해 egress를 스스로 정리 → 턴이 `done`으로 정상 완료(서버가 멈추지 않음).
-  - **신규 발견(실제 버그, 미수정)**: egress가 아예 연결 안 되면(`startTrackEgress` API 자체는 성공 응답) `VoiceTurnRegistry`에 타임아웃/스윕이 없어 턴이 `recording`으로 서버에 영원히 남음(2분 재현 확인) — 메모리 누수. 클라이언트는 75초 폴링 타임아웃으로 알아서 에러 처리하니 UX엔 문제없음.
-  - **미검증(실기기 필요)**: `useVoiceCallStore`에 `RoomEvent.Disconnected` 핸들러가 없음(코드 리뷰로 발견) — 통화 중 room이 갑자기 끊기면 화면이 이전 phase에 멈춰있을 수 있음. 다음 실기기 세션에서 확인 권장.
+  - **신규 발견 → 수정 완료(2026-09-13)**: egress가 아예 연결 안 되면(`startTrackEgress` API 자체는 성공 응답) `VoiceTurnRegistry`에 타임아웃/스윕이 없어 턴이 `recording`으로 서버에 영원히 남던 메모리 누수 — `VoiceTurnRegistry.sweepStaleSessions()`(1분마다, 5분 초과 시 `fail()` 처리 + 제거)로 수정, `./gradlew test` 18개 그대로 통과.
+  - **코드 리뷰로 발견 → 수정 완료(2026-09-13, 실기기 검증만 남음)**: `useVoiceCallStore`에 `RoomEvent.Disconnected` 핸들러가 없어 통화 중 room이 갑자기 끊기면 화면이 이전 phase에 멈춰있던 버그 — `Room` 인스턴스를 캡처해 낡은 이벤트를 가드하고, 실제 드롭이면 `phase: "error"`로 전환하도록 수정. `tsc --noEmit`/`npm test`(34개) 통과. 실기기로 통화 중 네트워크를 끊어 UI 전이를 직접 보는 것만 다음 세션 과제로 남음.
 - 배포 시크릿에 `LIVEKIT_*`/`STT_API_KEY`/`TTS_API_KEY` 추가 (실제 클라우드 배포 시).
 - **Maestro E2E 1개** — "앱 실행→캐릭터 선택→메시지 전송→응답" 스모크. 시뮬레이터 필요해 배포 실기기 검증과 묶어서 진행.
 - 이미 완료: Sentry 연동(클라+백엔드, DSN만 없음), GitHub Actions CI + release.yml, 백엔드 Dockerfile, 테스트(백엔드 18 / 클라 단위 17 + UI 17), `GlobalExceptionHandler`.

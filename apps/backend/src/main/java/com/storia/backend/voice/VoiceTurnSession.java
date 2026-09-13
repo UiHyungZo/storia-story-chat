@@ -1,6 +1,7 @@
 package com.storia.backend.voice;
 
 import java.io.ByteArrayOutputStream;
+import java.time.Instant;
 import lombok.Getter;
 
 /** One turn of a voice call: accumulates egressed audio, then holds the processing result. */
@@ -16,6 +17,8 @@ public class VoiceTurnSession {
     private final String deviceId;
     @Getter
     private final Long characterId;
+    @Getter
+    private final Instant createdAt = Instant.now();
     private final ByteArrayOutputStream audio = new ByteArrayOutputStream();
 
     @Getter
@@ -51,5 +54,9 @@ public class VoiceTurnSession {
     public void fail(String errorMessage) {
         this.errorMessage = errorMessage;
         this.status = Status.ERROR;
+    }
+
+    public boolean isTerminal() {
+        return status == Status.DONE || status == Status.ERROR;
     }
 }

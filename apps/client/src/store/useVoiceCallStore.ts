@@ -101,6 +101,24 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     }
   }
 
+  function handleRoomDisconnected(): void {
+    // A network drop or server-initiated disconnect leaves the room dead but the
+    // store previously had no listener for this, so `phase` stayed frozen at
+    // whatever it was (listening/thinking/speaking) with no way out but force-
+    // quitting the app. Surface it as an error instead, same as a poll timeout.
+    stopAndReleasePlayer();
+    room = null;
+    roomName = null;
+    currentTurnId = null;
+    micPublication = null;
+    AudioSession.stopAudioSession().catch(() => {});
+    set((state) =>
+      state.isCallActive
+        ? { phase: "error", errorMessage: "연결이 끊어졌어요.", mode: "turn", agentSpeaking: false }
+        : state,
+    );
+  }
+
   async function playAssistantAudio(messageId: number): Promise<void> {
     const available = await isMessageAudioAvailable(messageId);
     if (!available) {
@@ -183,7 +201,8 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
       try {
         const tokenResponse = await requestCallToken(characterId);
         roomName = tokenResponse.roomName;
-        room = new Room();
+        const activeRoom = new Room();
+        room = activeRoom;
         // A LiveKit Agents worker (apps/python-sidecar), if running, auto-dispatches
         // into this room as a hidden participant — detect it and switch to agent mode.
         room.on(RoomEvent.ParticipantConnected, handleParticipant);
@@ -197,6 +216,12 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
           if (get().agentSpeaking !== talking) set({ agentSpeaking: talking });
         });
         room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
+        room.on(RoomEvent.Disconnected, () => {
+          // Guard against a stale event from a room this store already tore down
+          // (e.g. endCall()'s own room.disconnect() firing after a new call started).
+          if (room !== activeRoom) return;
+          handleRoomDisconnected();
+        });
         await room.connect(tokenResponse.url, tokenResponse.token);
         room.remoteParticipants.forEach(handleParticipant);
       } catch (error) {
