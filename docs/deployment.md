@@ -92,7 +92,11 @@ Repo → Settings → Secrets and variables → Actions → *New repository secr
    **원본 keystore 를 안전하게 보관**(예: 비밀번호 관리자). Play App Signing 에 등록해두면 분실해도 업로드 키 재설정이 가능하지만, 등록 전 분실 시 앱 업데이트 불가.
 5. **Play Console**:
    - 앱 생성(패키지 `com.storia.client`), 내부 테스트 트랙 활성화, 내부 테스터 목록에 본인 이메일.
-   - Setup → **API access** → 서비스계정 생성 → JSON 키 다운로드 → 그 서비스계정에 "출시 관리자" 또는 최소 "출시" 권한 부여 → `base64 -i play-sa.json | pbcopy` → `PLAY_SERVICE_ACCOUNT_JSON_B64`.
+   - **서비스계정 생성/연결 (2026-09 기준 신규 UI)** — Play Console에 더 이상 별도 "API access" 페이지가 없다("설정"에도, 계정 "사용자 및 권한" 페이지에도 서비스계정 전용 섹션이 사라짐). 대신:
+     1. **Google Cloud Console** → IAM 및 관리자 → **서비스 계정** → 해당 GCP 프로젝트(Firebase 등과 같은 프로젝트 재사용 가능)에서 서비스계정 생성(예: `storia-play-upload`) → JSON 키 발급/다운로드.
+     2. 같은 GCP 프로젝트에서 **"Google Play Android Developer API"**(`androidpublisher.googleapis.com`)를 API 및 서비스 → 라이브러리에서 **활성화**. (이 단계를 빠뜨리면 서비스계정 권한이 멀쩡해도 업로드 시 `PERMISSION_DENIED: ... API has not been used in project ... or it is disabled` 로 실패한다.)
+     3. **Play Console → "사용자 및 권한" → "신규 사용자 초대"**에서 그 서비스계정 이메일(`...@<project>.iam.gserviceaccount.com`)을 일반 사용자처럼 초대 → 앱(`com.storia.client`)에 권한 부여. **최소권한 원칙**: "관리자(모든 권한)" 대신 "출시" 카테고리의 **"앱을 테스트 트랙으로 출시"**만 부여(CI 시크릿 유출 시 피해 범위를 internal 트랙 출시로 한정). 서비스계정은 초대를 확인할 사람이 없으므로 보낸 즉시 활성화된다.
+     4. `base64 -i play-sa.json | pbcopy` → `PLAY_SERVICE_ACCOUNT_JSON_B64`.
    - **최초 1개 AAB 는 콘솔에서 수동 업로드**해야 트랙이 활성화된다(Play 정책). 이후부터 `fastlane` 자동 업로드.
 6. **`app.json` — TestFlight 전환 시**: `ios.entitlements.aps-environment` 를 `"production"` 으로. APNs `.p8` 인증 키는 dev/prod 공용이라 Firebase 재업로드 불필요.
 
