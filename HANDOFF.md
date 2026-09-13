@@ -4,11 +4,15 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
-- **(2026-09-13 세션 후반) 실기기 검증 시도 — `RoomEvent.Disconnected`/`VoiceTurnRegistry` 스윕 코드는 커밋 완료(`578a5c3`), 실기기 확인은 앱 미실행 문제로 막힘. 다음 세션 첫 할 일.**
-  - 로컬 스택 기동(Docker MariaDB, 백엔드, ngrok) → `expo run:ios --device "Iker iPhone"`. **1차 시도 실패**: `xcodebuild: error: ... The developer disk image could not be mounted` — `xcrun xctrace list devices`엔 "Devices Offline"으로 표시돼 있었음. 원인은 **폰이 슬립 상태였던 것**(사용자 확인) — 화면 깨우니 즉시 "Online"으로 전환.
-  - **2차 재시도: 빌드 성공**(`Build Succeeded`, 39 warnings/0 errors), `devicectl device info apps`로 `com.storia.client` 1.0.0 설치 확인까지 됨. **그런데 실제로 폰 화면에 앱이 뜨지 않음** — `expo run:ios`가 설치 후 자동 실행(launch) 단계 자체를 건너뛴 것으로 보여 수동으로 `xcrun devicectl device process launch --device <id> com.storia.client` 실행 → CLI는 `Launched application with com.storia.client bundle identifier`로 성공 응답을 주지만, 직후 `xcrun devicectl device info processes`에 `storia`/`Storia` 프로세스가 전혀 안 잡힘(즉시 크래시했거나 애초에 스폰이 안 된 것으로 추정). `lockState` 확인 결과 화면 잠금 상태는 아니었음(`passcodeRequired: false`, `unlockedSinceBoot: true`).
-  - **미해결 — 다음 세션 첫 할 일**: 아이폰에서 설정 → 일반 → **VPN 및 기기 관리**에 들어가 개발자 프로파일이 "신뢰" 대기 상태인지 확인(신뢰 안 된 상태면 조용히 실행이 막힐 수 있음). 그래도 안 되면 Xcode 직접 열어서(`ios/Storia.xcworkspace`) Xcode의 실행 버튼으로 시도 → Xcode가 실제 크래시 로그/에러 팝업을 보여줄 것. 사용자가 급하게 자리를 비워야 해서 이 지점에서 세션 중단, 진단 미완료.
-  - **세션 종료 시점 로컬 스택 전부 정리함**: 백엔드(8080)/Metro(8081)/expo run:ios 프로세스/ngrok kill, `docker compose down`(MariaDB 컨테이너+네트워크 제거). 다음 세션 재기동은 아래 "로컬 스택 재기동" 절차 그대로.
+- **(2026-09-13 세션 후반 이어서, 별도 세션) 실기기 미실행 문제 해결 완료 + `RoomEvent.Disconnected` 실기기 검증까지 완료.**
+  - **원인은 신뢰/프로파일 문제가 아니었음.** `xcrun devicectl device info files --domain-type systemCrashLogs`로 기기에서 직접 크래시 로그를 pull(`devicectl device copy from ... --domain-type systemCrashLogs`)해서 확인 — dyld 심볼 누락 크래시였음: `Symbol not found: _$s14ExpoModulesJSI15JavaScriptActorC14assumeIsolatedyxxyYbKACYcXEKRi_zlFZ`, `ExpoModulesCore.framework`가 참조하는데 `ExpoModulesJSI.framework`엔 없음.
+  - DerivedData(`~/Library/Developer/Xcode/DerivedData/Storia-*`) + `ios/` 전부 삭제 후 클린 재빌드 → **동일 크래시 재현(바이너리 UUID 완전히 동일)** — 캐시 스테일 문제가 아니라 진짜 패키지 버전 불일치였다는 뜻.
+  - `npx expo install --check`로 확인해보니 Expo SDK 자체가 낙후: `expo` 57.0.14(권장 ~57.0.22), `expo-audio`/`expo-dev-client`/`react-native`/`jest-expo`도 전부 구버전. `npx expo install --fix` 실행 → `expo`/`expo-audio`/`expo-dev-client`/`react-native`는 자동 반영됐지만 `jest-expo`는 `@react-native/jest-preset` peer 충돌(`react-native 0.86.3` vs `jest-expo 57.0.4`가 요구하는 `0.86.2`)로 설치가 중간에 실패 — `jest-expo`를 `~57.0.5`로 수동 수정 후 `npm install --legacy-peer-deps`로 완료. 결과적으로 `expo-modules-core`(57.0.18)/`expo-modules-jsi`(57.1.0)가 같이 올라가면서 심볼 불일치 해소.
+  - 클린 재빌드 후 실기기(`Iker iPhone`)에서 **정상 실행 확인**(`devicectl device info processes`에 `Storia` 프로세스로 확인).
+  - 참고: 백그라운드로 돌린 `expo run:ios --device`를 `| tail -100`으로 파이프하면 **`tail`이 EOF까지 아무것도 출력 안 함** — 진행 상황을 실시간으로 못 봐서 "멈춘 줄" 착각하고 불필요하게 진단(devicectl 수동 호출들이 오히려 기기 tunnel 연결과 경합)했음. 다음엔 로그를 파일로 직접 리다이렉트(`> file.log 2>&1 &`)해서 실시간으로 볼 것.
+  - **이어서 `RoomEvent.Disconnected` 처리(커밋 `578a5c3`) 실기기 검증도 완료**: 정상 통화 시작 → "듣고 있어요..." 진입 확인 → 비행기 모드 On → 화면 안 얼어붙고 "연결이 끊어졌어요."로 정확히 전환, 마이크 버튼도 복구됨. (주의: "통화" 버튼 누르자마자 비행기 모드 켜는 건 `startCall`의 토큰 요청 자체가 실패하는 **다른** 경로라 이 픽스와 무관 — 반드시 정상 연결 후 "듣고 있어요" 상태에서 끊어야 함.)
+  - **`VoiceTurnRegistry` 스윕은 미검증으로 남음** — egress 목적지 연결 실패를 인위적으로 만들어야 재현되고 스윕 주기도 5분이라 보류(우선순위 낮음, `TODO.md` 참고).
+  - **세션 종료 시점 로컬 스택**: Docker/백엔드/ngrok 켜둔 상태로 세션 종료 — 다음 세션 시작 시 그대로 이어서 쓸 수 있는지 먼저 확인.
 
 - **(2026-09-12) 스토어 관문 설문 3종(Play Data Safety, Apple App Privacy, Export Compliance) 전부 완료 — 7주차 종료.**
   - **Android 옵트인 링크 재확인 완료** — 전날 "항목을 찾을 수 없습니다"였던 전파 지연 문제 해소, 실제 폰 설치 확인.
