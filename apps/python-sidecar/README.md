@@ -68,9 +68,13 @@ python agent.py start          # 워커(automatic dispatch). 개발 중엔 `dev`
   페르소나 그대로 옴(= system prompt / Gemini / 영속화 / FCM 로직 중복 없음).
 - ✅ **TTS 되쏘기** — 에이전트가 응답 텍스트를 합성해 room에 오디오 트랙으로 publish,
   구독자(테스트 클라이언트)가 실제 오디오 프레임 수신.
-- ⚠️ **에이전트 음성의 깨끗한 재생 확인은 미완** — 합성 파이썬 테스트 클라이언트
-  (`rtc.AudioStream` 구독+리샘플)로 캡처한 오디오는 리샘플 아티팩트로 역-전사가 안 됨.
-  축소판 A안의 RN 클라이언트 재생 검증과 동일하게 **실제 RN 앱으로 확인 필요**.
+- ✅ **(2026-08-31 실기기 검증, 커밋 `3b0e76e`)** 연결된 iPhone으로 실제 왕복 확인 — agent
+  자동 감지 → 마이크 자동 흐름 → 실시간 STT(한국어 여러 턴) → Spring 위임(DB 저장) →
+  **Chirp3-HD TTS → 스피커로 깨끗한 한국어 음성** 재생까지 확인(풀 듀플렉스).
+- ✅ **(2026-09-01 재확인 — 5주차 종료)** Gemini 할당량 리셋 후 재검증: 진짜 렌
+  페르소나 응답(폴백 아님)이 음성으로 재생되는 도중 유저가 끼어들며(`interruption
+  detected`) 연속 대화까지 확인. 상세는 `TODO.md` 5주차 "완전한 A안", `HANDOFF.md`
+  2026-09-01 항목.
 
 **1.7.x에서 새로 맞춰야 했던 3가지 (agent.py 반영):**
 
@@ -80,16 +84,19 @@ python agent.py start          # 워커(automatic dispatch). 개발 중엔 `dev`
    (`StoriaLLM`/`StoriaLLMStream`)으로 넣고 `AgentSession(llm=StoriaLLM(...))`로 전달.
 2. **워커 헬스체크 HTTP 포트 8081이 Metro(apps/client)와 충돌** →
    `WorkerOptions(port=8083)`.
-3. **Google Cloud TTS 스트리밍은 Chirp 3 HD 보이스만 지원** (`ko-KR-Standard-*`는
-   `INVALID_ARGUMENT: only Chirp 3: HD voices ... for streaming synthesis`) →
-   `google.TTS(voice_name="ko-KR-Standard-A", use_streaming=False)`로 배치 합성 사용
-   (백엔드 `TtsService`와 같은 보이스 계열).
+3. **`google.TTS`는 클래식 Cloud TTS가 아니라 Gemini/Chirp 플러그인** — 백엔드
+   `TtsService`가 쓰는 `ko-KR-Standard-*` 보이스는 여기선 무효해서 에러 없이
+   `gemini-2.5-flash-tts`로 조용히 라우팅되고("Agent Platform API" 미활성화 상태)
+   클라이언트에는 static 노이즈만 들렸음. 실시간급인 Chirp 3 HD 보이스로 바꾸자
+   이번엔 기본 스트리밍 경로와 기본 PCM 인코딩 둘 다 400을 반환해 →
+   `google.TTS(voice_name="ko-KR-Chirp3-HD-Charon", audio_encoding=LINEAR16,
+   sample_rate=48000, use_streaming=False)`(배치 + LINEAR16 + LiveKit 기본
+   샘플레이트)로 우회.
 
 ## 다음에 확인할 것
 
-- 실제 RN 앱(`useVoiceCallStore` — 이미 `CanSubscribe(true)` 토큰을 받으므로 에이전트
-  오디오 구독 가능)으로 에이전트 음성이 실제로 들리는지, 축소판 경로와의 전환/공존.
-- `use_streaming=False` 배치 TTS의 긴 응답 재생이 끝까지 나가는지(테스트 하네스에선
-  ~5초 분량만 캡처됨 — 하네스 한계인지 실제 truncation인지 실기기로 재확인).
+- `use_streaming=False` 배치 TTS의 긴 응답 재생이 끝까지 나가는지(초기 테스트
+  하네스에선 ~5초 분량만 캡처됐었음 — 실기기 검증에서는 문제 없었지만, 더 긴
+  응답으로도 재확인 필요).
 - 배포 파이프라인에 이 런타임(Python) 추가 방법(Docker 이미지, 프로세스 관리) —
-  TODO.md 7주차 항목.
+  TODO.md 7주차 항목. 현재는 로컬에서 `python agent.py dev`로 수동 실행.
