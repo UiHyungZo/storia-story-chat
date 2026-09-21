@@ -1,16 +1,18 @@
 # Storia
 
-AI 캐릭터와 텍스트/음성으로 대화하는 스토리 챗 앱. React Native(Expo) 클라이언트와 Spring Boot 백엔드로 구성된 풀스택 포트폴리오 프로젝트입니다.
+AI 캐릭터와 텍스트/음성으로 대화하는 스토리 챗 앱. React Native(Expo) 클라이언트 + Spring Boot 백엔드 + Next.js 운영 콘솔(+ LiveKit 기반 음성 통화 Python sidecar 에이전트 옵션 포함)로 구성된 풀스택 포트폴리오 프로젝트입니다.
 
-자세한 요구사항은 [`PRD/Storia_PRD_final.md`](./PRD/Storia_PRD_final.md)를 참고하세요 (v2/v3/v3_merged는 히스토리 스냅샷).
+자세한 요구사항은 [`PRD/Storia_PRD_final.md`](./PRD/Storia_PRD_final.md)를 참고하세요.
 
 ## 구조
 
 ```
 apps/
-├── client/     # React Native (Expo, TypeScript)
-└── backend/    # Spring Boot 4.0.7 (Java 17)
-docs/           # ERD, API 명세, 아키텍처 다이어그램
+├── client/         # React Native (Expo, TypeScript)
+├── backend/        # Spring Boot 4.0.7 (Java 17)
+├── admin/          # Next.js 15 운영 콘솔 (캐릭터 설정/대화 로그/음성 세션 관리, 로컬 전용)
+└── python-sidecar/ # LiveKit Agents 워커 — 완전한 A안 음성 (선택 실행)
+docs/                # ERD, API 명세, 아키텍처 다이어그램
 ```
 
 ## 문서
@@ -44,7 +46,7 @@ Gemini 응답을 받으려면 실행 전에 API 키를 환경변수로 설정하
 export GEMINI_API_KEY=your-api-key
 ```
 
-음성 통화(5주차)를 쓰려면 추가로 LiveKit Cloud 프로젝트 + Google Cloud STT/TTS 키가 필요합니다 (없으면 음성 통화는 503, 텍스트 채팅은 정상 동작):
+음성 통화(축소판 A안)를 쓰려면 추가로 LiveKit Cloud 프로젝트 + Google Cloud STT/TTS 키가 필요합니다 (없으면 음성 통화는 503, 텍스트 채팅은 정상 동작):
 
 ```bash
 export LIVEKIT_HOST=your-project.livekit.cloud   # scheme(wss://) 없이
@@ -59,6 +61,12 @@ FCM 원격 푸시를 실제로 발송하려면 Firebase 서비스 계정 JSON이
 
 ```bash
 export FIREBASE_CREDENTIALS_PATH=/path/to/service-account.json
+```
+
+운영 콘솔(`apps/admin`)에 로그인하려면 비밀번호를 설정하세요 (비어있으면 `AdminAuthController`가 모든 로그인을 거부합니다):
+
+```bash
+export ADMIN_PASSWORD=your-admin-password
 ```
 
 Sentry(에러 모니터링)는 선택 사항입니다 (없으면 SDK가 조용히 비활성화됨):
@@ -76,7 +84,7 @@ cd apps/backend
 - WebSocket(STOMP): `ws://localhost:8080/ws`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-백엔드 테스트(H2 인메모리 DB 사용 — MariaDB 없어도 실행됨):
+백엔드 테스트(H2 인메모리 DB 사용 — MariaDB 없어도 실행됨, 12개 파일 · 38개 케이스):
 
 ```bash
 ./gradlew test
@@ -126,30 +134,49 @@ export EXPO_PUBLIC_SENTRY_DSN=your-sentry-dsn
 npm test
 ```
 
-CI는 push/PR마다 위 두 테스트 스위트를 각각 별도 job으로 돌립니다 (`.github/workflows/ci.yml`, 계정/시크릿 불필요). 릴리스는 별도 워크플로 `release.yml`(태그 트리거, Fastlane) — [배포 현황](#배포-현황) 참고.
+CI는 push/PR마다 위 두 테스트 스위트를 각각 별도 job으로 돌립니다 (`.github/workflows/ci.yml`, 계정/시크릿 불필요, apps/admin·apps/python-sidecar는 별도 CI 없음). 릴리스는 별도 워크플로 `release.yml`(태그 트리거, Fastlane) — [배포 현황](#배포-현황) 참고.
+
+### 4. 운영 콘솔 (`apps/admin`, 선택)
+
+캐릭터 설정/대화 로그/음성 세션을 브라우저에서 확인·관리하는 관리자용 Next.js 앱입니다. 백엔드가 위 2번 스텝으로 `ADMIN_PASSWORD`와 함께 떠 있어야 합니다.
+
+```bash
+cp apps/admin/.env.local.example apps/admin/.env.local   # ADMIN_BACKEND_URL=http://localhost:8080
+cd apps/admin
+npm install
+npm run dev
+```
+
+`http://localhost:3000`에서 위에서 설정한 `ADMIN_PASSWORD`로 로그인합니다. 로컬 전용이며 외부 배포는 하지 않습니다.
+
+### 5. Python 사이드카 (`apps/python-sidecar`, 선택 — 완전한 A안 음성)
+
+LiveKit Agents 기반으로 완전한 양방향 실시간 음성(TTS까지 WebRTC로 재생)을 구현하는 선택적 확장입니다. 실행하지 않아도 기존 축소판 A안 음성 통화는 그대로 동작합니다. Python 3.10~3.14와 별도 GCP 서비스 계정(`GOOGLE_APPLICATION_CREDENTIALS`)이 필요합니다 — 상세 셋업/실행 명령은 [`apps/python-sidecar/README.md`](./apps/python-sidecar/README.md) 참고.
 
 ## 구현 범위
 
-PRD v3 마일스톤(1~7주차) 코드는 전부 작성 완료했고, 로컬 환경(Docker/시뮬레이터/에뮬레이터)에서
-실제 실행 검증까지 상당 부분 진행했습니다. 최종 완성도와 미검증 항목은 [HANDOFF](./HANDOFF.md)에
-세션별로, 남은 작업은 [TODO](./TODO.md)에 주차별로 정리되어 있습니다.
+PRD 마일스톤(1~7주차) 코드는 전부 작성 완료했고, 로컬 환경(Docker/시뮬레이터/에뮬레이터/실기기)에서
+실제 실행 검증까지 진행했습니다. 최종 완성도와 미검증 항목은 [HANDOFF](./HANDOFF.md)에
+세션별로, 남은 작업은 [TODO](./TODO.md)에 정리되어 있습니다.
 
 - **텍스트 채팅**: REST + WebSocket(STOMP) 스트리밍, Gemini 연동, WS 재연결(지수 백오프), 로딩/오류/재시도 UI, AsyncStorage 로컬 캐시, MariaDB 히스토리 영속화
 - **Native Module**: iOS(Swift, `RCTBridgeModule`)/Android(Kotlin, `ReactContextBaseJavaModule`) 둘 다 Haptic + 포그라운드 로컬 알림 구현 (`apps/client/modules/storia-native`, `expo prebuild`로도 살아남는 로컬 모듈 구조)
 - **푸시 알림**: FCM 백엔드 연동 + 클라이언트 SDK 토큰 등록, 재참여(re-engagement) 스케줄러
-- **음성 통화**: 클라이언트↔LiveKit 구간은 실제 WebRTC, 서버는 Track Egress로 오디오만 받아 기존 배치 STT/Gemini/TTS 파이프라인에 흘려보내는 절충안("축소판 A안") — 왜 완전한 양방향 실시간 대신 이 구조를 택했는지는 [기술 블로그 초안](./docs/blog-webrtc-tradeoffs.md) 참고
-- **모니터링/테스트**: Sentry(클라이언트+백엔드), 자동화 테스트(백엔드 18 / 클라이언트 단위 17 + RNTL UI 17), GitHub Actions CI + Fastlane 릴리스 워크플로, 백엔드 Dockerfile, 전역 REST 예외 처리기
+- **음성 통화**: 클라이언트↔LiveKit 구간은 실제 WebRTC, 서버는 Track Egress로 오디오만 받아 기존 배치 STT/Gemini/TTS 파이프라인에 흘려보내는 절충안("축소판 A안") — 왜 이 구조를 택했는지는 [기술 블로그 초안](./docs/blog-webrtc-tradeoffs.md) 참고. 선택적 확장으로 `apps/python-sidecar`(LiveKit Agents)를 통한 완전한 양방향 실시간 음성까지 구현하고, 실기기에서 발화 중 끼어들기(interruption)까지 포함해 검증 완료
+- **운영 콘솔(Admin Console)**: `apps/admin`(Next.js 15) — 캐릭터 `systemPrompt`/`concept`/`ttsVoiceId` 수정, 전체 대화 로그 캐릭터·디바이스·날짜 필터링+페이지네이션, 음성 세션(Voice Turn) 상태 조회. `ADMIN_PASSWORD` + httpOnly cookie 세션 인증, 실제 MariaDB + 브라우저로 로그인부터 로그아웃까지 전체 플로우 검증 완료. 외부 상시 배포는 범위 밖
+- **모니터링/테스트**: Sentry(클라이언트+백엔드), 자동화 테스트(백엔드 12개 파일·38개 케이스 / 클라이언트 단위 17 + RNTL UI 17), GitHub Actions CI + Fastlane 릴리스 워크플로, 백엔드 Dockerfile, 전역 REST 예외 처리기
 
-**의도적으로 범위 밖에 둔 것**: 정식 로그인(디바이스 ID 기반 익명 세션으로 대체), 다중 대화 세션, TURN 서버, 완전한 양방향 실시간 음성(서버가 합성 음성을 WebRTC로 실시간 재전송), 상시 운영 클라우드 배포 — 근거는 [PRD 9절](./PRD/Storia_PRD_final.md)과 [ADR](./docs/decisions.md) 참고.
+**의도적으로 범위 밖에 둔 것**: 정식 로그인(디바이스 ID 기반 익명 세션으로 대체), 다중 대화 세션, TURN 서버, 운영 콘솔의 외부 상시 배포 — 근거는 [PRD 9절](./PRD/Storia_PRD_final.md)과 [ADR](./docs/decisions.md) 참고.
 
 ## 배포 현황
 
 목표는 스토어 정식 출시가 아니라 **"RN으로 iOS/Android 양쪽 실제 배포 파이프라인까지 처리할 수 있음"을 증명하는 것**입니다. 목표선은 TestFlight + Google Play 내부 테스트까지 — 상세 배경은 [TODO.md의 "배포 목표 재정의"](./TODO.md) 참고.
 
 - [x] GitHub Actions CI (테스트), 백엔드 Dockerfile
-- [x] **Fastlane + GitHub Actions 릴리스 파이프라인** (`.github/workflows/release.yml`, `apps/client/fastlane/`) — iOS `.p12` manual signing + `gym`+`pilot`→TestFlight / Android `bundleRelease`+`supply`→Play 내부 테스트. 런북: [`docs/deployment.md`](./docs/deployment.md), 결정 배경: [ADR-008](./docs/decisions.md)
-- [x] Apple Developer Program / Google Play Console 가입
-- [ ] 1회성 셋업(provisioning profile, 업로드 keystore, Play 서비스계정 — iOS 인증서·ASC 키는 기존 것 재사용) + GitHub Secrets 입력 → 파이프라인 실행
-- [ ] iOS/Android 실기기 검증 (현재까지는 시뮬레이터/에뮬레이터만; iOS는 일부 실기기 검증됨)
+- [x] **Fastlane + GitHub Actions 릴리스 파이프라인** (`.github/workflows/release.yml`, `apps/client/fastlane/`) — iOS `.p12` manual signing + `gym`+`pilot`→TestFlight(`macos-26` 러너) / Android `bundleRelease`+`supply`→Play 내부 테스트. 런북: [`docs/deployment.md`](./docs/deployment.md), 결정 배경: [ADR-008](./docs/decisions.md)
+- [x] Apple Developer Program / Google Play Console 가입, 1회성 셋업(provisioning profile, 업로드 keystore, Play 서비스계정) + GitHub Secrets 14/14 입력 완료
+- [x] **iOS**: TestFlight에 실제 빌드 도착 확인 (2026-09-11)
+- [x] **Android**: Play 내부 테스트 트랙에 실제 출시 확인, 옵트인 링크로 실기기 설치까지 확인 (2026-09-12)
+- [x] 스토어 관문 설문 3종 (Play Data Safety / Apple App Privacy / Export Compliance) 완료
 
-백엔드는 상시 운영하지 않고, TestFlight/Play 내부 테스트 심사나 실제 데모 시점에만 로컬/LAN으로 기동하는 것으로 충분합니다(둘 다 정식 스토어 리뷰가 없어 리뷰어가 백엔드를 실제로 호출하지 않음). 근거는 `docs/decisions.md` ADR-007 참고.
+백엔드는 상시 운영하지 않고, TestFlight/Play 내부 테스트 심사나 실제 데모 시점에만 로컬/LAN으로 기동하는 것으로 충분합니다(둘 다 정식 스토어 리뷰가 없어 리뷰어가 백엔드를 실제로 호출하지 않음). 근거는 `docs/decisions.md` ADR-007 참고. 운영 콘솔(`apps/admin`)도 같은 이유로 로컬 전용이며, 외부 상시 배포는 이번 범위에서 의도적으로 제외했습니다.
