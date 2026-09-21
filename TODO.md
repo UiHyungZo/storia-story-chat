@@ -214,8 +214,13 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
 - [x] 신규 `@WebMvcTest` 4개(`AdminAuthControllerTest`/`AdminCharacterControllerTest`/`AdminConversationControllerTest`/`AdminSessionControllerTest`) + 기존 `CharacterControllerTest`/`GlobalExceptionHandlerTest` 보완(신규 전역 인터셉터가 모든 `@WebMvcTest` 슬라이스에 로드되는 부수 효과 대응) — `./gradlew test` 전체 통과.
 - [x] `apps/admin` Next.js 15(App Router+TypeScript+Tailwind v4) — 로그인/캐릭터 수정/대화 필터링+트랜스크립트/세션 목록. `npm run build` 성공.
 - [x] **로컬 스모크 테스트(H2 인메모리)** — 이 머신엔 Docker가 없어 `build.gradle`에 H2를 검증 목적으로만 임시로 `runtimeOnly` 추가(검증 후 원상복구)해 실제 Spring 컨텍스트+HTTP로 로그인→캐릭터 수정→공개 API 스코프 확인→디바이스/캐릭터/날짜 필터→세션 목록까지 curl로 검증, `next dev`도 띄워 인증/미인증 리다이렉트와 각 페이지의 실제 렌더까지 확인. `PagedModel`의 실제 JSON 응답 모양도 이 과정에서 실측해 프론트 타입에 반영함.
-- [ ] **실제 MariaDB(Docker)로 재검증** — 이 머신엔 Docker가 없어 H2로 대체 검증함. `docker compose up -d` → `ADMIN_PASSWORD=<비밀번호> ./gradlew bootRun` → `cd apps/admin && npm run dev`로 재확인 필요(구체 절차는 `/Users/mirismacbook/.claude/plans/ui-imperative-parasol.md`의 "로컬 검증 방법" 섹션 참고).
-- [ ] **브라우저로 직접 클릭 테스트** — 로그인 폼은 React Server Action이라 curl로 제출을 흉내낼 수 없어서, 이번엔 쿠키를 수동으로 심어 인증 이후 화면들만 검증함. 실제 브라우저로 로그인 폼 제출(틀린 비밀번호 에러 메시지 포함)부터 캐릭터 수정 → 대화 로그 필터 → 로그아웃까지 전체 플로우를 한 번 클릭해서 확인 필요.
+- [ ] **실제 MariaDB(Docker)로 재검증 — (2026-09-21) 홈/Docker 가능한 환경에서 진행하기로 결정, 보류.** 이 머신엔 Docker가 없어 H2로 대체 검증함(위 항목). 이 세션에서 대체 방법을 조사했으나 전부 부적합/과함으로 판단해 제외함:
+  - `docker`/Docker Desktop 자체가 이 머신에 전혀 설치돼 있지 않음(`which docker`/`brew list --cask` 전부 없음 — PATH 문제 아니라 진짜 미설치).
+  - 로컬에 Homebrew로 떠있는 DB(`brew services list` → `mysql started`, 포트 3306)는 **MariaDB가 아니라 MySQL 9.7.1**(`SELECT VERSION()` 확인) — `docker-compose.yml`이 실제로 쓰는 `mariadb:11.4`와 다른 제품이라 정확한 다이얼렉트 검증이 아님. 게다가 다른 프로젝트(`bookreview`, `workrequest`) DB가 같이 들어있는 공유 인스턴스라 손대지 않기로 함.
+  - 대안으로 `brew install mariadb`(기존 mysql과 별개 포트, 예: 3308)로 진짜 MariaDB를 새로 설치하는 방법도 검토했으나, 사용자가 "이것도 Docker 가능한 환경에서 할래"로 **홈에서 진행 결정** — 이 머신에서 새 인프라 설치는 하지 않음.
+  - **홈에서 재개 시 절차**: `docker compose up -d` → `ADMIN_PASSWORD=<비밀번호> ./gradlew bootRun` → `cd apps/admin && npm run dev`로 재확인(구체 절차는 `/Users/mirismacbook/.claude/plans/ui-imperative-parasol.md`의 "로컬 검증 방법" 섹션 참고). 날짜 필터(`LocalDate`→`Instant` 변환)와 `JOIN FETCH`+`Pageable` 조합이 핵심 확인 대상 — H2에선 이미 정상 동작 확인함, MariaDB에서 datetime/페이지네이션 다이얼렉트 차이만 재확인하면 됨.
+- [ ] **브라우저로 직접 클릭 테스트 — (2026-09-21) 마찬가지로 홈에서 진행하기로 결정, 보류.** 로그인 폼은 React Server Action이라 curl로 제출을 흉내낼 수 없어서, 이번엔 쿠키를 수동으로 심어 인증 이후 화면들만 검증함. 이 환경엔 GUI 브라우저를 직접 조작하는 도구가 전혀 없어(`WebFetch`는 정적 콘텐츠만 가져오고 localhost도 지원 안 함) Playwright(headless Chromium) 신규 설치 자동화 또는 사용자 직접 클릭 두 선택지를 제시했으나, **"이것도 집에서 할게"**로 보류 결정.
+  - **홈에서 재개 시**: 실제 Chrome/Safari로 로그인 폼 제출(틀린 비밀번호 에러 메시지 표시 확인 포함) → 로그인 성공 → 캐릭터 수정 → **새로고침 후 값 유지 확인**(persist 여부, 이번 세션엔 검증 안 됨) → `/conversations` 필터/페이지네이션 → `/sessions` → 로그아웃 → 로그아웃 후 재접근 시 `/login`으로 막히는지 순서로 한 번 클릭. Playwright로 자동화하고 싶다면 `cd apps/admin && npm install -D playwright && npx playwright install chromium`(검증 후 삭제 가능, `apps/admin`의 실제 런타임 의존성엔 안 남기는 게 좋음).
 - [ ] 실배포(Vercel 등)는 이번 스코프에서 의도적으로 제외 — 필요해지면 별도 단계로 논의.
 
 ## 문서화 (진행 중 계속 갱신)
