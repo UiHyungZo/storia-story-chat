@@ -13,8 +13,9 @@ PRD 1~7주차 코드는 전부 연결되어 있습니다:
 - **Native Module**: iOS(Swift) / Android(Kotlin)가 동일한 `NativeModules.HapticNotifier.notify()`
   인터페이스로 Haptic + 포그라운드 로컬 알림
 - **푸시**: FCM 백엔드(Admin SDK) + 클라이언트 토큰 등록 + 재참여 스케줄러
-- **음성 통화**: LiveKit 기반 "축소판 A안"(아래)
-- **운영**: Sentry(클라+백엔드), 자동화 테스트(백엔드 18 / 클라 17), GitHub Actions CI,
+- **음성 통화**: LiveKit 기반 "축소판 A안"(아래), 선택적 확장으로 완전한 A안(`apps/python-sidecar`)까지 실기기 검증 완료
+- **운영 콘솔**: Next.js 기반 `apps/admin`(아래) — 캐릭터 설정/대화 로그/음성 세션 관리
+- **운영**: Sentry(클라+백엔드), 자동화 테스트(백엔드 12개 파일·38개 케이스 / 클라 17), GitHub Actions CI,
   백엔드 Dockerfile, 전역 REST 예외 처리기
 
 ```mermaid
@@ -79,7 +80,7 @@ sequenceDiagram
 STT는 `null`, `/api/messages/:id/audio`는 `404`로 저하되고 클라이언트는 텍스트만 남기고
 다음 턴으로 넘어감.
 
-## 선택적 확장 — 완전한 A안 (`apps/python-sidecar/`, 스켈레톤)
+## 선택적 확장 — 완전한 A안 (`apps/python-sidecar/`, 실기기 검증 완료)
 
 서버가 합성 TTS를 LiveKit room에 오디오 트랙으로 **실시간 publish**하는 완전한 양방향까지
 가려면, LiveKit이 이 문제를 Python/Node **Agents SDK**로 푸는 것을 표준으로 삼기 때문에
@@ -91,8 +92,9 @@ Spring에 붙이지 않고 **별도 프로세스 + REST 통신** 사이드카 �
   **기존 Spring REST**(`POST /api/conversations/{characterId}/messages`)를 그대로 호출해
   획득(로직 중복 없음).
 - Spring 측 변경은 클라이언트 토큰 그랜트 `CanSubscribe(false) → true` 한 곳뿐.
-- **현재 스켈레톤 상태**: `pip install`·설치된 패키지 API 정합성까지만 검증. 실제 room
-  연결 / automatic dispatch / STT·TTS 왕복은 미검증(LiveKit·Google 자격증명 필요).
+- **실기기 검증 완료(2026-09-01)**: automatic dispatch로 room 자동 진입, 실시간 한국어 STT,
+  기존 Spring REST 위임을 거친 진짜 캐릭터 페르소나 응답, Chirp3-HD TTS로 room에 되쏘기,
+  유저가 에이전트 음성 위로 끼어드는(interruption) 연속 대화까지 실제 iPhone으로 확인함.
   상세는 [`apps/python-sidecar/README.md`](../../apps/python-sidecar/README.md).
 
 ```mermaid
@@ -101,6 +103,29 @@ flowchart LR
     Agent["python-sidecar\n(LiveKit Agents SDK 워커)"] <-->|"오디오 구독 / TTS publish"| LK
     Agent -->|"STT / TTS 플러그인"| GCloud["Google Cloud STT/TTS"]
     Agent -->|"POST /api/conversations/:id/messages\n(응답 텍스트 획득 — 로직 재사용)"| B["Spring Boot Backend"]
+```
+
+## 운영 콘솔 — `apps/admin` (PRD 범위 밖 확장)
+
+React Native 사용자 앱과 별개로, 캐릭터 설정과 실제 대화 상태를 운영자가 직접 확인·수정할 수 있는
+Next.js 15(App Router) 기반 운영 콘솔을 추가했습니다. 기존 `Character`/`Conversation`/`VoiceTurnRegistry`
+데이터를 재사용하고, 새 모니터링 도메인이나 로그/지표 대시보드는 만들지 않았습니다.
+
+- 인증: `ADMIN_PASSWORD` 단일 env var + 서버 인메모리 세션(`AdminSessionStore`, `VoiceTurnRegistry`와
+  동일한 `ConcurrentHashMap`+`@Scheduled` sweep 패턴) + httpOnly cookie. Spring Security 미사용
+- 캐릭터 `systemPrompt`/`concept`/`ttsVoiceId` 조회·수정(생성·삭제는 제외)
+- 전체 대화 로그 캐릭터·디바이스·날짜 필터링 + Spring Data `Pageable`/`PagedModel` 페이지네이션
+- `VoiceTurnRegistry.all()`을 통한 현재 음성 turn 상태 읽기 전용 조회
+- 브라우저는 백엔드를 직접 호출하지 않음 — Next.js 서버(Server Components/Server Actions)가 대신
+  호출해 CORS 설정 변경이 필요 없음
+- 실제 MariaDB + 실제 브라우저(로그인→캐릭터 수정→새로고침 후 값 유지→로그 필터→세션 조회→로그아웃)로
+  전체 플로우 검증 완료. 외부 상시 배포는 범위 밖(로컬 `next dev` 전용)
+
+```mermaid
+flowchart LR
+    Admin["Next.js\nAdmin Console\n(apps/admin)"] -->|"Server Components/Actions\n(브라우저 직접 접근 없음)"| API["Spring Boot\n/api/admin/**"]
+    API --> DB[("MariaDB")]
+    API -.->|"읽기 전용"| Registry[("VoiceTurnRegistry\n(인메모리)")]
 ```
 
 ## WebRTC 시그널링 최소 데모 (원래의 C안) — 별도 구현 없이 종료

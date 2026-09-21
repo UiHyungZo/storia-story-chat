@@ -41,7 +41,7 @@ steps:
   - ./gradlew test --no-daemon
 ```
 - **DB 불필요**: `src/test/resources/application.yml`이 테스트 클래스패스에서 datasource를 H2 인메모리로 오버라이드(테스트 클래스패스가 메인보다 우선). 로컬에 MariaDB가 없어도, CI 러너에도 없어도 전체 스위트가 돈다.
-- 18개 테스트: 서비스 단위(Mockito), `@DataJpaTest`(리포지토리), `@WebMvcTest`(컨트롤러 슬라이스), 전역 예외 처리기, 컨텍스트 로드 스모크.
+- 12개 파일(38개 케이스): 서비스 단위(Mockito), `@DataJpaTest`(리포지토리), `@WebMvcTest`(컨트롤러 슬라이스, 운영 콘솔 Admin 컨트롤러 4개 포함), 전역 예외 처리기, 컨텍스트 로드 스모크.
 
 ### `client` job
 ```yaml

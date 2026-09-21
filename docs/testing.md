@@ -11,9 +11,9 @@ Storia는 클라이언트(RN)와 백엔드(Spring Boot)를 모두 직접 구현�
 * Empty/Error 케이스를 정상 흐름으로 취급하고 테스트에 포함
 * 실시간 채널(WebSocket/WebRTC)이 추가되어도 REST 폴백 경로가 깨지지 않는지 회귀 검증
 
-## 현재 상태 (2026-09-02)
+## 현재 상태 (2026-09-21 갱신)
 
-* **백엔드 — 18개** (`./gradlew test`, H2 인메모리): Service 단위(Mockito) `CharacterServiceTest`/`ConversationServiceTest`/`MessageServiceTest`, graceful-degrade `TtsServiceTest`/`SttServiceTest`, `MessageRepositoryTest`(`@DataJpaTest`), `CharacterControllerTest`(`@WebMvcTest`+`@MockitoBean`), `GlobalExceptionHandlerTest`, `BackendApplicationTests`(스모크).
+* **백엔드 — 12개 파일(38개 케이스)** (`./gradlew test`, H2 인메모리): Service 단위(Mockito) `CharacterServiceTest`/`ConversationServiceTest`/`MessageServiceTest`, graceful-degrade `TtsServiceTest`/`SttServiceTest`, `MessageRepositoryTest`(`@DataJpaTest`), `CharacterControllerTest`(`@WebMvcTest`+`@MockitoBean`), `GlobalExceptionHandlerTest`, `BackendApplicationTests`(스모크), 운영 콘솔 `Admin*ControllerTest` 4개(`AdminAuthControllerTest`/`AdminCharacterControllerTest`/`AdminConversationControllerTest`/`AdminSessionControllerTest`, `@WebMvcTest`+`@MockitoBean`).
 * **클라이언트 단위 — 17개** (`npm test`, `jest-expo`): `avatarColorFor`, `config.ts`(`API_BASE_URL` 플랫폼 분기), `useCharacterStore`/`useConversationStore`(상태 전이 + 3주차 버그 2건 회귀).
 * **클라이언트 UI — 17개** (`@testing-library/react-native` v13): `CharacterListItem`(2), `MessageBubble`(3), `VoiceCallOverlay`(7), `CharacterListScreen`(5). 스토어는 명시적 factory로 mock(네이티브 의존성 회피), 셀렉터는 `mockImplementation((sel) => sel(fakeState))`.
 * CI(`ci.yml`)가 push/PR마다 `./gradlew test` + `tsc --noEmit` + `jest --ci` 실행.
