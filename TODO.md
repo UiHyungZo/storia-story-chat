@@ -218,7 +218,6 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
 - [x] **(2026-09-21, 홈 세션) 브라우저로 직접 클릭 테스트 완료** — `claude-in-chrome`으로 실제 Chrome 조작. 틀린 비밀번호 에러 메시지 표시 → 정상 로그인 → 캐릭터(노아) 시스템 프롬프트 수정 → 저장 → **새로고침 후 값 유지 확인**(이전 세션 미검증 항목, 정상 persist 확인, 원래 값으로 복구함) → `/conversations?characterId=2` 필터(KST 타임스탬프 렌더링 확인) → 대화 상세 트랜스크립트 렌더링 확인 → `/sessions`(진행 중 세션 없음, 빈 상태 정상 렌더) → 로그아웃 → 로그아웃 후 `/characters` 재접근 시 `/login`으로 리다이렉트 확인.
   - **버그 발견 및 수정**: 이 머신엔 `apps/admin/.env.local`이 아예 없었음(`.env.local.example`만 존재) — `ADMIN_BACKEND_URL`이 `undefined`가 돼 로그인 Server Action이 `Failed to parse URL from undefined/api/admin/auth/login`으로 크래시. 코드 버그가 아니라 이 머신의 최초 로컬 셋업이 누락된 것(파일은 `.gitignore`에 있어 커밋 대상 아님) — `cp .env.local.example .env.local`로 해결, 이후 정상 동작. **다음에 새 머신/새 클론에서 `apps/admin`을 처음 띄울 때 이 스텝이 필요하다는 걸 기억할 것** — 현재 `README.md`엔 `apps/admin` 실행법 자체가 아예 문서화돼 있지 않음(추후 보완 여지).
 - [x] 실배포(Vercel 등)는 이번 스코프에서 의도적으로 제외 — 필요해지면 별도 단계로 논의. **운영 콘솔(`apps/admin`) 작업 전체 종료.**
-- [ ] 실배포(Vercel 등)는 이번 스코프에서 의도적으로 제외 — 필요해지면 별도 단계로 논의.
 
 ## 문서화 (진행 중 계속 갱신)
 
