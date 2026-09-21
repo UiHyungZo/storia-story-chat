@@ -6,7 +6,7 @@ export type CallTokenDto = {
   roomName: string;
 };
 
-/** 축소판 A안 — LiveKit room join token. 503이면 백엔드에 LiveKit 설정이 안 된 것. */
+/** 축소판/완전한 A안 공통 — LiveKit room join token. 503이면 백엔드에 LiveKit 설정이 안 된 것. */
 export function requestCallToken(characterId: number): Promise<CallTokenDto> {
   return apiPost<CallTokenDto>(`/api/calls/${characterId}/token`, {});
 }

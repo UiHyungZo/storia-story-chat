@@ -23,11 +23,18 @@ import org.springframework.stereotype.Service;
 import retrofit2.Response;
 
 /**
- * 축소판 A안(PRD 3.9, docs/decisions.md ADR-004 갱신 항목): 클라이언트가 LiveKit으로
- * 실제 WebRTC 오디오를 서버까지 보내고(Track Egress → VoiceEgressWebSocketHandler),
- * 서버는 그 오디오를 기존 배치 STT/Gemini/TTS 파이프라인(B안, ConversationService/
- * TtsService)에 그대로 흘려보낸다. 서버가 합성 음성을 다시 WebRTC로 되쏘는 완전한
- * 양방향 실시간(A안)은 이번엔 범위 밖 — 응답은 기존 B안처럼 오디오 URL로 반환됨.
+ * 음성 통화의 진입점. {@link #createToken}은 두 경로(축소판/완전한 A안) 모두가
+ * 공유하는 공통 로직 — LiveKit room 입장 토큰만 발급하고, 그 room에 실제로
+ * apps/python-sidecar 워커가 automatic dispatch로 들어오는지는 여기서 알지 못한다
+ * (그 판단은 클라이언트가 room 참가자 목록을 보고 한다).
+ *
+ * 나머지 메서드({@link #startTurn}, {@link #appendAudio}, {@link #completeTurn},
+ * {@link #getStatus})는 축소판 A안(PRD 3.9, docs/decisions.md ADR-004 갱신 항목)
+ * 전용이다: 클라이언트가 LiveKit으로 실제 WebRTC 오디오를 서버까지 보내고
+ * (Track Egress → VoiceEgressWebSocketHandler), 서버는 그 오디오를 기존 배치
+ * STT/Gemini/TTS 파이프라인(B안, ConversationService/TtsService)에 그대로 흘려보내
+ * 오디오 URL로 응답한다. python-sidecar가 room에 떠 있으면 클라이언트가 이 메서드들을
+ * 아예 호출하지 않고 워커가 되쏘는 오디오를 WebRTC로 바로 듣는다(완전한 A안).
  */
 @Service
 @RequiredArgsConstructor

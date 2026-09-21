@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.storia.backend.admin.AdminSessionStore;
 import com.storia.backend.controller.ConversationController;
 import com.storia.backend.service.ConversationService;
 import com.storia.backend.service.GeminiService;
@@ -28,6 +29,10 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean private ConversationService conversationService;
     @MockitoBean private GeminiService geminiService;
+
+    // AdminWebConfig(WebMvcConfigurer)가 모든 @WebMvcTest 슬라이스에 자동으로 로드되며 이 빈을
+    // 요구한다 — /api/conversations는 /api/admin/**이 아니라 인터셉터가 실제로 개입하진 않는다.
+    @MockitoBean private AdminSessionStore adminSessionStore;
 
     @Test
     void resourceNotFound_mapsTo404() throws Exception {

@@ -206,6 +206,19 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 
 **(2026-08-25 결정) 백엔드는 localhost/LAN 유지해도 됨 — 클라우드 배포는 이번 목표에 필수 아님**: TestFlight 내부 테스터(App Store Connect Users, 최대 100명)는 Apple Beta App Review 자체가 없고, Google Play 내부 테스트 트랙도 가벼운 정책 체크만 거쳐 정식 리뷰가 없음 — 즉 리뷰어가 백엔드 기능을 실제로 테스트하지 않음. 본인 폰으로 직접 확인할 때만 집 Wi-Fi(LAN IP)에 있으면 됨(단 iOS ATS/Android cleartext traffic 차단 때문에 평문 HTTP 예외 설정은 필요 — `Info.plist NSAllowsArbitraryLoads` 또는 도메인 예외, Android `usesCleartextTraffic`/network security config). 면접 등에서 집 밖에서 직접 시연하려면 그 시점에 ngrok 터널을 예비책으로 켜둘 것 — 지금 단계에서 클라우드 배포를 서두를 필요는 없음.
 
+## 운영 콘솔 (`apps/admin`, Next.js) — PRD 범위 밖 신규 확장 (2026-09-21)
+
+Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메우려고 별도로 추가한 Next.js 운영 콘솔. 스코프/설계 결정 배경은 `HANDOFF.md` 참고사항 최상단(2026-09-21) 항목 참고.
+
+- [x] 백엔드 `/api/admin/**` — 인증(`AdminSessionStore`/`AdminAuthInterceptor`/`AdminWebConfig`), 캐릭터 목록/수정(`AdminCharacterController`), 대화 로그 필터링+페이지네이션(`AdminConversationController`, `ConversationRepository`/`MessageRepository`에 신규 쿼리 추가), 음성 세션 상태(`AdminSessionController`, `VoiceTurnRegistry.all()` 신규 추가).
+- [x] 신규 `@WebMvcTest` 4개(`AdminAuthControllerTest`/`AdminCharacterControllerTest`/`AdminConversationControllerTest`/`AdminSessionControllerTest`) + 기존 `CharacterControllerTest`/`GlobalExceptionHandlerTest` 보완(신규 전역 인터셉터가 모든 `@WebMvcTest` 슬라이스에 로드되는 부수 효과 대응) — `./gradlew test` 전체 통과.
+- [x] `apps/admin` Next.js 15(App Router+TypeScript+Tailwind v4) — 로그인/캐릭터 수정/대화 필터링+트랜스크립트/세션 목록. `npm run build` 성공.
+- [x] **로컬 스모크 테스트(H2 인메모리)** — 이 머신엔 Docker가 없어 `build.gradle`에 H2를 검증 목적으로만 임시로 `runtimeOnly` 추가(검증 후 원상복구)해 실제 Spring 컨텍스트+HTTP로 로그인→캐릭터 수정→공개 API 스코프 확인→디바이스/캐릭터/날짜 필터→세션 목록까지 curl로 검증, `next dev`도 띄워 인증/미인증 리다이렉트와 각 페이지의 실제 렌더까지 확인. `PagedModel`의 실제 JSON 응답 모양도 이 과정에서 실측해 프론트 타입에 반영함.
+- [x] **(2026-09-21, 홈 세션) 실제 MariaDB(Docker)로 재검증 완료.** `docker compose up -d`(기존 볼륨에 실제 테스트 흔적 데이터가 남아있어 신규 시딩 없이 바로 검증 가능했음 — conversation 40건/message 117건) → `ADMIN_PASSWORD=<비번> ./gradlew bootRun` → curl로 로그인/로그아웃/세션 무효화/캐릭터 목록·수정/공개 API 스코프(`systemPrompt` 숨김)/`deviceId`+`characterId`+날짜 필터/복합 필터/트랜스크립트/세션 조회 전부 재확인. **날짜 필터(`LocalDate`→`Instant`, `Asia/Seoul` 기준)를 실측 데이터로 정밀 검증** — `DATE(created_at)`로 잡히는 raw UTC 기준 날짜(23건)와 API의 KST 기준 필터(5건) 결과가 다른 걸 발견했으나, `created_at` 원본 타임스탬프를 직접 `CONVERT_TZ`로 대조해 API 쪽이 정확한 KST 경계로 필터링하고 있음을 확인(버그 아님, UTC 날짜 그룹핑이 애초에 잘못된 비교 기준이었음). `ConversationRepository.search`의 `JOIN FETCH`+`Pageable` 조합도 Hibernate `HHH000104`(컬렉션 fetch join 시 인메모리 페이징 경고) 없이 DB 사이드 페이징으로 정상 동작 확인(로그에 경고 없음).
+- [x] **(2026-09-21, 홈 세션) 브라우저로 직접 클릭 테스트 완료** — `claude-in-chrome`으로 실제 Chrome 조작. 틀린 비밀번호 에러 메시지 표시 → 정상 로그인 → 캐릭터(노아) 시스템 프롬프트 수정 → 저장 → **새로고침 후 값 유지 확인**(이전 세션 미검증 항목, 정상 persist 확인, 원래 값으로 복구함) → `/conversations?characterId=2` 필터(KST 타임스탬프 렌더링 확인) → 대화 상세 트랜스크립트 렌더링 확인 → `/sessions`(진행 중 세션 없음, 빈 상태 정상 렌더) → 로그아웃 → 로그아웃 후 `/characters` 재접근 시 `/login`으로 리다이렉트 확인.
+  - **버그 발견 및 수정**: 이 머신엔 `apps/admin/.env.local`이 아예 없었음(`.env.local.example`만 존재) — `ADMIN_BACKEND_URL`이 `undefined`가 돼 로그인 Server Action이 `Failed to parse URL from undefined/api/admin/auth/login`으로 크래시. 코드 버그가 아니라 이 머신의 최초 로컬 셋업이 누락된 것(파일은 `.gitignore`에 있어 커밋 대상 아님) — `cp .env.local.example .env.local`로 해결, 이후 정상 동작. **다음에 새 머신/새 클론에서 `apps/admin`을 처음 띄울 때 이 스텝이 필요하다는 걸 기억할 것** — 현재 `README.md`엔 `apps/admin` 실행법 자체가 아예 문서화돼 있지 않음(추후 보완 여지).
+- [x] 실배포(Vercel 등)는 이번 스코프에서 의도적으로 제외 — 필요해지면 별도 단계로 논의. **운영 콘솔(`apps/admin`) 작업 전체 종료.**
+
 ## 문서화 (진행 중 계속 갱신)
 
 - [x] **(2026-08-25 확인)** API 명세 문서 — `docs/api/`는 빈 디렉토리(Swagger UI로 충분하다고 이미 판단된 흔적)이고, 실제 정리는 이미 [`docs/api.md`](./docs/api.md)에 REST/WS/WebRTC 엔드포인트별로 상세히 되어있었음(이전 세션에서 작성됐으나 이 체크박스에 반영이 안 돼있던 것으로 보임). 오늘 세션에서 stale해진 부분(3주차 per-device WS 토픽 스코프 변경 미반영)만 발견해 수정.

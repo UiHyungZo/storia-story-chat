@@ -1,12 +1,14 @@
-import { registerGlobals } from "@livekit/react-native";
-import * as Sentry from "@sentry/react-native";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { registerWebrtcGlobals } from "./src/native/livekitAudioSession";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import * as Sentry from "./src/monitoring/sentry";
 import { registerForPushNotifications } from "./src/push/registerPushToken";
 
 // Must run once, before any LiveKit usage — sets up WebRTC globals for RN.
-registerGlobals();
+// No-ops on web (browsers already have WebRTC built in) — see
+// src/native/livekitAudioSession.web.ts.
+registerWebrtcGlobals();
 
 // No-ops (doesn't send events, doesn't throw) when the DSN isn't set — same
 // graceful-degradation posture as the backend's *Properties#isConfigured() pattern.

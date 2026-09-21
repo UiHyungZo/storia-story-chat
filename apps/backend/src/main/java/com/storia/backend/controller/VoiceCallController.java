@@ -18,8 +18,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 축소판 A안(PRD 3.9) — 클라이언트가 LiveKit으로 실제 WebRTC 오디오를 서버까지 보내고
- * 서버는 그 오디오를 기존 배치 STT/Gemini/TTS 파이프라인(B안)에 흘려보낸다.
+ * 음성 통화 REST API. {@link #issueToken}은 축소판/완전한 A안 공통 관문(LiveKit room
+ * 입장 토큰 발급)이고, {@link #startTurn}/{@link #getTurnStatus}는 축소판 A안(PRD 3.9)
+ * 전용이다 — 클라이언트가 LiveKit으로 실제 WebRTC 오디오를 서버까지 보내고 서버는 그
+ * 오디오를 기존 배치 STT/Gemini/TTS 파이프라인(B안)에 흘려보낸다. apps/python-sidecar
+ * 워커가 room에 떠 있으면(완전한 A안) 클라이언트는 이 두 엔드포인트를 호출하지 않는다.
  */
 @RestController
 @RequestMapping("/api/calls")

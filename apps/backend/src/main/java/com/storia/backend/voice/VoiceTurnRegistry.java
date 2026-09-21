@@ -2,6 +2,8 @@ package com.storia.backend.voice;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,6 +36,11 @@ public class VoiceTurnRegistry {
 
     public void remove(String turnId) {
         sessions.remove(turnId);
+    }
+
+    /** 운영 콘솔 세션 상태 조회용 스냅샷. ConcurrentHashMap을 직접 노출하지 않기 위해 방어적으로 복사한다. */
+    public Collection<VoiceTurnSession> all() {
+        return List.copyOf(sessions.values());
     }
 
     @Scheduled(fixedRate = 60_000)

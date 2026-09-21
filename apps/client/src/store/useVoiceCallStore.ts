@@ -1,9 +1,9 @@
-import { AudioSession } from "@livekit/react-native";
 import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { LocalTrackPublication, RemoteParticipant, Room, RoomEvent, Track } from "livekit-client";
 import { create } from "zustand";
 import { getTurnStatus, requestCallToken, startTurnEgress } from "../api/calls";
 import { getMessageAudioUrl, isMessageAudioAvailable } from "../api/tts";
+import { audioSession } from "../native/livekitAudioSession";
 
 const POLL_INTERVAL_MS = 600;
 // A turn runs STT -> Gemini -> TTS server-side. gemini-3.6-flash is a reasoning model
@@ -90,14 +90,14 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     // happens later when the user taps the button, by which point the session has
     // settled. (Publishing the mic *concurrently* with this call, or without it at
     // all, left capture silent and the worker got no transcript.)
-    AudioSession.startAudioSession().catch(() => {});
+    audioSession.start().catch(() => {});
   }
 
   function handleTrackSubscribed(): void {
     // Belt-and-suspenders: the agent's reply audio arrives as a subscribed remote
     // track; make sure playback is live. startAudioSession() is idempotent.
     if (get().mode === "agent") {
-      AudioSession.startAudioSession().catch(() => {});
+      audioSession.start().catch(() => {});
     }
   }
 
@@ -111,7 +111,7 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     roomName = null;
     currentTurnId = null;
     micPublication = null;
-    AudioSession.stopAudioSession().catch(() => {});
+    audioSession.stop().catch(() => {});
     set((state) =>
       state.isCallActive
         ? { phase: "error", errorMessage: "연결이 끊어졌어요.", mode: "turn", agentSpeaking: false }
@@ -232,7 +232,7 @@ export const useVoiceCallStore = create<VoiceCallStore>((set, get) => {
     endCall: () => {
       stopAndReleasePlayer();
       teardownRoom();
-      AudioSession.stopAudioSession().catch(() => {});
+      audioSession.stop().catch(() => {});
       set({
         isCallActive: false,
         characterId: null,
