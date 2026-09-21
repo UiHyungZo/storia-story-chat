@@ -48,6 +48,10 @@ livekit:
   # 주소가 필요함(예: ngrok 등 터널) — HANDOFF.md 참고.
   egress-audio-ws-url: ${LIVEKIT_EGRESS_AUDIO_WS_URL:}
 
+admin:
+  # 운영 콘솔(apps/admin) 로그인 비밀번호. 비어있으면 AdminAuthController가 모든 로그인을 거부한다.
+  password: ${ADMIN_PASSWORD:}
+
 sentry:
   # 비어있으면 SDK가 스스로 비활성화됨(이벤트 전송 안 함, 예외도 안 던짐) — 다른 외부
   # 연동과 동일한 graceful-degradation, 별도 isConfigured() 가드 불필요.
