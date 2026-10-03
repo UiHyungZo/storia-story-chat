@@ -4,6 +4,24 @@ AI 캐릭터와 텍스트/음성으로 대화하는 스토리 챗 앱. React Nat
 
 자세한 요구사항은 [`PRD/Storia_PRD_final.md`](./PRD/Storia_PRD_final.md)를 참고하세요.
 
+## 데모 — 채팅 리스트 FlatList → FlashList
+
+<img width="480" alt="FlatList vs FlashList: 메시지 1,000개 플링 스크롤 중 Perf Monitor" src="https://github.com/user-attachments/assets/e0f5d7eb-8a38-4a08-bd4d-179cb42fc9d1" />
+
+iPhone 12 Pro · Development build · RN Perf Monitor · 메시지 1,000개 빠른 플링 스크롤 (2026-10-03 촬영)
+
+| | FlatList (Before) | FlashList (After) |
+|---|---|---|
+| 스크롤 중 RAM 증가 | 약 +105MB | **약 +32MB** |
+| UI FPS | 60 | 57~60 |
+| JS FPS 최저치 | 30 | 20 (9/13 측정에선 6~8) |
+
+메모리는 셀 재활용으로 확실히 줄었지만, 긴 플링에서 JS FPS 최저치는 오히려 낮아졌습니다(`maintainVisibleContentPosition`의 위치 재계산 비용으로 추정, 미검증). 두 번의 측정 모두 같은 경향이었습니다. 이번 촬영은 두 영상의 플링 세기가 같지 않아 JS FPS 비교는 참고용입니다.
+
+고화질 영상:
+
+https://github.com/user-attachments/assets/19983757-12f3-4861-8a28-cd6be94f2b37
+
 ## 구조
 
 ```
