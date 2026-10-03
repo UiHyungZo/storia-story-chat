@@ -4,6 +4,12 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-10-03) 포트폴리오/README용 FlatList vs FlashList 데모 영상 촬영 + 재측정 완료.** 9/13 측정과 같은 절차로 진행: 더미 메시지 1000개를 SQL로 user 11 / 노아(character 3) 대화방에 심고, 실기기(iPhone 12 Pro, Development Build) Perf Monitor를 켠 채 iOS 화면 기록. FlatList 쪽은 `005738f`의 `ChatRoomScreen.tsx` diff를 임시로 `git apply -R`해서 찍고(JS 변경이라 재빌드 불필요) 바로 되돌림.
+  - **결과** (0.25~0.5초 간격 프레임 판독): FlatList는 RAM 315→420MB(`#1` 도달 시 **약 +105MB**, 맨 아래로 돌아온 뒤 최고 439MB), JS FPS 43~58(최저 30). FlashList는 RAM 316→348MB(**약 +32MB**), JS FPS 20~40(최저 20). UI FPS는 양쪽 다 57~60.
+  - **9/13과 비교**: RAM 개선은 재현됨(FlashList +33~34MB → 이번 +32MB). FlashList JS FPS 최저치는 9/13엔 6~8, 이번엔 20 — 플링 세기에 따라 달라지므로 서류에는 범위로 기록할 것. 이번 촬영은 `#1` 도달까지 FlatList 약 23초 / FlashList 약 16초로 플링 세기가 달라서 JS FPS 비교는 엄밀하지 않음(RAM은 같은 1000개를 모두 지나간 결과라 영향 적음).
+  - **산출물은 리포 밖** `~/Downloads/`: `flatlist-vs-flashlist.{gif,mp4}`(좌우 비교, Before/After 라벨 — GIF 9.0MB로 GitHub 10MB 제한 이내), `flashlist-demo.{gif,mp4}`(단독). README 반영(Issue 드래그로 `user-attachments` URL 생성)은 아직 안 함.
+  - **정리 완료**: 대화방 42번과 더미 메시지 삭제 확인, 백엔드/Metro/MariaDB 종료(`docker compose down`, 볼륨 유지), Docker Desktop 종료.
+
 - **(2026-09-21, 홈 세션) 운영 콘솔(`apps/admin`) 남은 검증 2건 완료 — 운영 콘솔 작업 전체 종료.** 아래 바로 다음 항목(같은 날짜)에서 이 머신(Docker 없음)이라 미루기로 했던 것을 홈(Docker 있는 이 머신)에서 이어받음.
   - **실제 MariaDB 재검증**: `docker compose up -d`로 기존 볼륨(전 세션들의 실제 테스트 흔적 데이터 — conversation 40건/message 117건)을 그대로 사용해 curl로 admin API 전체(로그인/로그아웃/세션 무효화/캐릭터 조회·수정/공개 API 스코프/필터·페이지네이션/트랜스크립트/세션 조회) 재검증. **날짜 필터를 실측 데이터로 정밀 검증한 게 핵심 수확**: `SELECT DATE(created_at)`로 세면 2026-08-30에 23건이지만 API `from/to=2026-08-30` 필터는 5건만 반환해서 처음엔 버그로 의심했음 — `CONVERT_TZ`로 원본 UTC 타임스탬프를 KST로 직접 대조해보니 API가 정확했고(`Asia/Seoul` 자정 기준 필터링, 나머지 18건은 KST로 08-31 새벽), 애초에 `DATE()`의 UTC 기준 그룹핑이 잘못된 비교 대상이었던 것으로 결론. `JOIN FETCH`+`Pageable` 조합도 Hibernate 경고(`HHH000104`, 컬렉션 fetch join 시 인메모리 페이징) 없이 정상.
   - **브라우저 클릭 테스트**: `claude-in-chrome`으로 실제 Chrome 조작 — 틀린 비밀번호 에러 → 로그인 성공 → 캐릭터 수정 → **새로고침 후 값 유지**(이전까지 미검증이었던 항목, persist 정상 확인) → 대화 필터(KST 타임스탬프 렌더 확인)+트랜스크립트 → 세션 페이지 → 로그아웃 → 재접근 시 `/login` 리다이렉트, 전부 정상.
