@@ -4,6 +4,7 @@ import com.storia.backend.config.LiveKitProperties;
 import com.storia.backend.dto.CallTokenResponse;
 import com.storia.backend.dto.TurnStatusResponse;
 import com.storia.backend.entity.Message;
+import com.storia.backend.service.ChatContextAssembler;
 import com.storia.backend.service.ConversationService;
 import com.storia.backend.service.GeminiService;
 import com.storia.backend.service.SttService;
@@ -14,6 +15,7 @@ import io.livekit.server.LiveKitAPI;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.Collectors;
 import livekit.LivekitEgress;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +48,7 @@ public class VoiceCallService {
     private final SttService sttService;
     private final GeminiService geminiService;
     private final ConversationService conversationService;
+    private final ChatContextAssembler chatContextAssembler;
 
     private volatile LiveKitAPI cachedClient;
 
@@ -104,10 +107,12 @@ public class VoiceCallService {
             }
 
             conversationService.postMessage(session.getDeviceId(), session.getCharacterId(), transcript);
+            List<Message> history =
+                    conversationService.getMessages(session.getDeviceId(), session.getCharacterId());
+            String systemPrompt = chatContextAssembler.systemPromptFor(
+                    session.getCharacterId(), conversationService.getSystemPrompt(session.getCharacterId()), history);
             String reply = geminiService
-                    .streamReply(
-                            conversationService.getSystemPrompt(session.getCharacterId()),
-                            conversationService.getMessages(session.getDeviceId(), session.getCharacterId()))
+                    .streamReply(systemPrompt, history)
                     .collect(Collectors.joining())
                     .defaultIfEmpty("죄송해요, 지금은 답변을 생성할 수 없어요.")
                     .doOnError(error -> log.warn("음성 턴 Gemini 응답 실패 (turnId={})", turnId, error))

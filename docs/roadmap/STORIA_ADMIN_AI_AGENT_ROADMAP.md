@@ -125,6 +125,7 @@ Phase 4에서 구체적인 진단 필요성이 확인되었을 때 실행 추적
 - **6B — Agent 연동:** 기존 `AdminToolRegistry`에 `searchStoriaKnowledge(query, topK)` 추가(검색 로직은 별도 서비스 재사용). 관리자 인증·읽기 전용 유지, 출처 표시, 근거 없음 고지.
 - **6C — MCP 서버:** 공식 MCP Java SDK로 STDIO 서버를 구현하고 `searchStoriaKnowledge`를 Tool로 노출. 실제 MCP 클라이언트(프로토콜 경유)로 발견·호출·오류 처리를 검증한다.
 - **6D — 평가·관측:** RAG 검색 평가(Hit@K, MRR, 출처 정확성, 근거 없음 처리)와 MCP 평가(발견, 호출, 스키마 검증, 접근 차단, 읽기 전용, 결과 일치), 검색·MCP 지연·오류 관측.
+- **6E — 캐릭터 세계관 RAG (사용자 요청):** 관리자 문서 검색이 아니라 *실제 사용자 채팅*에서 해당 캐릭터의 세계관 지식을 검색해 답변에 반영한다. 6A의 RAG 엔진을 재사용하고, 캐릭터별 인덱스 격리, REST·STOMP·음성(축소판) 경로 연결, Feature Flag(기본 꺼짐), 검색 실패 시 기존 System Prompt 폴백, 평가·관측 확장. 설계·결과는 [`docs/architecture/admin-ai-agent-phase6-character-rag.md`](../architecture/admin-ai-agent-phase6-character-rag.md). 새 Phase 번호는 만들지 않았다.
 
 실제로 실행·검증하지 않은 기능을 완료로 표시하지 않는다.
 

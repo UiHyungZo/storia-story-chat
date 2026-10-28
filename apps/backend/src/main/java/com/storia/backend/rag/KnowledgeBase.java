@@ -18,7 +18,7 @@ public final class KnowledgeBase {
                            long embeddedChars, String fingerprint) {
     }
 
-    private final DocumentLoader loader;
+    private final KnowledgeDocumentLoader loader;
     private final EmbeddingProvider provider;
     private final MarkdownChunker chunker;
     private final Double minScoreOverride;
@@ -26,12 +26,12 @@ public final class KnowledgeBase {
     private volatile Snapshot snapshot;
     private volatile long lastCheck;
 
-    public KnowledgeBase(DocumentLoader loader, EmbeddingProvider provider, MarkdownChunker chunker,
+    public KnowledgeBase(KnowledgeDocumentLoader loader, EmbeddingProvider provider, MarkdownChunker chunker,
                          Double minScoreOverride) {
         this(loader, provider, chunker, minScoreOverride, CHECK_INTERVAL_MS);
     }
 
-    KnowledgeBase(DocumentLoader loader, EmbeddingProvider provider, MarkdownChunker chunker,
+    KnowledgeBase(KnowledgeDocumentLoader loader, EmbeddingProvider provider, MarkdownChunker chunker,
                   Double minScoreOverride, long checkIntervalMs) {
         this.checkIntervalMs = checkIntervalMs;
         this.loader = loader;
@@ -78,6 +78,11 @@ public final class KnowledgeBase {
         this.snapshot = built;
         this.lastCheck = System.currentTimeMillis();
         return built;
+    }
+
+    /** 인덱스를 만들지 않고 현재 스냅샷만 본다. 아직 만들어지지 않았으면 null. */
+    public Snapshot peek() {
+        return snapshot;
     }
 
     public EmbeddingProvider provider() {

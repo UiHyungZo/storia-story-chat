@@ -12,7 +12,7 @@ import java.util.Locale;
  * 허용 목록({@link KnowledgeSource})에 있는 Markdown 파일만 읽는다. 루트 밖으로 나가는 경로(.., 심볼릭 링크),
  * .md가 아닌 파일, 지나치게 큰 파일은 거부한다. 읽지 못한 소스는 예외 대신 missing 목록으로 보고한다.
  */
-public final class DocumentLoader {
+public final class DocumentLoader implements KnowledgeDocumentLoader {
 
     static final long MAX_FILE_BYTES = 1_000_000;
 
@@ -35,6 +35,7 @@ public final class DocumentLoader {
         return sources;
     }
 
+    @Override
     public Loaded load() {
         List<KnowledgeDocument> documents = new ArrayList<>();
         List<String> missing = new ArrayList<>();
@@ -74,6 +75,7 @@ public final class DocumentLoader {
     }
 
     /** 변경 감지용 값 (경로, 크기, 수정 시각). 내용을 읽지 않아 저렴하다. */
+    @Override
     public String fingerprint() {
         StringBuilder sb = new StringBuilder();
         for (KnowledgeSource source : sources) {
