@@ -25,7 +25,7 @@ public class AdminAgentService {
     static final int MAX_CALLS_PER_STEP = 3;
     static final Duration TOTAL_TIMEOUT = Duration.ofSeconds(90);
 
-    static final String SYSTEM_INSTRUCTION = """
+    public static final String SYSTEM_INSTRUCTION = """
             당신은 Storia 운영 콘솔의 관리자 보조 AI입니다. 한국어로 간결하게 답하세요.
             - 조회 도구(getCharacterConfig, getConversationLogs)는 읽기 전용입니다.
             - 캐릭터 설정은 직접 바꿀 수 없습니다. 관리자가 요청한 경우에만 proposeCharacterConfigChange로 '제안'을
