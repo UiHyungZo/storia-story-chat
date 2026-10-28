@@ -17,12 +17,25 @@ public final class KnowledgeSearchService {
     public static final int MAX_TOP_K = 5;
     public static final int MAX_SNIPPET_CHARS = 800;
 
+    /** 어휘 검사로 건너뛸 수 있으므로 상위 후보를 이만큼 더 본다. */
+    static final int CANDIDATE_MULTIPLIER = 4;
+
     private final KnowledgeBase base;
     private final RagMetrics metrics;
+    private final boolean requireLexicalSupport;
 
     public KnowledgeSearchService(KnowledgeBase base, RagMetrics metrics) {
+        this(base, metrics, false);
+    }
+
+    /**
+     * @param requireLexicalSupport true면 의미 임베딩이 아닌 인덱스에서, 점수를 넘었더라도 질의 내용어가 하나도 없는
+     *                              조각은 근거로 채택하지 않는다({@link LexicalSupport}). 의미 임베딩 인덱스에는 적용하지 않는다.
+     */
+    public KnowledgeSearchService(KnowledgeBase base, RagMetrics metrics, boolean requireLexicalSupport) {
         this.base = base;
         this.metrics = metrics;
+        this.requireLexicalSupport = requireLexicalSupport;
     }
 
     public KnowledgeSearchResult search(String query, Integer topK) {
@@ -65,12 +78,17 @@ public final class KnowledgeSearchService {
                     List.of(), null, tookMs(start));
         }
 
+        boolean lexicalGuard = requireLexicalSupport && !snapshot.semantic();
+        java.util.Set<String> terms = lexicalGuard ? LexicalSupport.contentTerms(query) : java.util.Set.of();
         List<Hit> hits = new ArrayList<>();
-        for (VectorIndex.Scored scored : snapshot.index().search(queryVector, k)) {
-            if (scored.score() < snapshot.minScore()) {
+        for (VectorIndex.Scored scored : snapshot.index().search(queryVector, lexicalGuard ? k * CANDIDATE_MULTIPLIER : k)) {
+            if (scored.score() < snapshot.minScore() || hits.size() >= k) {
                 break;
             }
             KnowledgeChunk c = scored.chunk();
+            if (lexicalGuard && !LexicalSupport.supports(terms, c)) {
+                continue;
+            }
             hits.add(new Hit(hits.size() + 1, c.chunkId(), c.docId(), c.source(), c.title(), c.heading(),
                     truncate(c.text()), Math.round(scored.score() * 10_000.0) / 10_000.0));
         }

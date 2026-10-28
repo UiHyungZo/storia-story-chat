@@ -1,5 +1,5 @@
 {
-  "description": "합성 RAG 평가 질문. expect_sources 중 하나라도 top-K에 있으면 hit. split=calibration으로만 임계값을 정하고 holdout으로 확인한다.",
+  "description": "합성 RAG 평가 질문. expect_sources 중 하나라도 top-K에 있으면 hit. split=calibration으로만 임계값을 정하고 holdout으로 확인한다. asks_current=true는 '지금 어떻게 동작하는가'를 묻는 질문으로, 현재 구현 문서(docRole=current)가 상위에 와야 한다.",
   "questions": [
     {
       "id": "rag-001",
@@ -11,7 +11,8 @@
         "docs/api.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": true
     },
     {
       "id": "rag-002",
@@ -21,7 +22,8 @@
         "docs/api.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": false
     },
     {
       "id": "rag-003",
@@ -30,7 +32,8 @@
         "docs/decisions.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": false
     },
     {
       "id": "rag-004",
@@ -39,7 +42,8 @@
         "docs/decisions.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": false
     },
     {
       "id": "rag-005",
@@ -49,7 +53,8 @@
         "docs/cicd.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": true
     },
     {
       "id": "rag-006",
@@ -59,7 +64,8 @@
         "docs/cicd.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": false
     },
     {
       "id": "rag-007",
@@ -69,7 +75,8 @@
         "docs/api.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": true
     },
     {
       "id": "rag-008",
@@ -78,7 +85,8 @@
         "docs/api.md"
       ],
       "in_scope": true,
-      "split": "calibration"
+      "split": "calibration",
+      "asks_current": true
     },
     {
       "id": "rag-009",
@@ -88,7 +96,8 @@
         "docs/architecture/README.md"
       ],
       "in_scope": true,
-      "split": "holdout"
+      "split": "holdout",
+      "asks_current": true
     },
     {
       "id": "rag-010",
@@ -97,7 +106,8 @@
         "README.md"
       ],
       "in_scope": true,
-      "split": "holdout"
+      "split": "holdout",
+      "asks_current": false
     },
     {
       "id": "rag-011",
@@ -107,7 +117,8 @@
         "docs/architecture/README.md"
       ],
       "in_scope": true,
-      "split": "holdout"
+      "split": "holdout",
+      "asks_current": false
     },
     {
       "id": "rag-012",
@@ -117,7 +128,8 @@
         "README.md"
       ],
       "in_scope": true,
-      "split": "holdout"
+      "split": "holdout",
+      "asks_current": true
     },
     {
       "id": "rag-013",
@@ -127,7 +139,8 @@
         "docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md"
       ],
       "in_scope": true,
-      "split": "holdout"
+      "split": "holdout",
+      "asks_current": false
     },
     {
       "id": "rag-014",
@@ -137,7 +150,8 @@
         "docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md"
       ],
       "in_scope": true,
-      "split": "holdout"
+      "split": "holdout",
+      "asks_current": false
     },
     {
       "id": "rag-015",
@@ -146,7 +160,8 @@
         "docs/testing.md"
       ],
       "in_scope": true,
-      "split": "holdout"
+      "split": "holdout",
+      "asks_current": true
     },
     {
       "id": "rag-016",
@@ -155,6 +170,44 @@
         "docs/cicd.md"
       ],
       "in_scope": true,
+      "split": "holdout",
+      "asks_current": true
+    },
+    {
+      "id": "rag-021",
+      "query": "Track Egress로 받은 오디오는 서버에서 어떻게 처리돼?",
+      "expect_sources": [
+        "docs/architecture/README.md",
+        "docs/api.md",
+        "docs/decisions.md"
+      ],
+      "in_scope": true,
+      "asks_current": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-022",
+      "query": "지금 음성 통화에서 서버가 WebRTC 미디어를 직접 처리해?",
+      "expect_sources": [
+        "docs/architecture/README.md",
+        "PRD/Storia_PRD_final.md",
+        "docs/decisions.md"
+      ],
+      "in_scope": true,
+      "asks_current": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-023",
+      "query": "현재 앱 릴리스 빌드는 어떤 도구로 만들어?",
+      "expect_sources": [
+        "docs/deployment.md",
+        "docs/cicd.md",
+        "README.md",
+        "docs/decisions.md"
+      ],
+      "in_scope": true,
+      "asks_current": true,
       "split": "holdout"
     },
     {
@@ -181,6 +234,41 @@
     {
       "id": "rag-020",
       "query": "Kubernetes 클러스터 오토스케일링 설정 방법",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-024",
+      "query": "Storia 결제 시스템은 어떻게 동작해?",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-025",
+      "query": "payment",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-026",
+      "query": "billing invoice refund flow",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-027",
+      "query": "Redis 캐시 클러스터 장애 대응 절차",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-028",
+      "query": "Kafka 이벤트 스트리밍 파이프라인 구성",
       "expect_sources": [],
       "in_scope": false,
       "split": "holdout"

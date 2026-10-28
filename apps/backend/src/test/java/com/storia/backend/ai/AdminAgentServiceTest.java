@@ -67,21 +67,21 @@ class AdminAgentServiceTest {
         return c;
     }
 
-    /** generate()에 전달된 contents는 호출자가 계속 변경하므로 호출 시점에 스냅샷을 떠 둔다. */
+    /**
+     * generate()/generateFinalAnswer()에 전달된 contents는 호출자가 계속 변경하므로 호출 시점에 스냅샷을 떠 둔다.
+     * 두 메서드는 응답 목록을 순서대로 이어서 소비하고, 목록이 끝나면 마지막 응답을 반복한다.
+     */
     private List<String> captureContentSnapshots(JsonNode... responses) {
         List<String> snapshots = new ArrayList<>();
-        var stub = when(client.generate(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)));
-        var chain = stub.thenAnswer(inv -> {
+        java.util.concurrent.atomic.AtomicInteger next = new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.stubbing.Answer<JsonNode> answer = inv -> {
             snapshots.add(((ArrayNode) inv.getArgument(1)).toString());
-            return responses[0];
-        });
-        for (int i = 1; i < responses.length; i++) {
-            final JsonNode r = responses[i];
-            chain = chain.thenAnswer(inv -> {
-                snapshots.add(((ArrayNode) inv.getArgument(1)).toString());
-                return r;
-            });
-        }
+            return responses[Math.min(next.getAndIncrement(), responses.length - 1)];
+        };
+        when(client.generate(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
+                .thenAnswer(answer);
+        when(client.generateFinalAnswer(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
+                .thenAnswer(answer);
         return snapshots;
     }
 
@@ -138,16 +138,39 @@ class AdminAgentServiceTest {
     }
 
     @Test
-    void endlessToolCalls_stopAtMaxSteps() {
+    void endlessToolCalls_lastStepIsFinalAnswerWithoutTools() {
         when(characterService.findById(1L)).thenReturn(character());
         when(client.generate(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
                 .thenAnswer(inv -> functionCallResponse("getCharacterConfig", "{\"characterId\":1}"));
+        List<String> finalSnapshots = new ArrayList<>();
+        when(client.generateFinalAnswer(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
+                .thenAnswer(inv -> {
+                    finalSnapshots.add(((ArrayNode) inv.getArgument(1)).toString());
+                    return textResponse("루나의 컨셉은 컨셉입니다.");
+                });
+
+        AdminAgentResponse response = service.ask("계속 조회해");
+
+        assertThat(response.stopReason()).isEqualTo("completed");
+        assertThat(response.answer()).isEqualTo("루나의 컨셉은 컨셉입니다.");
+        verify(client, times(AdminAgentService.MAX_STEPS - 1)).generate(anyString(), any(), any(), any());
+        verify(client, times(1)).generateFinalAnswer(anyString(), any(), any(), any());
+        assertThat(response.toolCalls()).hasSize(AdminAgentService.MAX_STEPS - 1);
+        // 마지막 도구 결과가 버려지지 않고 최종 답변 단계에 안내와 함께 전달된다.
+        assertThat(finalSnapshots.get(0)).contains("functionResponse").contains(AdminAgentService.FINAL_ANSWER_INSTRUCTION);
+    }
+
+    @Test
+    void finalTurnStillRequestingTools_isNotExecutedAndStopsAtMaxSteps() {
+        when(characterService.findById(1L)).thenReturn(character());
+        captureContentSnapshots(functionCallResponse("getCharacterConfig", "{\"characterId\":1}"));
 
         AdminAgentResponse response = service.ask("계속 조회해");
 
         assertThat(response.stopReason()).isEqualTo("max_steps");
-        verify(client, times(AdminAgentService.MAX_STEPS)).generate(anyString(), any(), any(), any());
-        assertThat(response.toolCalls()).hasSize(AdminAgentService.MAX_STEPS);
+        verify(client, times(1)).generateFinalAnswer(anyString(), any(), any(), any());
+        assertThat(response.toolCalls()).hasSize(AdminAgentService.MAX_STEPS - 1);
+        verify(characterService, times(AdminAgentService.MAX_STEPS - 1)).findById(1L);
     }
 
     @Test
@@ -307,15 +330,14 @@ class AdminAgentServiceTest {
     @Test
     void telemetry_maxStepsRunIsRecorded() {
         when(characterService.findById(1L)).thenReturn(character());
-        when(client.generate(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
-                .thenAnswer(inv -> functionCallResponse("getCharacterConfig", "{\"characterId\":1}"));
+        captureContentSnapshots(functionCallResponse("getCharacterConfig", "{\"characterId\":1}"));
 
         service.ask("q");
 
         AgentRunRecord run = telemetry.recent(1).get(0);
         assertThat(run.stopReason()).isEqualTo("max_steps");
         assertThat(run.modelCalls()).isEqualTo(AdminAgentService.MAX_STEPS);
-        assertThat(run.tools()).hasSize(AdminAgentService.MAX_STEPS);
+        assertThat(run.tools()).hasSize(AdminAgentService.MAX_STEPS - 1);
     }
 
     // ---- RAG 연동 ----
@@ -344,6 +366,89 @@ class AdminAgentServiceTest {
         assertThat(response.evidenceNotice()).isNull();
         assertThat(response.toolCalls().get(0).result()).contains("docs/architecture/README.md");
         assertThat(telemetry.recent(1).get(0).tools().get(0).name()).isEqualTo("searchStoriaKnowledge");
+        // 검색 1회 후 일반 단계에서 바로 답하면 최종 답변 단계를 따로 거치지 않는다.
+        assertThat(response.stopReason()).isEqualTo("completed");
+        verify(client, times(2)).generate(anyString(), any(), any(), any());
+        verify(client, org.mockito.Mockito.never()).generateFinalAnswer(anyString(), any(), any(), any());
+    }
+
+    @Test
+    void knowledgeSearch_duplicateQueryIsNotExecutedAgain() {
+        when(knowledge.search("음성 통화", 3)).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.OK, List.of("docs/architecture/README.md")));
+        List<String> snapshots = captureContentSnapshots(
+                functionCallResponse("searchStoriaKnowledge", "{\"query\":\"음성 통화\"}"),
+                functionCallResponse("searchStoriaKnowledge", "{\"query\":\"  음성   통화 \"}"),
+                textResponse("architecture 문서에 따르면 ..."));
+
+        AdminAgentResponse response = service.ask("음성 통화 구조 설명해줘");
+
+        assertThat(response.stopReason()).isEqualTo("completed");
+        verify(knowledge, times(1)).search(anyString(), org.mockito.ArgumentMatchers.anyInt());
+        assertThat(response.toolCalls()).hasSize(2);
+        assertThat(response.toolCalls().get(1).ok()).isFalse();
+        assertThat(response.toolCalls().get(1).result()).contains("duplicate_query");
+        assertThat(snapshots.get(2)).contains("duplicate_query");
+        // 건너뛴 중복 검색은 근거 상태를 오류로 덮어쓰지 않는다.
+        assertThat(response.knowledgeStatus()).isEqualTo("OK");
+        assertThat(response.evidenceNotice()).isNull();
+    }
+
+    @Test
+    void knowledgeSearch_budgetExhausted_nextCallIsFinalAnswerWithoutTools() {
+        when(knowledge.search(anyString(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.OK, List.of("docs/api.md")));
+        List<String> snapshots = captureContentSnapshots(
+                functionCallResponse("searchStoriaKnowledge", "{\"query\":\"음성 통화\"}"),
+                functionCallResponse("searchStoriaKnowledge", "{\"query\":\"LiveKit Track Egress\"}"),
+                textResponse("docs/api.md에 따르면 ..."));
+
+        AdminAgentResponse response = service.ask("음성 통화 구조 설명해줘");
+
+        assertThat(response.stopReason()).isEqualTo("completed");
+        assertThat(response.answer()).isEqualTo("docs/api.md에 따르면 ...");
+        verify(knowledge, times(AdminAgentService.MAX_KNOWLEDGE_SEARCHES)).search(anyString(), org.mockito.ArgumentMatchers.anyInt());
+        verify(client, times(2)).generate(anyString(), any(), any(), any());
+        verify(client, times(1)).generateFinalAnswer(anyString(), any(), any(), any());
+        assertThat(snapshots.get(2)).contains(AdminAgentService.FINAL_ANSWER_INSTRUCTION);
+        assertThat(telemetry.recent(1).get(0).modelCalls()).isEqualTo(3);
+    }
+
+    @Test
+    void knowledgeSearch_tooManySearchesInOneStep_areSkippedOverBudget() {
+        when(knowledge.search(anyString(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.OK, List.of("docs/api.md")));
+        JsonNode threeSearches = json("{\"candidates\":[{\"content\":{\"parts\":["
+                + "{\"functionCall\":{\"name\":\"searchStoriaKnowledge\",\"args\":{\"query\":\"a\"}}},"
+                + "{\"functionCall\":{\"name\":\"searchStoriaKnowledge\",\"args\":{\"query\":\"b\"}}},"
+                + "{\"functionCall\":{\"name\":\"searchStoriaKnowledge\",\"args\":{\"query\":\"c\"}}}]}}]}");
+        captureContentSnapshots(threeSearches, textResponse("답변"));
+
+        AdminAgentResponse response = service.ask("q");
+
+        assertThat(response.stopReason()).isEqualTo("completed");
+        verify(knowledge, times(AdminAgentService.MAX_KNOWLEDGE_SEARCHES)).search(anyString(), org.mockito.ArgumentMatchers.anyInt());
+        assertThat(response.toolCalls().get(2).result()).contains("search_budget_exhausted");
+        verify(client, times(1)).generateFinalAnswer(anyString(), any(), any(), any());
+    }
+
+    @Test
+    void knowledgeSearch_noEvidenceAfterRetry_finalAnswerKeepsServerNotice() {
+        when(knowledge.search(anyString(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.NO_EVIDENCE, List.of()));
+        List<String> snapshots = captureContentSnapshots(
+                functionCallResponse("searchStoriaKnowledge", "{\"query\":\"결제 시스템\"}"),
+                functionCallResponse("searchStoriaKnowledge", "{\"query\":\"payment billing\"}"),
+                textResponse("근거 문서가 없습니다. 결제 관련 문서가 필요합니다."));
+
+        AdminAgentResponse response = service.ask("결제 시스템은 어떻게 동작해?");
+
+        assertThat(response.stopReason()).isEqualTo("completed");
+        assertThat(response.knowledgeStatus()).isEqualTo("NO_EVIDENCE");
+        assertThat(response.knowledgeSources()).isEmpty();
+        assertThat(response.evidenceNotice()).contains("근거를 찾지 못했습니다");
+        // 최종 답변 단계 안내가 추측 대신 부족한 정보를 알리도록 요구한다.
+        assertThat(snapshots.get(2)).contains("추측하지 말고");
     }
 
     @Test

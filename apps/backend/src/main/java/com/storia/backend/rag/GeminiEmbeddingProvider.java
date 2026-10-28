@@ -101,7 +101,8 @@ public final class GeminiEmbeddingProvider implements EmbeddingProvider {
         return node;
     }
 
-    private String documentText(String text) {
+    /** 실제로 API에 보내는 문서 입력(모델에 따라 접두어 포함). 캐시 키 계산에도 쓴다. */
+    String documentText(String text) {
         return taskInText ? "title: none | text: " + text : text;
     }
 
@@ -122,8 +123,8 @@ public final class GeminiEmbeddingProvider implements EmbeddingProvider {
                     .build();
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
-                // 응답 본문에는 요청 내용이 반영될 수 있으므로 상태 코드만 남긴다.
-                throw new IllegalStateException("임베딩 호출 실패: HTTP " + response.statusCode());
+                // 응답 본문에는 요청 내용이 반영될 수 있으므로 상태 코드와 형식이 정해진 진단 값만 꺼낸다.
+                throw httpFailure(response);
             }
             return mapper.readTree(response.body());
         } catch (InterruptedException e) {
@@ -132,6 +133,40 @@ public final class GeminiEmbeddingProvider implements EmbeddingProvider {
         } catch (IOException e) {
             throw new IllegalStateException("임베딩 호출 실패: " + e.getClass().getSimpleName());
         }
+    }
+
+    private EmbeddingHttpException httpFailure(HttpResponse<String> response) {
+        String retryAfter = response.headers().firstValue("Retry-After")
+                .filter(v -> v.matches("[0-9A-Za-z ,:-]{1,40}")).orElse(null);
+        String errorStatus = null;
+        String retryDelay = null;
+        try {
+            JsonNode error = mapper.readTree(response.body()).path("error");
+            String s = error.path("status").asText("");
+            errorStatus = s.matches("[A-Z_]{1,40}") ? s : null;
+            for (JsonNode detail : error.path("details")) {
+                String delay = detail.path("retryDelay").asText("");
+                if (detail.path("@type").asText("").endsWith("RetryInfo") && delay.matches("\\d{1,6}(\\.\\d{1,9})?s")) {
+                    retryDelay = delay;
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            // 본문이 JSON이 아니면 상태 코드만 남긴다.
+        }
+        return new EmbeddingHttpException(response.statusCode(), retryAfter, errorStatus, retryDelay);
+    }
+
+    /**
+     * 문서 임베딩 요청의 형식 식별자(모델·차원·호출 방식·작업 지정 방식). 같은 텍스트라도 이 값이 다르면 다른 벡터이므로
+     * 캐시 키에 넣는다. 문서 내용은 포함하지 않는다.
+     */
+    String documentRequestSignature() {
+        return "gemini-doc-v1|method=batchEmbedContents|model=models/" + model + "|dims=" + dimensions + "|task="
+                + (taskInText ? "text-prefix" : "taskType:RETRIEVAL_DOCUMENT");
+    }
+
+    int dimensions() {
+        return dimensions;
     }
 
     private float[] vector(JsonNode values) {

@@ -219,6 +219,61 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
   - **버그 발견 및 수정**: 이 머신엔 `apps/admin/.env.local`이 아예 없었음(`.env.local.example`만 존재) — `ADMIN_BACKEND_URL`이 `undefined`가 돼 로그인 Server Action이 `Failed to parse URL from undefined/api/admin/auth/login`으로 크래시. 코드 버그가 아니라 이 머신의 최초 로컬 셋업이 누락된 것(파일은 `.gitignore`에 있어 커밋 대상 아님) — `cp .env.local.example .env.local`로 해결, 이후 정상 동작. **다음에 새 머신/새 클론에서 `apps/admin`을 처음 띄울 때 이 스텝이 필요하다는 걸 기억할 것** — 현재 `README.md`엔 `apps/admin` 실행법 자체가 아예 문서화돼 있지 않음(추후 보완 여지).
 - [x] 실배포(Vercel 등)는 이번 스코프에서 의도적으로 제외 — 필요해지면 별도 단계로 논의. **운영 콘솔(`apps/admin`) 작업 전체 종료.**
 
+## 관리자 AI Agent — 실모델 동작 검증 (2026-10-28~29)
+
+로드맵(`docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md`) Phase 2~6을 처음으로 **실제 Gemini API**와 실제 MariaDB/관리자 콘솔(브라우저)로 확인함. 그 전까지 Function Calling은 Mock 테스트로만 검증돼 있었음. RAG 임베딩은 기본값 `local`(n-gram 해싱, 의미 임베딩 아님, 외부 호출 없음).
+
+- [x] Wiki RAG 직접 검색(`/agent/knowledge`, "음성 통화는 어떤 구조로 동작해?") — **성공.** 결과 3개가 출처(`PRD/Storia_PRD_final.md`)·점수(0.169/0.153/0.147)와 함께 표시됨. 단 상위 결과가 PRD "범위 제외" 섹션이라 관련성은 낮음.
+- [x] Admin Agent RAG 답변(`/agent`, 같은 질문) — **도구 호출은 성공, 답변 완성은 실패.** `searchStoriaKnowledge` 4회 모두 성공했으나 `stopReason=max_steps`, 약 47.5초, 약 11,262토큰.
+- [x] `getCharacterConfig` 실제 호출 — **성공.** 2번 캐릭터(렌) 컨셉·TTS 보이스 정확히 응답.
+- [x] 설정 변경 제안(`proposeCharacterConfigChange`) — **성공, 실제 변경 없음.** 제안 목록에 "승인 대기"로 표시, 캐릭터 concept 그대로임을 공개 API로 확인. 승인 버튼은 누르지 않음(테스트 제안은 메모리 저장이라 24시간 후/재시작 시 소멸).
+- [x] Observability(`/agent/observability`) 실제 확인 — **성공.** 실행 3건(completed 2 / max_steps 1), 오류 0, 도구별 통계·RAG 검색 통계 수집 확인.
+- [x] **반복 검색 문제(종료 로직) — 코드 수정(2026-10-29) + 실모델 재검증 통과(2026-10-29).** 수정 코드는 `storiaDocs`에 미커밋 상태.
+  - **확인된 코드 문제**: `AdminAgentService` 루프는 마지막(4번째) 단계에서 모델이 도구를 요청하면 도구를 실행하고 결과를 히스토리에 붙인 뒤 **모델에 다시 보내지 않고 종료** — 마지막 검색 결과가 답변에 쓰일 기회 없이 버려졌음. 검색 횟수 상한·중복 검색 방지도 없었음.
+  - **추정 원인(미확정)**: 원래 질문 표현("음성 통화 구조")으로는 local 해싱 검색이 블로그/Phase 0 문서를 0.19~0.21점으로 반환하고, 기술 용어("LiveKit Track Egress STT TTS")를 넣어야 `api.md`/`README.md` 음성 통화 섹션이 0.36~0.48점으로 잡힘. status는 항상 `OK`라 모델이 "결과는 있는데 내용이 안 맞아" 재검색했을 가능성. 실제 4회의 검색 인자는 남아있지 않아 확정 못 함.
+  - **수정**: `MAX_STEPS=4`(모델 호출 총 상한)는 그대로. 마지막 단계 또는 검색 예산(`MAX_KNOWLEDGE_SEARCHES=2`) 소진 후 다음 호출은 `GeminiToolClient.generateFinalAnswer`(`functionCallingConfig.mode=NONE`)로 도구 없이 답변만 받고, 직전 도구 결과에 "지금까지의 결과만 근거로, 부족하면 부족하다고 안내" 지시를 붙임. 정규화 기준 같은 검색어는 실행하지 않고 `duplicate_query`, 예산 초과 검색은 `search_budget_exhausted`로 돌려줌. 시스템 프롬프트에 검색 횟수·재검색 기준 추가. `TOTAL_TIMEOUT`(90초)/`MAX_CALLS_PER_STEP`(3) 유지.
+  - **테스트**: Mock 기반 신규/갱신 — RAG 1회 후 답변, 중복 검색 미실행, 예산 소진 후 최종 답변 단계, 한 단계 3검색 중 예산 초과분 건너뜀, 근거 없음 재검색 후 서버 안내 유지, 단계 제한 근처 최종 답변, 최종 단계에서도 도구 요청 시 미실행+`max_steps`, `mode=NONE` 요청 형식. Phase 4 시나리오 `agent-021` 기대 도구 수 4→3(마지막 단계가 도구 금지라서 — 의도된 변경, `max_steps`/모델 호출 4회는 동일). `./gradlew test` 249개 전부 통과.
+  - **실모델 재검증 (2026-10-29, 사용자 승인, `STORIA_RAG_PROVIDER=local`, 질문 3개 각 1회)**:
+    | 질문 | stopReason | 검색(실행) | 모델 호출 | 소요 | 토큰 |
+    |---|---|---|---|---|---|
+    | "음성 통화는 어떤 구조로 동작해?" | completed | 2회: "음성 통화 구조" → "WebRTC 음성 통화 아키텍처 STT TTS" (중복 없음) | 3 | 32.0초 | 7,279 |
+    | "Storia 결제 시스템은 어떻게 동작해?" | completed | 2회: "결제 시스템"(NO_EVIDENCE) → "payment"(OK, 0.14대 무관 문서) | 3 | 9.5초 | 6,289 |
+    | "2번 캐릭터의 컨셉과 TTS 보이스 설정을 알려줘" | completed | 0회, `getCharacterConfig` 1회 | 2 | 48.4초 | 2,829 |
+    - 이전 실패(47.5초/11,262토큰/`max_steps`) 대비 종료·비용 모두 개선. 중복 검색·`max_steps` 재발 없음. 3번의 48초는 Gemini 단일 호출 지연(41.6초)이고 루프 문제 아님(이 경로는 최종 답변 단계를 거치지 않음).
+    - 결제 질문은 추측 없이 "근거 문서가 없다"고 답함. 캐릭터 설정 변경·제안 승인 없음(렌 concept 그대로 확인). 로그에 키/비밀번호 0건.
+- [ ] **(신규, 2026-10-29) Agent 문서 답변의 내용 정확도 — 미해결.** 음성 통화 질문 답변이 출처(`docs/decisions.md`, `PRD/Storia_PRD_final.md`)는 인용했지만 내용은 ADR-004의 **초기 결정(B안+C안, WebRTC 미사용·P2P 데모)**을 현재 구조처럼 설명함 — 실제 구현은 "축소판 A안"(LiveKit WebRTC + Track Egress → 서버 STT/Gemini/TTS). 검색된 PRD 발췌가 "흐름" 직전에서 잘려 있었고, 모델은 "축소판 A안"을 P2P 데모와 섞어 표현함(발췌에 없는 연결). 추정 원인: local 해싱 검색이 ADR-004의 원 결정 청크를 갱신 섹션·`docs/architecture/README.md`보다 높게 반환. 결제 질문에서도 재검색이 무관 문서를 `OK`로 돌려줘 근거 목록에 노출됨(서버 측 근거 없음 안내가 안 붙음). → 아래 ③(의미 임베딩) 평가와 함께 다룰 것.
+- [ ] **(2026-10-29) RAG 최신성·관련성·근거 정확성 — 오프라인 분석·최소 보완 완료, 실모델 확인 전(유료 호출 없음).**
+  - **확인된 원인 (오프라인 실측, local 해싱)**:
+    - 현재 구조를 가장 정확히 설명하는 `docs/architecture/README.md` "음성 통화 — 축소판 A안" 섹션이 원 질문 기준 **21위(0.091)**, 기술 용어 질의로도 6위. 본문이 `LiveKit`/`Track Egress`/`pcm_s16le` 등 영문 식별자와 mermaid라 한국어 질문과 어휘가 안 겹침(어휘 해싱의 한계).
+    - ADR-004의 **원래 결정 청크**가 기술 용어 질의에서 1위(0.456). ADR 안의 "갱신 1~3"은 Markdown 헤딩이 아니라 굵은 글씨 문단이라, 갱신 2(현재 구조) 청크도 원 결정 제목("B안+C안 조합 채택")을 헤딩 경로로 가짐 — 청크만으로는 원 결정/갱신 구분 불가. 검색 결과에 "현재 구현 문서 vs 과거 기록" 신호가 전혀 없었음.
+    - 기존 평가(`rag-001`)는 `docs/decisions.md`도 정답 출처로 인정해서 이 문제가 지표에 드러나지 않았음.
+    - "payment" 재검색은 어휘가 전혀 없는 배포/API/CI 문서가 문자 n-gram 겹침만으로 0.137~0.147(임계값 0.12) 통과.
+    - 참고(수정 안 함): `PRD/Storia_PRD_final.md` 9절은 Python 사이드카를 "미완·미검증"으로 적고 있어 이후 실기기 검증과 어긋남. 역사 기록은 왜곡하지 않는다는 원칙에 따라 문서는 그대로 둠.
+  - **보완 (문서 원문·청킹·캐릭터 RAG 무변경)**:
+    - `KnowledgeSources.roleOf()` — `docs/decisions.md`, `docs/blog-webrtc-tradeoffs.md`, 로드맵, Phase 0 설계 분석은 `historical`, 나머지는 `current`. Agent 도구 결과·MCP 결과에 `docRole` 추가, 도구 notice와 시스템 프롬프트에 "현재 동작은 current 기준, historical의 원 결정과 갱신을 현재 구조처럼 섞지 말 것, 발췌에 없는 연결을 덧붙이지 말 것" 추가. Agent 루프·검색 2회·모델 호출 상한·승인 프로세스는 그대로.
+    - `LexicalSupport` + `KnowledgeSearchService(…, requireLexicalSupport)` — **비의미 인덱스에서만**, 점수를 넘어도 질의 내용어(한글 어절 앞 2글자 / 영문 3자 이상, 질문 형식어 제외)가 조각에 하나도 없으면 근거로 채택하지 않음. 프로젝트 문서 검색(`RagConfig`, MCP 서버)에서만 켬 — 캐릭터 RAG(`CharacterLoreService`)는 기존 2인자 생성자라 영향 없음.
+  - **평가 확장 (`rag-eval.json` 20→28문항, calibration/holdout 유지)**: `asks_current` 라벨 + 현재 구현 질문 3개(cal 1/holdout 2), 범위 밖 5개(cal: 실제 실패한 "결제 시스템"/"payment", holdout: 처음 보는 3개). 지표 추가: 현재 문서 Hit@1/@3, 현재 질문의 historical top-1 비율, 범위 밖 오탐 출처, 질문당 첫 검색 지연(질의 임베딩 포함), 임베딩 호출량(문서 요청/글자 수, 질의 요청/글자 수). 같은 질의는 한 번만 임베딩 — 기존 평가기는 Gemini에서 질의 임베딩을 질문당 7회(약 140회) 호출하는 구조였음.
+  - **결과 (local, 어휘 검사 끔 → 켬)**: 순위 지표는 동일(Hit@1 0.7895 / Hit@3 0.8947 / MRR 0.8465), 범위 내 근거 누락 0 → 0. 범위 밖 오탐 **calibration 0.5 → 0.0**, **holdout 0.4 → 0.4(개선 없음)**, 전체 0.444 → 0.222. holdout 잔여 오탐: "billing invoice refund flow"(`flow`가 `workflow`에 부분 일치), "Kafka 이벤트 스트리밍 파이프라인 구성"(`스트`·`구성` 일치) — 규칙을 holdout에 맞춰 조이면 holdout이 오염되므로 이번엔 조이지 않음. 현재 문서 Hit@1: cal 0.8 / holdout 0.5, 현재 질문의 historical top-1: holdout 0.333 — 순위 자체는 이번 보완으로 바뀌지 않음(라벨은 답변 단계에서만 작동, 실모델 확인 필요).
+  - `./gradlew test` 256개 통과. 실행 중 백엔드(local)에서 "payment"/"Storia 결제 시스템은 어떻게 동작해?" → `NO_EVIDENCE` 확인.
+  - **남은 것**: ① 실모델로 음성 통화 질문 재확인(답변이 current 문서 기준으로 축소판 A안을 설명하는지) ② Gemini 의미 임베딩 비교 평가(사용자 승인 후) ③ 어휘 검사 강화는 새 holdout 질문을 만든 뒤에 검증.
+- [ ] **(2026-10-29) Gemini 의미 임베딩 비교 평가 — 실행했으나 HTTP 429로 실패, 비교 결과 없음.**
+  - 사전 확인: 공식 문서 기준 `gemini-embedding-2`는 `taskType` 미지원 → 텍스트 접두어(`task: search result | query:` / `title: none | text:`), 768차원 지원(자동 정규화) — 코드와 일치. `models.get` 메타데이터(생성 호출 아님): `supportedGenerationMethods`에 `embedContent`/`asyncBatchEmbedContent`는 있으나 코드가 쓰는 `batchEmbedContents`는 목록에 없음(문서 예제에는 있음 — 불일치, 이번 429와의 관련은 미확인).
+  - 실행 전 평가기 보강(오프라인 테스트 3개로 확인): 호출 상한(문서 300개=6배치, 질의 28회), 첫 실패 후 하위 provider 호출 차단, 검색 `ERROR` 시 평가 중단 — 이전 구조는 오류 시 같은 질의를 최대 7번씩 다시 호출할 수 있었음. 임계값 스윕을 0.80까지 넓히고 calibration만으로 임계값을 고르는 `calibrated_threshold` 추가(holdout은 고른 값에서 읽기만).
+  - 실행: `RUN_LIVE_EVAL=true RUN_LIVE_RAG_EVAL=true ./gradlew evalLive --tests 'com.storia.backend.rag.RagLiveEvalTest'`(gemini-embedding-2, 768) → 7초 만에 문서 임베딩 단계에서 `임베딩 호출 실패: HTTP 429`, 즉시 중단. 질의 임베딩 0회, 재시도·모델 전환 없음, 로그에 키 0건. `STORIA_RAG_PROVIDER` 변경 없음.
+  - **확인된 것**: `GeminiEmbeddingProvider.embedDocuments`가 6배치를 한 호출 안에서 순차 전송하고 `CachingEmbeddingProvider`는 전체 성공 후에만 저장 → 429 이전에 성공한 배치(0~5회, 과금 가능)는 캐시에 남지 않았고 몇 번째 배치에서 실패했는지도 기록되지 않음(배치별 상태 로그 없음).
+  - **추정(미확정)**: 429는 요청 한도 초과(분당 요청/토큰 또는 일일 한도). 배치당 50개·약 2.6만 자라 분당 한도 가능성. 응답 본문은 보안상 기록하지 않아 종류 확인 불가.
+  - **다음(사용자 결정 필요)**: AI Studio에서 프로젝트 임베딩 한도 확인 → 재실행 시 배치마다 캐시 저장 + 배치 사이 간격 두기(이미 성공한 배치를 다시 과금하지 않도록) 검토.
+  - [x] **(2026-10-29) 재실행 전 오프라인 안정성 보강 — 완료(Gemini 호출 0회).** 운영·캐릭터 RAG가 쓰는 `CachingEmbeddingProvider`는 그대로 두고, 실평가 전용 `EvalBatchEmbeddingCache`(테스트 소스)를 추가:
+    - 문서를 50개씩 직접 나눠 배치마다 호출하고, **배치가 성공할 때마다 원자적으로 저장** → 뒤 배치가 실패해도 재실행 때 성공한 배치는 다시 호출하지 않음.
+    - 캐시 키 = SHA-256(요청 형식 식별자 + 실제 API 입력). 식별자 `gemini-doc-v1|method=batchEmbedContents|model=…|dims=…|task=text-prefix|taskType` — 모델·차원·호출 방식·작업 지정 방식이 바뀌면 재사용 안 함. 파일 헤더(버전·식별자·차원)가 다르거나 벡터 길이가 다르면 사용 안 함, 응답 개수·차원이 틀린 배치는 저장 안 함, 손상 파일은 무시.
+    - 실패 즉시 중단(자동 재시도 없음). 기록: 배치 번호/전체, 요청 건수, HTTP 상태, 오류 유형(`rate_limited`/`http_error`/`invalid_response`/`cache_write_failed`), `error.status` 열거값, `Retry-After`, `RetryInfo.retryDelay`, 이번 실행 성공 배치 수, 재실행 시 남은 문서 수·배치 수. 키·요청 본문·문서 내용·오류 메시지 문장은 기록 안 함. 실패 시 `build/eval-reports/rag-live-failure-*.json` 작성(남은 호출량 = 남은 문서 배치 + 질의 28).
+    - 배치 간격: `EVAL_EMBEDDING_BATCH_INTERVAL_MS`(기본 0, 원격 호출 사이에만 적용).
+    - 운영 코드 변경은 최소: `GeminiEmbeddingProvider`가 비정상 응답 시 `EmbeddingHttpException`(기존과 같은 `IllegalStateException` 계열·같은 메시지 "임베딩 호출 실패: HTTP n")을 던지고 형식이 정해진 진단 값만 담음, 캐시 키용 `documentRequestSignature()`/`documentText()`를 패키지 내부로 공개. 호출·재시도·캐시 동작은 무변경.
+    - Mock HTTP 서버 테스트 7개: 130개(3배치) 중 2배치 성공 → 3번째 429(Retry-After 30, RESOURCE_EXHAUSTED, retryDelay 30s) → 즉시 중단·실패 배치 재전송 없음 → 새 인스턴스 재실행 시 30개 1배치만 호출(100개 재사용) → 세 번째 실행 호출 0; 첫 배치 실패 시 캐시 없음·남은 6배치 보고; 모델/차원별 키 분리; 차원 불일치 응답 미저장; 손상·형식 불일치 파일 미사용; 간격은 원격 배치 사이에만; 비정상 헤더·비JSON 본문은 진단 값 null. 오류 메시지·리포트·캐시 파일에 키/문서 내용/오류 본문 문장 없음 확인. `./gradlew test` 266개 통과.
+  - **`batchEmbedContents` 조사(코드 변경 없음)**: REST 참조는 `POST v1beta/{model=models/*}:batchEmbedContents`, `requests[]`(EmbedContentRequest), 배치당 최대 개수 명시 없음, 예제는 `gemini-embedding-001`만. 임베딩 가이드에는 `gemini-embedding-2:batchEmbedContents` 예제가 있음. 반면 `models.get`의 `supportedGenerationMethods`에는 없음(`asyncBatchEmbedContent`는 Operation을 돌려주는 비동기 배치라 별개 방식). **지원 여부 불명확 → 추정으로 바꾸지 않음.** 재실행에서 첫 배치부터 4xx(400/404)가 나면 이 불일치를 우선 의심.
+  - [ ] **Gemini 비교 평가 자체는 여전히 미완료** — 2026-10-29 실행은 429로 실패했고 비교 결과 없음. 재실행은 사용자 승인 후.
+- [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② 캐릭터 세계관 RAG OFF/ON 비교 ③ Gemini 의미 임베딩 품질 평가 ④ MCP 로컬 클라이언트 재확인(선택) ⑤ 음성 통화에서 캐릭터 RAG 적용 확인
+
 ## 문서화 (진행 중 계속 갱신)
 
 - [x] **(2026-08-25 확인)** API 명세 문서 — `docs/api/`는 빈 디렉토리(Swagger UI로 충분하다고 이미 판단된 흔적)이고, 실제 정리는 이미 [`docs/api.md`](./docs/api.md)에 REST/WS/WebRTC 엔드포인트별로 상세히 되어있었음(이전 세션에서 작성됐으나 이 체크박스에 반영이 안 돼있던 것으로 보임). 오늘 세션에서 stale해진 부분(3주차 per-device WS 토픽 스코프 변경 미반영)만 발견해 수정.

@@ -29,6 +29,22 @@ public final class KnowledgeSources {
                     "관리자 AI Agent 로드맵"),
             new KnowledgeSource("python-sidecar", "apps/python-sidecar/README.md", "Python 사이드카"));
 
+    /** 현재 구현을 기준으로 유지되는 문서. 검색 결과의 {@code docRole}이 "current"가 된다. */
+    public static final String ROLE_CURRENT = "current";
+    /** 시점별 결정·계획·회고 기록. 원래 결정이 뒤의 갱신 항목이나 실제 구현으로 대체됐을 수 있다. */
+    public static final String ROLE_HISTORICAL = "historical";
+
+    private static final java.util.Set<String> HISTORICAL_PATHS = java.util.Set.of(
+            "docs/decisions.md",
+            "docs/blog-webrtc-tradeoffs.md",
+            "docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md",
+            "docs/architecture/admin-ai-agent-phase0.md");
+
     private KnowledgeSources() {
+    }
+
+    /** 허용 목록 문서의 역할. 기록 문서(ADR, 로드맵, 설계 분석, 회고 글)가 아니면 현재 구현 문서로 본다. */
+    public static String roleOf(String source) {
+        return HISTORICAL_PATHS.contains(source) ? ROLE_HISTORICAL : ROLE_CURRENT;
     }
 }

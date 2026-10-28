@@ -21,14 +21,20 @@ class RagEvalTest {
         Path repoRoot = Path.of("../..").toAbsolutePath().normalize();
         assertThat(Files.isRegularFile(repoRoot.resolve("AGENTS.md"))).as("저장소 루트: " + repoRoot).isTrue();
         List<RagEvaluator.Question> questions = RagEvaluator.loadQuestions();
-        assertThat(questions).hasSize(20);
+        assertThat(questions).hasSize(28);
 
-        Map<String, Object> result = RagEvaluator.evaluate(new LocalHashingEmbeddingProvider(), repoRoot, questions, null);
+        // 같은 질문 세트로 어휘 근거 검사를 끈 경우(이전 동작)와 켠 경우(운영 설정)를 비교한다.
+        Map<String, Object> before = RagEvaluator.evaluate(new LocalHashingEmbeddingProvider(), repoRoot, questions, null, false);
+        String beforeId = RagEvaluator.writeReport(Path.of("build/eval-reports"), before);
+        Map<String, Object> result = RagEvaluator.evaluate(new LocalHashingEmbeddingProvider(), repoRoot, questions, null, true);
         String runId = RagEvaluator.writeReport(Path.of("build/eval-reports"), result);
 
         Map<String, Object> all = (Map<String, Object>) result.get("all");
         Map<String, Object> integrity = (Map<String, Object>) result.get("source_integrity");
-        System.out.println("RAG_EVAL " + runId + " all=" + all + " integrity=" + integrity + " latency=" + result.get("search_latency_ms"));
+        System.out.println("RAG_EVAL guard=off " + beforeId + " cal=" + before.get("calibration") + " holdout=" + before.get("holdout"));
+        System.out.println("RAG_EVAL guard=on  " + runId + " cal=" + result.get("calibration") + " holdout=" + result.get("holdout"));
+        System.out.println("RAG_EVAL integrity=" + integrity + " latency=" + result.get("search_latency_ms")
+                + " usage=" + result.get("embedding_usage"));
 
         assertThat(result.get("documents")).isEqualTo(14);
         assertThat((Integer) result.get("chunks")).isGreaterThan(100);
@@ -40,10 +46,25 @@ class RagEvalTest {
         assertThat((Double) all.get("hit_at_5_unfiltered")).isGreaterThanOrEqualTo(MIN_HIT_AT_5);
         assertThat((Double) all.get("hit_at_3_unfiltered")).isGreaterThanOrEqualTo(MIN_HIT_AT_3);
         assertThat((Double) all.get("out_of_scope_correct_no_evidence_rate")).isGreaterThanOrEqualTo(MIN_OOS_REJECT);
+        assertThat((Double) all.get("current_doc_hit_at_3_unfiltered")).isGreaterThanOrEqualTo(MIN_CURRENT_DOC_HIT_AT_3);
+
+        // 어휘 검사는 순위를 바꾸지 않고, 범위 내 질문의 근거를 버리지 않으며, 범위 밖 오탐을 늘리지 않는다.
+        for (String split : List.of("all", "calibration", "holdout")) {
+            Map<String, Object> on = (Map<String, Object>) result.get(split);
+            Map<String, Object> off = (Map<String, Object>) before.get(split);
+            assertThat(on.get("hit_at_3_unfiltered")).as(split).isEqualTo(off.get("hit_at_3_unfiltered"));
+            assertThat(on.get("in_scope_false_no_evidence_rate")).as(split).isEqualTo(off.get("in_scope_false_no_evidence_rate"));
+            assertThat((Double) on.get("out_of_scope_false_evidence_rate")).as(split)
+                    .isLessThanOrEqualTo((Double) off.get("out_of_scope_false_evidence_rate"));
+        }
+        // calibration에 넣은 실제 실패 사례("결제 시스템", "payment")는 근거 없음으로 끝나야 한다.
+        assertThat(((Map<String, Object>) result.get("calibration")).get("out_of_scope_false_evidence_rate")).isEqualTo(0.0);
     }
 
-    // 2026-10-28 첫 실행 관찰값: Hit@5 0.9375, Hit@3 0.875, 범위 밖 거절 1.0 (각각 질문 1개 분량의 여유를 둠)
-    static final double MIN_HIT_AT_5 = 0.875;
-    static final double MIN_HIT_AT_3 = 0.8125;
-    static final double MIN_OOS_REJECT = 0.75;
+    // 2026-10-29 관찰값(28문항, 어휘 검사 켬): Hit@5 0.9474, Hit@3 0.8947, 범위 밖 거절 0.7778, 현재 문서 Hit@3 0.8182
+    // (각각 질문 1개 분량의 여유를 둠). holdout 범위 밖 오탐 0.4(2/5)는 남아 있음 — TODO.md 참고.
+    static final double MIN_HIT_AT_5 = 0.89;
+    static final double MIN_HIT_AT_3 = 0.84;
+    static final double MIN_OOS_REJECT = 0.66;
+    static final double MIN_CURRENT_DOC_HIT_AT_3 = 0.72;
 }

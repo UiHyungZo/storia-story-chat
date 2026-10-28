@@ -2,6 +2,7 @@ package com.storia.backend.mcp;
 
 import com.storia.backend.rag.KnowledgeSearchResult;
 import com.storia.backend.rag.KnowledgeSearchService;
+import com.storia.backend.rag.KnowledgeSources;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
@@ -197,6 +198,7 @@ public final class KnowledgeMcpTool {
             Map<String, Object> hit = new LinkedHashMap<>();
             hit.put("rank", h.rank());
             hit.put("source", h.source());
+            hit.put("docRole", KnowledgeSources.roleOf(h.source()));
             hit.put("docId", h.docId());
             hit.put("chunkId", h.chunkId());
             hit.put("title", h.title());

@@ -47,6 +47,6 @@ public class RagConfig {
 
     @Bean
     public KnowledgeSearchService knowledgeSearchService(KnowledgeBase ragKnowledgeBase, RagMetrics ragMetrics) {
-        return new KnowledgeSearchService(ragKnowledgeBase, ragMetrics);
+        return new KnowledgeSearchService(ragKnowledgeBase, ragMetrics, true);
     }
 }

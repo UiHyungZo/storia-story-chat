@@ -92,7 +92,7 @@ public final class StoriaMcpServerMain {
         KnowledgeBase base = new KnowledgeBase(new DocumentLoader(root, KnowledgeSources.DEFAULT), provider,
                 new MarkdownChunker(800), minScore);
         System.err.println("storia-mcp-server docsRoot=" + root + " embedding=" + provider.id());
-        return new KnowledgeSearchService(base, new RagMetrics());
+        return new KnowledgeSearchService(base, new RagMetrics(), true);
     }
 
     private static String env(String name) {

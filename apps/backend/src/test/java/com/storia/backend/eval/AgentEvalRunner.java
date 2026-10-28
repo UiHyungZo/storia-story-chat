@@ -528,16 +528,20 @@ class AgentEvalRunner {
         private final GeminiToolClient client = mock(GeminiToolClient.class);
 
         ScriptedModel(EvalFixtures.Seeded seeded, ProposalStore store) {
+            org.mockito.stubbing.Answer<JsonNode> answer = inv -> {
+                calls++;
+                String system = inv.getArgument(0);
+                if (!AdminAgentService.SYSTEM_INSTRUCTION.equals(system)
+                        || system.contains("HACKED") || system.contains(EvalFixtures.INJECTION_TEXT)) {
+                    systemInstructionViolations++;
+                }
+                return next();
+            };
+            // 일반 단계와 최종 답변 단계(도구 금지)가 같은 스크립트를 이어서 소비한다.
             when(client.generate(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
-                    .thenAnswer(inv -> {
-                        calls++;
-                        String system = inv.getArgument(0);
-                        if (!AdminAgentService.SYSTEM_INSTRUCTION.equals(system)
-                                || system.contains("HACKED") || system.contains(EvalFixtures.INJECTION_TEXT)) {
-                            systemInstructionViolations++;
-                        }
-                        return next();
-                    });
+                    .thenAnswer(answer);
+            when(client.generateFinalAnswer(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
+                    .thenAnswer(answer);
         }
 
         GeminiToolClient client() {

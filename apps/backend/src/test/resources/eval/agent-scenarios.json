@@ -1020,7 +1020,7 @@
       "id": "agent-021",
       "mode": "scripted",
       "category": "api-failure",
-      "description": "모델이 도구 호출을 끝없이 반복하면 4단계에서 중단된다",
+      "description": "모델이 도구 호출을 끝없이 반복하면 4단계에서 중단된다 (마지막 단계는 도구 금지 최종 답변 단계라 실행되는 도구는 3회)",
       "steps": [
         {
           "type": "ask",
@@ -1043,10 +1043,6 @@
             "stop_reason": "max_steps",
             "model_calls": 4,
             "tool_calls": [
-              {
-                "name": "getCharacterConfig",
-                "ok": true
-              },
               {
                 "name": "getCharacterConfig",
                 "ok": true

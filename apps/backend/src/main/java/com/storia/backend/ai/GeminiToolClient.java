@@ -41,6 +41,20 @@ public class GeminiToolClient {
      */
     public JsonNode generate(String systemInstruction, ArrayNode contents, ArrayNode functionDeclarations,
                              Duration timeout) {
+        return call(systemInstruction, contents, functionDeclarations, timeout, "AUTO");
+    }
+
+    /**
+     * 도구 호출을 금지({@code mode: NONE})하고 지금까지의 contents만으로 텍스트 답변을 받는다.
+     * 히스토리에 functionCall/functionResponse 파트가 있으므로 선언 목록은 그대로 보낸다.
+     */
+    public JsonNode generateFinalAnswer(String systemInstruction, ArrayNode contents, ArrayNode functionDeclarations,
+                                        Duration timeout) {
+        return call(systemInstruction, contents, functionDeclarations, timeout, "NONE");
+    }
+
+    private JsonNode call(String systemInstruction, ArrayNode contents, ArrayNode functionDeclarations,
+                          Duration timeout, String functionCallingMode) {
         if (!properties.isConfigured()) {
             throw new IllegalStateException("GEMINI_API_KEY가 설정되지 않았습니다.");
         }
@@ -49,7 +63,7 @@ public class GeminiToolClient {
         body.putObject("systemInstruction").putArray("parts").addObject().put("text", systemInstruction);
         body.set("contents", contents);
         body.putArray("tools").addObject().set("functionDeclarations", functionDeclarations);
-        body.putObject("toolConfig").putObject("functionCallingConfig").put("mode", "AUTO");
+        body.putObject("toolConfig").putObject("functionCallingConfig").put("mode", functionCallingMode);
 
         Duration effective = timeout.compareTo(MAX_CALL_TIMEOUT) > 0 ? MAX_CALL_TIMEOUT : timeout;
         try {

@@ -86,6 +86,20 @@ class GeminiToolClientTest {
     }
 
     @Test
+    void generateFinalAnswer_keepsDeclarationsButDisablesFunctionCalling() throws Exception {
+        GeminiToolClient client = clientReturning(HttpStatus.OK,
+                "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]}}]}", API_KEY);
+        ArrayNode declarations = new AdminToolRegistry(null, null, new ProposalStore(), null, MAPPER).declarations();
+
+        client.generateFinalAnswer("시스템", MAPPER.createArrayNode(), declarations, Duration.ofSeconds(5));
+
+        JsonNode body = MAPPER.readTree(bodyOf(captured.get()));
+        assertThat(body.at("/toolConfig/functionCallingConfig/mode").asText()).isEqualTo("NONE");
+        assertThat(body.at("/tools/0/functionDeclarations")).hasSize(4);
+        assertThat(captured.get().url().getPath()).isEqualTo("/v1beta/models/test-model:generateContent");
+    }
+
+    @Test
     void generate_httpError_throwsIllegalStateWithoutLeakingKeyOrBody() {
         GeminiToolClient client = clientReturning(HttpStatus.BAD_REQUEST,
                 "{\"error\":{\"message\":\"echo of secret request " + API_KEY + "\"}}", API_KEY);
