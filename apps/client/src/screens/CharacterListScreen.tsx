@@ -1,6 +1,12 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CharacterListItem } from "../components/CharacterListItem";
 import { useCharacterStore } from "../store/useCharacterStore";
@@ -21,11 +27,19 @@ export function CharacterListScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Storia</Text>
-      {isLoading && characters.length === 0 && <ActivityIndicator style={styles.centerBlock} />}
+      {isLoading && characters.length === 0 && (
+        <ActivityIndicator style={styles.centerBlock} />
+      )}
       {error && (
-        <Pressable style={styles.errorBanner} onPress={() => loadCharacters()} disabled={isLoading}>
+        <Pressable
+          style={styles.errorBanner}
+          onPress={() => loadCharacters()}
+          disabled={isLoading}
+        >
           <Text style={styles.error}>{error}</Text>
-          <Text style={styles.retryText}>{isLoading ? "재시도 중…" : "다시 시도"}</Text>
+          <Text style={styles.retryText}>
+            {isLoading ? "재시도 중…" : "다시 시도"}
+          </Text>
         </Pressable>
       )}
       <FlatList
@@ -34,7 +48,9 @@ export function CharacterListScreen({ navigation }: Props) {
         renderItem={({ item }) => (
           <CharacterListItem
             character={item}
-            onPress={() => navigation.navigate("ChatRoom", { characterId: item.id })}
+            onPress={() =>
+              navigation.navigate("ChatRoom", { characterId: item.id })
+            }
           />
         )}
       />
