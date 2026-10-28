@@ -1,7 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { askAgentAction } from "./actions";
+
+function proposalIdOf(result: string): string | null {
+  try {
+    const parsed = JSON.parse(result) as { proposalId?: unknown };
+    return typeof parsed.proposalId === "string" ? parsed.proposalId : null;
+  } catch {
+    return null;
+  }
+}
 
 const STOP_REASON_LABEL: Record<string, string> = {
   max_steps: "도구 호출 단계 제한에 도달했습니다.",
@@ -17,7 +27,11 @@ export default function AgentPage() {
       <h1 className="text-xl font-semibold text-neutral-900">AI 조회 도우미</h1>
       <p className="text-sm text-neutral-500">
         캐릭터 설정과 대화 로그를 읽기 전용으로 조회합니다. 데이터는 변경되지 않으며, 조회된 내용은 외부 AI(Gemini)로
-        전송됩니다. 기기 ID는 마스킹되고 메시지는 일부만 전달됩니다.
+        전송됩니다. 기기 ID는 마스킹되고 메시지는 일부만 전달됩니다. AI는 설정 변경을 &apos;제안&apos;만 할 수 있으며,{" "}
+        <Link href="/agent/proposals" className="text-blue-600 hover:underline">
+          제안 목록
+        </Link>
+        에서 관리자가 승인해야 반영됩니다.
       </p>
 
       <form action={formAction} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
@@ -70,6 +84,14 @@ export default function AgentPage() {
                 <pre className="overflow-x-auto whitespace-pre-wrap text-xs">{call.arguments}</pre>
                 <p className="mt-2 text-xs text-neutral-500">결과</p>
                 <pre className="overflow-x-auto whitespace-pre-wrap text-xs">{call.result}</pre>
+                {call.ok && proposalIdOf(call.result) && (
+                  <Link
+                    href={`/agent/proposals/${encodeURIComponent(proposalIdOf(call.result)!)}`}
+                    className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+                  >
+                    제안 검토하기 →
+                  </Link>
+                )}
               </details>
             ))}
           </section>

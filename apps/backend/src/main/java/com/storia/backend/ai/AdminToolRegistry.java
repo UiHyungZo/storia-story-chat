@@ -12,7 +12,10 @@ import com.storia.backend.service.AdminConversationService;
 import com.storia.backend.service.CharacterService;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,8 +23,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 /**
- * 관리자 AI Agent가 쓸 수 있는 Read-only 도구의 고정 허용 목록. 모델이 만든 이름·인자는 신뢰하지 않고
- * 여기서 모두 검증한다. 이 클래스는 조회 메서드(findById / search / getMessages)만 호출한다.
+ * 관리자 AI Agent가 쓸 수 있는 도구의 고정 허용 목록. 모델이 만든 이름·인자는 신뢰하지 않고 여기서 모두
+ * 검증한다. DB에 대해서는 조회 메서드(findById / search / getMessages)만 호출하며, 유일한 "쓰기"인
+ * {@code proposeCharacterConfigChange}도 메모리의 {@link ProposalStore}에 제안을 쌓을 뿐 캐릭터를 수정하지
+ * 않는다. 실제 반영은 {@link ProposalApprovalService}의 관리자 승인 경로에서만 일어난다.
  */
 @Component
 @Slf4j
@@ -29,6 +34,7 @@ public class AdminToolRegistry {
 
     public static final String GET_CHARACTER_CONFIG = "getCharacterConfig";
     public static final String GET_CONVERSATION_LOGS = "getConversationLogs";
+    public static final String PROPOSE_CHARACTER_CONFIG_CHANGE = "proposeCharacterConfigChange";
 
     static final int DEFAULT_LIMIT = 10;
     static final int MAX_LIMIT = 20;
@@ -37,20 +43,30 @@ public class AdminToolRegistry {
     static final int MAX_PROMPT_CHARS = 4000;
     static final int MAX_DEVICE_ID_CHARS = 100;
     static final int MAX_RESULT_CHARS = 20_000;
+    static final int MAX_CONCEPT_CHARS = 255;
+    static final int MAX_NEW_PROMPT_CHARS = 10_000;
+    static final int MAX_REASON_CHARS = 500;
+    private static final Pattern VOICE_ID = Pattern.compile("[A-Za-z0-9-]{1,50}");
 
     private static final Set<String> CHARACTER_ARGS = Set.of("characterId");
     private static final Set<String> LOG_ARGS =
             Set.of("characterId", "deviceId", "from", "to", "conversationId", "limit", "page");
 
+    private static final Set<String> PROPOSE_ARGS = Set.of("characterId", "proposedFields", "reason");
+    private static final Set<String> PROPOSABLE_FIELDS = Set.of("concept", "systemPrompt", "ttsVoiceId");
+
     private final CharacterService characterService;
     private final AdminConversationService adminConversationService;
+    private final ProposalStore proposalStore;
     private final ObjectMapper objectMapper;
 
     public AdminToolRegistry(CharacterService characterService,
                              AdminConversationService adminConversationService,
+                             ProposalStore proposalStore,
                              ObjectMapper objectMapper) {
         this.characterService = characterService;
         this.adminConversationService = adminConversationService;
+        this.proposalStore = proposalStore;
         this.objectMapper = objectMapper;
     }
 
@@ -78,6 +94,23 @@ public class AdminToolRegistry {
         logProps.putObject("conversationId").put("type", "integer").put("description", "지정 시 메시지 모드. 다른 필터와 함께 쓸 수 없음");
         logProps.putObject("limit").put("type", "integer").put("description", "반환 건수 1~" + MAX_LIMIT + " (기본 " + DEFAULT_LIMIT + ")");
         logProps.putObject("page").put("type", "integer").put("description", "0부터 시작하는 페이지 번호");
+
+        ObjectNode propose = list.addObject();
+        propose.put("name", PROPOSE_CHARACTER_CONFIG_CHANGE);
+        propose.put("description", "캐릭터 설정 변경을 '제안'한다. 이 도구는 아무것도 변경하지 않으며, 관리자가 콘솔에서 "
+                + "승인해야만 반영된다. 바꿀 필드만 proposedFields에 넣는다(concept, systemPrompt, ttsVoiceId). "
+                + "먼저 getCharacterConfig로 현재 값을 확인하고, systemPrompt는 전체 새 내용을 넣는다.");
+        ObjectNode proposeProps = parameters(propose);
+        proposeProps.putObject("characterId").put("type", "integer").put("description", "캐릭터 ID (양수)");
+        ObjectNode fields = proposeProps.putObject("proposedFields");
+        fields.put("type", "object").put("description", "변경할 필드만 포함");
+        ObjectNode fieldProps = fields.putObject("properties");
+        fieldProps.putObject("concept").put("type", "string").put("description", "한 줄 컨셉 (최대 " + MAX_CONCEPT_CHARS + "자)");
+        fieldProps.putObject("systemPrompt").put("type", "string").put("description", "새 시스템 프롬프트 전체 (최대 " + MAX_NEW_PROMPT_CHARS + "자)");
+        fieldProps.putObject("ttsVoiceId").put("type", "string").put("description", "TTS 보이스 이름 (영문/숫자/하이픈)");
+        proposeProps.putObject("reason").put("type", "string").put("description", "변경 이유 (최대 " + MAX_REASON_CHARS + "자)");
+        ArrayNode proposeRequired = (ArrayNode) propose.path("parameters").path("required");
+        proposeRequired.add("characterId").add("proposedFields").add("reason");
         return list;
     }
 
@@ -94,6 +127,7 @@ public class AdminToolRegistry {
             JsonNode result = switch (name == null ? "" : name) {
                 case GET_CHARACTER_CONFIG -> getCharacterConfig(args);
                 case GET_CONVERSATION_LOGS -> getConversationLogs(args);
+                case PROPOSE_CHARACTER_CONFIG_CHANGE -> proposeCharacterConfigChange(args);
                 default -> throw new ToolArgumentException("unknown_tool");
             };
             if (result.toString().length() > MAX_RESULT_CHARS) {
@@ -101,9 +135,11 @@ public class AdminToolRegistry {
             }
             return new ToolOutcome(true, result);
         } catch (ToolArgumentException e) {
-            return "unknown_tool".equals(e.getMessage())
-                    ? error("unknown_tool", "허용되지 않은 도구입니다.")
-                    : error("invalid_arguments", e.getMessage());
+            return switch (e.getMessage()) {
+                case "unknown_tool" -> error("unknown_tool", "허용되지 않은 도구입니다.");
+                case "too_many_pending" -> error("too_many_pending", "승인 대기 중인 제안이 너무 많습니다. 관리자가 먼저 처리해야 합니다.");
+                default -> error("invalid_arguments", e.getMessage());
+            };
         } catch (ResourceNotFoundException e) {
             return error("not_found", e.getMessage());
         } catch (RuntimeException e) {
@@ -127,6 +163,62 @@ public class AdminToolRegistry {
         } else {
             out.put("ttsVoiceId", character.getTtsVoiceId());
         }
+        return out;
+    }
+
+    private JsonNode proposeCharacterConfigChange(JsonNode args) {
+        ObjectNode in = object(args, PROPOSE_ARGS);
+        long characterId = positiveLong(in, "characterId", true);
+        String reason = text(in, "reason", MAX_REASON_CHARS);
+
+        JsonNode fieldsNode = in.get("proposedFields");
+        if (fieldsNode == null || !fieldsNode.isObject() || fieldsNode.isEmpty()) {
+            throw new ToolArgumentException("proposedFields에 변경할 필드를 하나 이상 넣어야 합니다.");
+        }
+        fieldsNode.fieldNames().forEachRemaining(field -> {
+            if (!PROPOSABLE_FIELDS.contains(field)) {
+                throw new ToolArgumentException("제안할 수 없는 필드: " + field);
+            }
+        });
+
+        Map<String, String> proposed = new LinkedHashMap<>();
+        if (fieldsNode.has("concept")) {
+            proposed.put("concept", text((ObjectNode) fieldsNode, "concept", MAX_CONCEPT_CHARS));
+        }
+        if (fieldsNode.has("systemPrompt")) {
+            proposed.put("systemPrompt", text((ObjectNode) fieldsNode, "systemPrompt", MAX_NEW_PROMPT_CHARS));
+        }
+        if (fieldsNode.has("ttsVoiceId")) {
+            JsonNode voice = fieldsNode.get("ttsVoiceId");
+            if (voice.isNull()) {
+                proposed.put("ttsVoiceId", null);
+            } else if (voice.isTextual() && VOICE_ID.matcher(voice.asText()).matches()) {
+                proposed.put("ttsVoiceId", voice.asText());
+            } else {
+                throw new ToolArgumentException("ttsVoiceId는 영문/숫자/하이픈 1~50자이거나 null이어야 합니다.");
+            }
+        }
+
+        Character current = characterService.findById(characterId);
+        boolean changes = (proposed.containsKey("concept") && !proposed.get("concept").equals(current.getConcept()))
+                || (proposed.containsKey("systemPrompt") && !proposed.get("systemPrompt").equals(current.getSystemPrompt()))
+                || (proposed.containsKey("ttsVoiceId")
+                        && !java.util.Objects.equals(proposed.get("ttsVoiceId"), current.getTtsVoiceId()));
+        if (!changes) {
+            throw new ToolArgumentException("현재 설정과 동일하여 변경 사항이 없습니다.");
+        }
+
+        CharacterChangeProposal proposal = proposalStore
+                .add(characterId, proposed, reason, CharacterChangeProposal.fingerprint(current))
+                .orElseThrow(() -> new ToolArgumentException("too_many_pending"));
+
+        ObjectNode out = objectMapper.createObjectNode();
+        out.put("proposalId", proposal.getId());
+        out.put("status", proposal.getStatus().name());
+        out.put("characterId", characterId);
+        ArrayNode changed = out.putArray("changedFields");
+        proposed.keySet().forEach(changed::add);
+        out.put("note", "제안이 생성되었습니다. 아직 아무것도 변경되지 않았으며 관리자의 승인이 필요합니다.");
         return out;
     }
 

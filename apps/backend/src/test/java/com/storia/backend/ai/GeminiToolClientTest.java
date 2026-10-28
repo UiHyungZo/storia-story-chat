@@ -63,7 +63,7 @@ class GeminiToolClientTest {
                 "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]}}]}", API_KEY);
         ArrayNode contents = MAPPER.createArrayNode();
         contents.addObject().put("role", "user").putArray("parts").addObject().put("text", "질문");
-        ArrayNode declarations = new AdminToolRegistry(null, null, MAPPER).declarations();
+        ArrayNode declarations = new AdminToolRegistry(null, null, new ProposalStore(), MAPPER).declarations();
 
         JsonNode response = client.generate("시스템", contents, declarations, Duration.ofSeconds(5));
 
@@ -78,6 +78,7 @@ class GeminiToolClientTest {
         assertThat(body.at("/systemInstruction/parts/0/text").asText()).isEqualTo("시스템");
         assertThat(body.at("/tools/0/functionDeclarations/0/name").asText()).isEqualTo("getCharacterConfig");
         assertThat(body.at("/tools/0/functionDeclarations/1/name").asText()).isEqualTo("getConversationLogs");
+        assertThat(body.at("/tools/0/functionDeclarations/2/name").asText()).isEqualTo("proposeCharacterConfigChange");
         assertThat(body.at("/toolConfig/functionCallingConfig/mode").asText()).isEqualTo("AUTO");
         assertThat(body.at("/contents/0/parts/0/text").asText()).isEqualTo("질문");
         assertThat(body.toString()).doesNotContain(API_KEY);

@@ -36,12 +36,13 @@ class AdminToolRegistryTest {
     @Mock private CharacterService characterService;
     @Mock private AdminConversationService adminConversationService;
 
+    private final ProposalStore store = new ProposalStore();
     private AdminToolRegistry registry;
     private Character character;
 
     @BeforeEach
     void setUp() {
-        registry = new AdminToolRegistry(characterService, adminConversationService, MAPPER);
+        registry = new AdminToolRegistry(characterService, adminConversationService, store, MAPPER);
         character = new Character();
         character.setId(1L);
         character.setName("루나");
@@ -55,9 +56,9 @@ class AdminToolRegistryTest {
     }
 
     @Test
-    void declarations_listExactlyTheTwoReadOnlyTools() {
+    void declarations_listExactlyTheAllowedTools() {
         assertThat(registry.declarations()).extracting(n -> n.get("name").asText())
-                .containsExactly("getCharacterConfig", "getConversationLogs");
+                .containsExactly("getCharacterConfig", "getConversationLogs", "proposeCharacterConfigChange");
     }
 
     @Test
@@ -108,7 +109,7 @@ class AdminToolRegistryTest {
 
     @Test
     void unknownOrWriteLikeTool_isRejectedWithoutTouchingServices() throws Exception {
-        for (String name : List.of("updateCharacter", "proposeCharacterConfigChange", "", "GETCHARACTERCONFIG")) {
+        for (String name : List.of("updateCharacter", "approveProposal", "deleteCharacter", "", "GETCHARACTERCONFIG")) {
             ToolOutcome outcome = registry.execute(name, MAPPER.readTree("{\"characterId\":1}"));
             assertThat(outcome.ok()).as(name).isFalse();
             assertThat(outcome.payload().get("error").asText()).as(name).isEqualTo("unknown_tool");
@@ -210,5 +211,89 @@ class AdminToolRegistryTest {
         when(characterService.findById(1L)).thenReturn(character);
         run("getCharacterConfig", "{\"characterId\":1}");
         verify(characterService, never()).update(any(), any(), any(), any());
+    }
+
+    // ---- proposeCharacterConfigChange ----
+
+    private ToolOutcome propose(String fieldsJson) throws Exception {
+        return run("proposeCharacterConfigChange",
+                "{\"characterId\":1,\"reason\":\"말투 개선\",\"proposedFields\":" + fieldsJson + "}");
+    }
+
+    @Test
+    void propose_validProposal_isStoredPendingAndNeverWritesCharacter() throws Exception {
+        when(characterService.findById(1L)).thenReturn(character);
+
+        ToolOutcome outcome = propose("{\"concept\":\"새 컨셉\",\"ttsVoiceId\":null}");
+
+        assertThat(outcome.ok()).isTrue();
+        String id = outcome.payload().get("proposalId").asText();
+        assertThat(outcome.payload().get("status").asText()).isEqualTo("PENDING");
+        CharacterChangeProposal stored = store.find(id).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(ProposalStatus.PENDING);
+        assertThat(stored.getProposedFields()).containsEntry("concept", "새 컨셉").containsKey("ttsVoiceId");
+        assertThat(stored.getProposedFields().get("ttsVoiceId")).isNull();
+        verify(characterService, never()).update(any(), any(), any(), any());
+        // 캐릭터 객체 자체도 그대로
+        assertThat(character.getConcept()).isEqualTo("따뜻한 상담사");
+    }
+
+    @Test
+    void propose_rejectsNonProposableFieldsAndBadValues() throws Exception {
+        for (String bad : List.of("{}", "{\"name\":\"해커\"}", "{\"id\":5}", "{\"createdAt\":\"x\"}",
+                "{\"concept\":\"\"}", "{\"concept\":\"" + "가".repeat(256) + "\"}",
+                "{\"systemPrompt\":\"   \"}", "{\"systemPrompt\":\"" + "가".repeat(10_001) + "\"}",
+                "{\"ttsVoiceId\":\"../../etc\"}", "{\"ttsVoiceId\":\"\"}", "{\"ttsVoiceId\":5}", "[]", "\"x\"")) {
+            ToolOutcome outcome = propose(bad);
+            assertThat(outcome.ok()).as(bad).isFalse();
+            assertThat(outcome.payload().get("error").asText()).as(bad).isEqualTo("invalid_arguments");
+        }
+        assertThat(store.list()).isEmpty();
+    }
+
+    @Test
+    void propose_requiresReasonAndKnownArgsOnly() throws Exception {
+        for (String bad : List.of("{\"characterId\":1,\"proposedFields\":{\"concept\":\"a\"}}",
+                "{\"characterId\":1,\"reason\":\"\",\"proposedFields\":{\"concept\":\"a\"}}",
+                "{\"characterId\":1,\"reason\":\"r\",\"proposedFields\":{\"concept\":\"a\"},\"autoApprove\":true}",
+                "{\"reason\":\"r\",\"proposedFields\":{\"concept\":\"a\"}}")) {
+            ToolOutcome outcome = run("proposeCharacterConfigChange", bad);
+            assertThat(outcome.ok()).as(bad).isFalse();
+            assertThat(outcome.payload().get("error").asText()).as(bad).isEqualTo("invalid_arguments");
+        }
+        assertThat(store.list()).isEmpty();
+    }
+
+    @Test
+    void propose_noOpChange_isRejected() throws Exception {
+        when(characterService.findById(1L)).thenReturn(character);
+
+        ToolOutcome outcome = propose("{\"concept\":\"따뜻한 상담사\"}");
+
+        assertThat(outcome.ok()).isFalse();
+        assertThat(store.list()).isEmpty();
+    }
+
+    @Test
+    void propose_unknownCharacter_returnsNotFound() throws Exception {
+        when(characterService.findById(1L)).thenThrow(new ResourceNotFoundException("Character not found: 1"));
+
+        ToolOutcome outcome = propose("{\"concept\":\"새 컨셉\"}");
+
+        assertThat(outcome.ok()).isFalse();
+        assertThat(outcome.payload().get("error").asText()).isEqualTo("not_found");
+    }
+
+    @Test
+    void propose_stopsWhenTooManyPendingProposals() throws Exception {
+        when(characterService.findById(1L)).thenReturn(character);
+        for (int i = 0; i < ProposalStore.MAX_PENDING; i++) {
+            assertThat(propose("{\"concept\":\"컨셉 " + i + "\"}").ok()).isTrue();
+        }
+
+        ToolOutcome outcome = propose("{\"concept\":\"하나 더\"}");
+
+        assertThat(outcome.ok()).isFalse();
+        assertThat(outcome.payload().get("error").asText()).isEqualTo("too_many_pending");
     }
 }

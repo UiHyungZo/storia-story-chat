@@ -57,3 +57,23 @@ export type AgentResponse = {
   toolCalls: AgentToolCall[];
   stopReason: "completed" | "max_steps" | "timeout" | "no_response";
 };
+
+export type ProposalFields = {
+  concept: string | null;
+  systemPrompt: string | null;
+  ttsVoiceId: string | null;
+};
+
+export type AdminProposal = {
+  id: string;
+  characterId: number;
+  characterName: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "STALE";
+  reason: string;
+  createdAt: string;
+  decidedAt: string | null;
+  stale: boolean;
+  changedFields: Array<keyof ProposalFields>;
+  current: ProposalFields;
+  proposed: ProposalFields;
+};

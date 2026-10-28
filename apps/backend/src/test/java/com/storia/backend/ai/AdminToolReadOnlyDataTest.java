@@ -44,6 +44,7 @@ class AdminToolReadOnlyDataTest {
         AdminToolRegistry registry = new AdminToolRegistry(
                 new CharacterService(characterRepository),
                 new AdminConversationService(conversationRepository, messageRepository),
+                new ProposalStore(),
                 new ObjectMapper());
         ObjectMapper mapper = new ObjectMapper();
 
