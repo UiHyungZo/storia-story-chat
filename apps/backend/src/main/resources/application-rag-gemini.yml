@@ -1,0 +1,9 @@
+# 개발 환경 전용: 관리자 Wiki RAG(storia.rag)만 Gemini 의미 임베딩으로 전환한다.
+# 활성화: SPRING_PROFILES_ACTIVE=rag-gemini (STORIA_RAG_PROVIDER 환경변수는 이 파일보다 우선하므로 설정하지 않는다).
+# 캐릭터 RAG(storia.character-rag)와 MCP 서버(환경변수 기반)는 이 프로필의 영향을 받지 않는다.
+# 문서 임베딩은 .storia-rag-cache를 재사용하고 캐시에 없는 조각만 호출한다. 질의 임베딩은 검색마다 1회 호출된다.
+storia:
+  rag:
+    provider: gemini
+    # 2026-10-29 RagLiveEvalTest(rag-eval-fe0bec04) calibration 균형 정확도 기준 값. holdout: 범위 밖 거절 1.0, 범위 내 유지 0.8.
+    min-score: 0.75

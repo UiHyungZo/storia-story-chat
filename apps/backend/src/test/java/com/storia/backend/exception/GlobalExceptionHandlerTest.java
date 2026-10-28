@@ -29,6 +29,7 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean private ConversationService conversationService;
     @MockitoBean private GeminiService geminiService;
+    @MockitoBean private com.storia.backend.service.ChatContextAssembler chatContextAssembler;
 
     // AdminWebConfig(WebMvcConfigurer)가 모든 @WebMvcTest 슬라이스에 자동으로 로드되며 이 빈을
     // 요구한다 — /api/conversations는 /api/admin/**이 아니라 인터셉터가 실제로 개입하진 않는다.

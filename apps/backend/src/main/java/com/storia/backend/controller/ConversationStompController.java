@@ -4,9 +4,11 @@ import com.storia.backend.dto.MessageRequest;
 import com.storia.backend.dto.MessageResponse;
 import com.storia.backend.dto.StreamEvent;
 import com.storia.backend.entity.Message;
+import com.storia.backend.service.ChatContextAssembler;
 import com.storia.backend.service.ConversationService;
 import com.storia.backend.service.GeminiService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -33,6 +35,7 @@ public class ConversationStompController {
 
     private final ConversationService conversationService;
     private final GeminiService geminiService;
+    private final ChatContextAssembler chatContextAssembler;
     private final SimpMessagingTemplate messagingTemplate;
 
     @MessageMapping("/conversation/{characterId}/send")
@@ -46,9 +49,11 @@ public class ConversationStompController {
         String destination = destinationFor(deviceId, characterId);
         StringBuilder full = new StringBuilder();
 
-        geminiService.streamReply(
-                        conversationService.getSystemPrompt(characterId),
-                        conversationService.getMessages(deviceId, characterId))
+        List<Message> history = conversationService.getMessages(deviceId, characterId);
+        String systemPrompt = chatContextAssembler.systemPromptFor(
+                characterId, conversationService.getSystemPrompt(characterId), history);
+
+        geminiService.streamReply(systemPrompt, history)
                 .publishOn(Schedulers.boundedElastic())
                 .doOnNext(chunk -> {
                     full.append(chunk);

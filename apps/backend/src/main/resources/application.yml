@@ -52,6 +52,24 @@ admin:
   # 운영 콘솔(apps/admin) 로그인 비밀번호. 비어있으면 AdminAuthController가 모든 로그인을 거부한다.
   password: ${ADMIN_PASSWORD:}
 
+storia:
+  rag:
+    # 허용 목록 문서(KnowledgeSources)를 찾을 저장소 루트. apps/backend에서 실행하면 ../.. 가 저장소 루트다.
+    docs-root: ${STORIA_RAG_DOCS_ROOT:../..}
+    # local(기본): 외부 호출 없는 로컬 n-gram 해싱 벡터(의미 임베딩 아님) / gemini: Gemini Embedding API(외부 유료 호출)
+    provider: ${STORIA_RAG_PROVIDER:local}
+    cache-dir: ${STORIA_RAG_CACHE_DIR:.storia-rag-cache}
+    gemini-model: ${STORIA_RAG_GEMINI_MODEL:gemini-embedding-2}
+    dimensions: 768
+
+  # 실제 사용자 채팅에 캐릭터 세계관(characters/<key>/lore.md, 클래스패스)을 검색해 반영한다. 기본은 꺼짐.
+  character-rag:
+    enabled: ${STORIA_CHARACTER_RAG_ENABLED:false}
+    # local(기본): 외부 호출 없는 어휘 기반 벡터(의미 임베딩 아님) / gemini: Gemini Embedding API(외부 유료 호출)
+    provider: ${STORIA_CHARACTER_RAG_PROVIDER:local}
+    timeout-ms: ${STORIA_CHARACTER_RAG_TIMEOUT_MS:800}
+    top-k: 3
+
 sentry:
   # 비어있으면 SDK가 스스로 비활성화됨(이벤트 전송 안 함, 예외도 안 던짐) — 다른 외부
   # 연동과 동일한 graceful-degradation, 별도 isConfigured() 가드 불필요.
