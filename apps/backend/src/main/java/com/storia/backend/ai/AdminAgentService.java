@@ -40,15 +40,40 @@ public class AdminAgentService {
     private final GeminiToolClient geminiToolClient;
     private final AdminToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
+    private final AgentTelemetryStore telemetryStore;
 
     public AdminAgentService(GeminiToolClient geminiToolClient, AdminToolRegistry toolRegistry,
-                             ObjectMapper objectMapper) {
+                             ObjectMapper objectMapper, AgentTelemetryStore telemetryStore) {
         this.geminiToolClient = geminiToolClient;
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
+        this.telemetryStore = telemetryStore;
     }
 
+    /** 실행 결과와 무관하게 관측 기록(지연, 단계, 도구, 오류 유형 — 내용 제외)을 남긴다. */
     public AdminAgentResponse ask(String question) {
+        AgentRunRecorder recorder = new AgentRunRecorder();
+        try {
+            AdminAgentResponse response = run(question, recorder);
+            publish(recorder.build(response.stopReason(), null));
+            return response;
+        } catch (IllegalStateException e) {
+            publish(recorder.build("error", "upstream_error"));
+            throw e;
+        } catch (RuntimeException e) {
+            publish(recorder.build("error", "internal_error"));
+            throw e;
+        }
+    }
+
+    private void publish(AgentRunRecord record) {
+        telemetryStore.add(record);
+        log.info("admin-agent run id={} stop={} error={} durationMs={} modelCalls={} toolCalls={} totalTokens={}",
+                record.runId(), record.stopReason(), record.errorType(), record.durationMs(), record.modelCalls(),
+                record.tools().size(), record.totalTokens());
+    }
+
+    private AdminAgentResponse run(String question, AgentRunRecorder recorder) {
         long deadline = System.nanoTime() + TOTAL_TIMEOUT.toNanos();
         ArrayNode contents = objectMapper.createArrayNode();
         ObjectNode user = contents.addObject();
@@ -64,8 +89,16 @@ public class AdminAgentService {
                 return new AdminAgentResponse("시간 제한 안에 답변을 완성하지 못했습니다.", traces, "timeout");
             }
 
-            JsonNode response = geminiToolClient.generate(
-                    SYSTEM_INSTRUCTION, contents, declarations, Duration.ofNanos(remaining));
+            long callStart = System.nanoTime();
+            JsonNode response;
+            try {
+                response = geminiToolClient.generate(
+                        SYSTEM_INSTRUCTION, contents, declarations, Duration.ofNanos(remaining));
+            } catch (RuntimeException e) {
+                recorder.modelCallFailed((System.nanoTime() - callStart) / 1_000_000);
+                throw e;
+            }
+            recorder.modelCall((System.nanoTime() - callStart) / 1_000_000, response);
 
             JsonNode candidate = response.path("candidates").path(0);
             JsonNode content = candidate.path("content");
@@ -103,9 +136,12 @@ public class AdminAgentService {
                 JsonNode call = calls.get(i);
                 String name = call.path("name").asText("");
                 JsonNode args = call.path("args");
+                long toolStart = System.nanoTime();
                 ToolOutcome outcome = i < MAX_CALLS_PER_STEP
                         ? toolRegistry.execute(name, args)
                         : tooMany();
+                recorder.tool(name, outcome.ok(), outcome.payload().path("error").asText(null),
+                        (System.nanoTime() - toolStart) / 1_000_000);
                 traces.add(new ToolCallTrace(name, args.toString(), outcome.ok(), outcome.payload().toString()));
 
                 ObjectNode functionResponse = responseParts.addObject().putObject("functionResponse");

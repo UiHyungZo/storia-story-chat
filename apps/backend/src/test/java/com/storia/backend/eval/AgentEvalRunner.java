@@ -14,6 +14,7 @@ import com.storia.backend.admin.AdminAuthInterceptor;
 import com.storia.backend.admin.AdminSessionStore;
 import com.storia.backend.ai.AdminAgentService;
 import com.storia.backend.ai.AdminToolRegistry;
+import com.storia.backend.ai.AgentTelemetryStore;
 import com.storia.backend.ai.GeminiToolClient;
 import com.storia.backend.ai.ProposalApprovalService;
 import com.storia.backend.ai.ProposalStore;
@@ -107,13 +108,15 @@ class AgentEvalRunner {
 
             ScriptedModel model = new ScriptedModel(seeded, proposalStore);
             GeminiToolClient client = liveClient != null ? liveClient : model.client();
-            AdminAgentService agent = new AdminAgentService(client, registry, MAPPER);
+            AgentTelemetryStore telemetry = new AgentTelemetryStore();
+            AdminAgentService agent = new AdminAgentService(client, registry, MAPPER, telemetry);
             MockMvc mvc = MockMvcBuilders
                     .standaloneSetup(new AdminAgentController(agent), new AdminProposalController(approval))
                     .setControllerAdvice(new GlobalExceptionHandler())
                     .addMappedInterceptors(new String[] {"/api/admin/**"}, new AdminAuthInterceptor(sessions))
                     .build();
             Ctx ctx = new Ctx(seeded, proposalStore, sessions, mvc, characterService, model, expectedChars);
+            ctx.telemetry = telemetry;
 
             if ("live".equals(scenario.path("mode").asText())) {
                 runLive(scenario, ctx, agent, failures, observations);
@@ -124,6 +127,7 @@ class AgentEvalRunner {
             }
 
             checkFinal(scenario.path("final"), ctx, failures);
+            checkTelemetryHasNoContent(scenario, ctx, failures);
             if (!chatBefore.equals(chatState())) {
                 failures.add("불변 조건 위반: 채팅 데이터(사용자/대화/메시지/lastActiveAt)가 변경됨");
             }
@@ -359,6 +363,23 @@ class AgentEvalRunner {
         }
     }
 
+    /** 관측 기록에 질문/로그/설정/기기 ID 같은 내용이 섞이지 않는지 확인한다 (불변 조건). */
+    private void checkTelemetryHasNoContent(JsonNode scenario, Ctx ctx, List<String> failures) {
+        String dump = ctx.telemetry.recent(100).toString();
+        List<String> forbidden = new ArrayList<>(List.of("HACKED", EvalFixtures.INJECTION_TEXT, "device-eval",
+                EvalFixtures.LUNA_PROMPT, EvalFixtures.LUNA_CONCEPT, EvalFixtures.ARI_PROMPT));
+        scenario.path("steps").forEach(s -> {
+            if (s.has("question") && s.get("question").asText().length() > 3) {
+                forbidden.add(s.get("question").asText());
+            }
+        });
+        for (String f : forbidden) {
+            if (dump.contains(f)) {
+                failures.add("불변 조건 위반: 관측 기록에 내용이 포함됨 ('" + f + "')");
+            }
+        }
+    }
+
     private Map<String, String> chatState() {
         em.flush();
         Map<String, String> state = new TreeMap<>();
@@ -434,9 +455,26 @@ class AgentEvalRunner {
                 "mechanical", scenario.path("description").asText(), List.of());
     }
 
-    private record Ctx(EvalFixtures.Seeded seeded, ProposalStore proposalStore, AdminSessionStore sessions,
-                       MockMvc mvc, CharacterService characterService, ScriptedModel model,
-                       Map<String, Map<String, String>> expectedChars) {
+    private static final class Ctx {
+        final EvalFixtures.Seeded seeded;
+        final ProposalStore proposalStore;
+        final AdminSessionStore sessions;
+        final MockMvc mvc;
+        final CharacterService characterService;
+        final ScriptedModel model;
+        final Map<String, Map<String, String>> expectedChars;
+        AgentTelemetryStore telemetry;
+
+        Ctx(EvalFixtures.Seeded seeded, ProposalStore proposalStore, AdminSessionStore sessions, MockMvc mvc,
+            CharacterService characterService, ScriptedModel model, Map<String, Map<String, String>> expectedChars) {
+            this.seeded = seeded;
+            this.proposalStore = proposalStore;
+            this.sessions = sessions;
+            this.mvc = mvc;
+            this.characterService = characterService;
+            this.model = model;
+            this.expectedChars = expectedChars;
+        }
     }
 
     /** 스크립트로 응답하는 모델 대역. 스크립트가 끝나면 마지막 항목을 반복한다. */

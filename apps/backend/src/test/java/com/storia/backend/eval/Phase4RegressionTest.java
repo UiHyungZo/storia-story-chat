@@ -102,6 +102,7 @@ class Phase4RegressionTest {
                 new Phase4Report.Invariant("채팅 데이터 불변", true, "시나리오마다 사용자/대화/메시지 수와 lastActiveAt 비교 (위반 시 해당 시나리오 FAIL)"),
                 new Phase4Report.Invariant("시스템 지시문 고정", true, "모델 호출마다 시스템 지시문 == 상수, 로그/질문 내용 미포함 확인"),
                 new Phase4Report.Invariant("승인 없는 설정 변경 없음", true, "캐릭터 필드는 시나리오가 명시한 승인 결과 외에는 시드 값과 동일"),
+                new Phase4Report.Invariant("관측 기록에 내용 미포함", true, "시나리오마다 관측 기록에 질문/로그/설정/기기 ID 문자열이 없음을 확인 (위반 시 해당 시나리오 FAIL)"),
                 new Phase4Report.Invariant("인증 경계", true, "AdminAuthInterceptor를 /api/admin/**에 실제로 연결한 MockMvc로 401 확인"));
         Path dir = Path.of("build/eval-reports");
         String runId = Phase4Report.write(dir, new Phase4Report.Config("deterministic (scripted model)", "scripted mock",

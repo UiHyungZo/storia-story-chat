@@ -77,3 +77,36 @@ export type AdminProposal = {
   current: ProposalFields;
   proposed: ProposalFields;
 };
+
+export type AgentToolStats = { name: string; calls: number; errors: number; avgDurationMs: number };
+
+export type AgentRunRecord = {
+  runId: string;
+  startedAt: string;
+  durationMs: number;
+  stopReason: string;
+  errorType: string | null;
+  modelCalls: number;
+  modelLatenciesMs: number[];
+  promptTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  tools: Array<{ name: string; ok: boolean; errorCode: string | null; durationMs: number }>;
+};
+
+export type AgentObservability = {
+  summary: {
+    runs: number;
+    maxRecords: number;
+    retentionHours: number;
+    oldestRunAt: string | null;
+    byStopReason: Record<string, number>;
+    byErrorType: Record<string, number>;
+    avgDurationMs: number | null;
+    p95DurationMs: number | null;
+    avgModelLatencyMs: number | null;
+    totalTokens: number | null;
+    tools: AgentToolStats[];
+  };
+  recentRuns: AgentRunRecord[];
+};

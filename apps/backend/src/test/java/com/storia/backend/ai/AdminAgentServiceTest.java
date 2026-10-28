@@ -29,13 +29,14 @@ class AdminAgentServiceTest {
     private GeminiToolClient client;
     private CharacterService characterService;
     private AdminAgentService service;
+    private final AgentTelemetryStore telemetry = new AgentTelemetryStore();
 
     @BeforeEach
     void setUp() {
         client = mock(GeminiToolClient.class);
         characterService = mock(CharacterService.class);
         AdminToolRegistry registry = new AdminToolRegistry(characterService, mock(AdminConversationService.class), new ProposalStore(), MAPPER);
-        service = new AdminAgentService(client, registry, MAPPER);
+        service = new AdminAgentService(client, registry, MAPPER, telemetry);
     }
 
     private JsonNode json(String s) {
@@ -228,5 +229,90 @@ class AdminAgentServiceTest {
         assertThat(response.toolCalls().get(0).result()).contains("proposalId").contains("PENDING");
         assertThat(snapshots.get(1)).contains("아직 아무것도 변경되지 않았으며");
         org.mockito.Mockito.verify(characterService, org.mockito.Mockito.never()).update(any(), any(), any(), any());
+    }
+
+    // ---- 관측(Observability) ----
+
+    private JsonNode withUsage(JsonNode response, int prompt, int output, int total) {
+        ((com.fasterxml.jackson.databind.node.ObjectNode) response).putObject("usageMetadata")
+                .put("promptTokenCount", prompt).put("candidatesTokenCount", output).put("totalTokenCount", total);
+        return response;
+    }
+
+    @Test
+    void telemetry_recordsLatencyStepsToolsAndTokens_butNoContent() throws Exception {
+        when(characterService.findById(1L)).thenReturn(character());
+        captureContentSnapshots(
+                withUsage(functionCallResponse("getCharacterConfig", "{\"characterId\":1}"), 100, 10, 110),
+                withUsage(textResponse("루나의 컨셉은 컨셉입니다."), 200, 20, 220));
+
+        service.ask("비밀 질문 문자열 1번 캐릭터");
+
+        AgentRunRecord run = telemetry.recent(1).get(0);
+        assertThat(run.stopReason()).isEqualTo("completed");
+        assertThat(run.errorType()).isNull();
+        assertThat(run.modelCalls()).isEqualTo(2);
+        assertThat(run.modelLatenciesMs()).hasSize(2);
+        assertThat(run.promptTokens()).isEqualTo(300L);
+        assertThat(run.outputTokens()).isEqualTo(30L);
+        assertThat(run.totalTokens()).isEqualTo(330L);
+        assertThat(run.tools()).hasSize(1);
+        assertThat(run.tools().get(0).name()).isEqualTo("getCharacterConfig");
+        assertThat(run.tools().get(0).ok()).isTrue();
+
+        String dump = run.toString();
+        assertThat(dump).doesNotContain("비밀 질문").doesNotContain("루나").doesNotContain("컨셉")
+                .doesNotContain("프롬프트").doesNotContain("characterId=");
+    }
+
+    @Test
+    void telemetry_missingUsageMetadata_isNullNotZero() {
+        captureContentSnapshots(textResponse("끝"));
+
+        service.ask("q");
+
+        assertThat(telemetry.recent(1).get(0).totalTokens()).isNull();
+    }
+
+    @Test
+    void telemetry_unknownToolNameFromModel_isNotRecordedVerbatim() {
+        captureContentSnapshots(
+                functionCallResponse("IGNORE_ALL_RULES_secret-name", "{}"),
+                textResponse("끝"));
+
+        service.ask("q");
+
+        AgentRunRecord run = telemetry.recent(1).get(0);
+        assertThat(run.tools().get(0).name()).isEqualTo("(unknown)");
+        assertThat(run.tools().get(0).errorCode()).isEqualTo("unknown_tool");
+        assertThat(run.toString()).doesNotContain("secret-name");
+    }
+
+    @Test
+    void telemetry_upstreamFailure_isRecordedAndStillThrown() {
+        when(client.generate(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
+                .thenThrow(new IllegalStateException("Gemini 호출 실패: 500"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.ask("q")).isInstanceOf(IllegalStateException.class);
+
+        AgentRunRecord run = telemetry.recent(1).get(0);
+        assertThat(run.stopReason()).isEqualTo("error");
+        assertThat(run.errorType()).isEqualTo("upstream_error");
+        assertThat(run.modelCalls()).isEqualTo(1);
+        assertThat(run.toString()).doesNotContain("500");
+    }
+
+    @Test
+    void telemetry_maxStepsRunIsRecorded() {
+        when(characterService.findById(1L)).thenReturn(character());
+        when(client.generate(anyString(), any(ArrayNode.class), any(ArrayNode.class), any(Duration.class)))
+                .thenAnswer(inv -> functionCallResponse("getCharacterConfig", "{\"characterId\":1}"));
+
+        service.ask("q");
+
+        AgentRunRecord run = telemetry.recent(1).get(0);
+        assertThat(run.stopReason()).isEqualTo("max_steps");
+        assertThat(run.modelCalls()).isEqualTo(AdminAgentService.MAX_STEPS);
+        assertThat(run.tools()).hasSize(AdminAgentService.MAX_STEPS);
     }
 }

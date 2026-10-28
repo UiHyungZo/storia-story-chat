@@ -31,7 +31,11 @@ export default function AgentPage() {
         <Link href="/agent/proposals" className="text-blue-600 hover:underline">
           제안 목록
         </Link>
-        에서 관리자가 승인해야 반영됩니다.
+        에서 관리자가 승인해야 반영됩니다.{" "}
+        <Link href="/agent/observability" className="text-blue-600 hover:underline">
+          실행 관측
+        </Link>
+        에서 지연·오류를 볼 수 있습니다.
       </p>
 
       <form action={formAction} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
