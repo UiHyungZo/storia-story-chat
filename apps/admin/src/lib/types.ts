@@ -56,6 +56,37 @@ export type AgentResponse = {
   answer: string;
   toolCalls: AgentToolCall[];
   stopReason: "completed" | "max_steps" | "timeout" | "no_response";
+  knowledgeSources: string[];
+  knowledgeStatus: "OK" | "NO_EVIDENCE" | "INDEX_EMPTY" | "ERROR" | null;
+  evidenceNotice: string | null;
+};
+
+export type KnowledgeHit = {
+  rank: number;
+  chunkId: string;
+  docId: string;
+  source: string;
+  title: string;
+  heading: string;
+  text: string;
+  score: number;
+};
+
+export type KnowledgeIndexInfo = {
+  provider: string;
+  semantic: boolean;
+  documents: number;
+  chunks: number;
+  builtAt: string;
+  missingSources: string[];
+};
+
+export type KnowledgeSearchResult = {
+  status: "OK" | "NO_EVIDENCE" | "INDEX_EMPTY";
+  message: string | null;
+  results: KnowledgeHit[];
+  index: KnowledgeIndexInfo | null;
+  tookMs: number;
 };
 
 export type ProposalFields = {
@@ -109,4 +140,13 @@ export type AgentObservability = {
     tools: AgentToolStats[];
   };
   recentRuns: AgentRunRecord[];
+  knowledge: {
+    searches: number;
+    byStatus: Record<string, number>;
+    avgLatencyMs: number | null;
+    p95LatencyMs: number | null;
+    queryCharsEmbedded: number;
+    indexCharsEmbedded: number;
+    rebuilds: number;
+  };
 };

@@ -40,3 +40,6 @@ out/
 # outside the repo if possible; this is just a safety net against `git add .`
 *service-account*.json
 *-sa.json
+
+# RAG 임베딩 캐시 (storia.rag.provider=gemini일 때 생성)
+.storia-rag-cache/

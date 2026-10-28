@@ -45,7 +45,8 @@ class ProposalFlowDataTest {
         characterService = new CharacterService(characterRepository);
         ProposalStore store = new ProposalStore();
         registry = new AdminToolRegistry(characterService,
-                new AdminConversationService(conversationRepository, messageRepository), store, MAPPER);
+                new AdminConversationService(conversationRepository, messageRepository), store,
+                org.mockito.Mockito.mock(com.storia.backend.rag.KnowledgeSearchService.class), MAPPER);
         approvalService = new ProposalApprovalService(store, characterService);
     }
 

@@ -35,7 +35,11 @@ export default function AgentPage() {
         <Link href="/agent/observability" className="text-blue-600 hover:underline">
           실행 관측
         </Link>
-        에서 지연·오류를 볼 수 있습니다.
+        에서 지연·오류를 볼 수 있고,{" "}
+        <Link href="/agent/knowledge" className="text-blue-600 hover:underline">
+          문서 검색
+        </Link>
+        에서 프로젝트 문서를 직접 검색할 수 있습니다.
       </p>
 
       <form action={formAction} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
@@ -65,9 +69,22 @@ export default function AgentPage() {
 
       {state?.response && (
         <div className="space-y-4">
+          {state.response.evidenceNotice && (
+            <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">{state.response.evidenceNotice}</p>
+          )}
           <section className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4">
             <h2 className="text-sm font-medium text-neutral-700">답변</h2>
             <p className="whitespace-pre-wrap text-sm text-neutral-900">{state.response.answer}</p>
+            {state.response.knowledgeSources.length > 0 && (
+              <div className="text-xs text-neutral-600">
+                근거 문서:{" "}
+                {state.response.knowledgeSources.map((s) => (
+                  <span key={s} className="mr-2 rounded bg-neutral-100 px-1.5 py-0.5 font-mono">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
             {state.response.stopReason !== "completed" && (
               <p className="text-xs text-amber-700">
                 {STOP_REASON_LABEL[state.response.stopReason] ?? state.response.stopReason}

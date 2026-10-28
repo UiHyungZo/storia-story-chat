@@ -11,7 +11,8 @@ import java.util.UUID;
 final class AgentRunRecorder {
 
     private static final Set<String> KNOWN_TOOLS = Set.of(AdminToolRegistry.GET_CHARACTER_CONFIG,
-            AdminToolRegistry.GET_CONVERSATION_LOGS, AdminToolRegistry.PROPOSE_CHARACTER_CONFIG_CHANGE);
+            AdminToolRegistry.GET_CONVERSATION_LOGS, AdminToolRegistry.PROPOSE_CHARACTER_CONFIG_CHANGE,
+            AdminToolRegistry.SEARCH_STORIA_KNOWLEDGE);
 
     private final String runId = UUID.randomUUID().toString().substring(0, 8);
     private final Instant startedAt = Instant.now();

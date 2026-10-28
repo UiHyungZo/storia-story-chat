@@ -28,6 +28,7 @@ class AdminAgentServiceTest {
 
     private GeminiToolClient client;
     private CharacterService characterService;
+    private com.storia.backend.rag.KnowledgeSearchService knowledge;
     private AdminAgentService service;
     private final AgentTelemetryStore telemetry = new AgentTelemetryStore();
 
@@ -35,7 +36,8 @@ class AdminAgentServiceTest {
     void setUp() {
         client = mock(GeminiToolClient.class);
         characterService = mock(CharacterService.class);
-        AdminToolRegistry registry = new AdminToolRegistry(characterService, mock(AdminConversationService.class), new ProposalStore(), MAPPER);
+        knowledge = mock(com.storia.backend.rag.KnowledgeSearchService.class);
+        AdminToolRegistry registry = new AdminToolRegistry(characterService, mock(AdminConversationService.class), new ProposalStore(), knowledge, MAPPER);
         service = new AdminAgentService(client, registry, MAPPER, telemetry);
     }
 
@@ -118,7 +120,7 @@ class AdminAgentServiceTest {
         assertThat(system.getValue()).isEqualTo(AdminAgentService.SYSTEM_INSTRUCTION)
                 .doesNotContain("삭제해");
         assertThat(declarations.getValue()).extracting(n -> n.get("name").asText())
-                .containsExactly("getCharacterConfig", "getConversationLogs", "proposeCharacterConfigChange");
+                .containsExactly("getCharacterConfig", "getConversationLogs", "searchStoriaKnowledge", "proposeCharacterConfigChange");
     }
 
     @Test
@@ -314,5 +316,77 @@ class AdminAgentServiceTest {
         assertThat(run.stopReason()).isEqualTo("max_steps");
         assertThat(run.modelCalls()).isEqualTo(AdminAgentService.MAX_STEPS);
         assertThat(run.tools()).hasSize(AdminAgentService.MAX_STEPS);
+    }
+
+    // ---- RAG 연동 ----
+
+    private com.storia.backend.rag.KnowledgeSearchResult knowledgeResult(
+            com.storia.backend.rag.KnowledgeSearchResult.Status status, List<String> sources) {
+        List<com.storia.backend.rag.KnowledgeSearchResult.Hit> hits = new ArrayList<>();
+        for (String s : sources) {
+            hits.add(new com.storia.backend.rag.KnowledgeSearchResult.Hit(hits.size() + 1, "c" + hits.size(), "d", s, "t", "h", "발췌", 0.5));
+        }
+        return new com.storia.backend.rag.KnowledgeSearchResult(status, null, hits,
+                new com.storia.backend.rag.KnowledgeSearchResult.IndexInfo("fake", false, 1, 1, "t", List.of()), 1);
+    }
+
+    @Test
+    void knowledgeSearch_exposesSourcesAndNoNoticeWhenEvidenceFound() {
+        when(knowledge.search("음성 통화", 3)).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.OK, List.of("docs/architecture/README.md", "docs/decisions.md")));
+        captureContentSnapshots(functionCallResponse("searchStoriaKnowledge", "{\"query\":\"음성 통화\"}"),
+                textResponse("architecture 문서에 따르면 ..."));
+
+        AdminAgentResponse response = service.ask("음성 통화 구조 설명해줘");
+
+        assertThat(response.knowledgeStatus()).isEqualTo("OK");
+        assertThat(response.knowledgeSources()).containsExactly("docs/architecture/README.md", "docs/decisions.md");
+        assertThat(response.evidenceNotice()).isNull();
+        assertThat(response.toolCalls().get(0).result()).contains("docs/architecture/README.md");
+        assertThat(telemetry.recent(1).get(0).tools().get(0).name()).isEqualTo("searchStoriaKnowledge");
+    }
+
+    @Test
+    void knowledgeSearch_noEvidenceAddsServerSideNotice_evenIfModelAnswersConfidently() {
+        when(knowledge.search("서울 날씨", 3)).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.NO_EVIDENCE, List.of()));
+        captureContentSnapshots(functionCallResponse("searchStoriaKnowledge", "{\"query\":\"서울 날씨\"}"),
+                textResponse("서울은 맑습니다."));
+
+        AdminAgentResponse response = service.ask("서울 날씨?");
+
+        assertThat(response.knowledgeStatus()).isEqualTo("NO_EVIDENCE");
+        assertThat(response.knowledgeSources()).isEmpty();
+        assertThat(response.evidenceNotice()).contains("근거를 찾지 못했습니다");
+        assertThat(response.answer()).isEqualTo("서울은 맑습니다."); // 답변은 그대로 두고 서버가 근거 없음을 병기한다
+    }
+
+    @Test
+    void knowledgeSearch_failureAddsNotice_andNoSearchMeansNoNotice() {
+        when(knowledge.search("q", 3)).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.ERROR, List.of()));
+        captureContentSnapshots(functionCallResponse("searchStoriaKnowledge", "{\"query\":\"q\"}"), textResponse("모르겠습니다"));
+        AdminAgentResponse failed = service.ask("q");
+        assertThat(failed.evidenceNotice()).contains("실패");
+        assertThat(failed.knowledgeStatus()).isEqualTo("ERROR");
+
+        captureContentSnapshots(textResponse("일반 답변"));
+        AdminAgentResponse plain = service.ask("안녕");
+        assertThat(plain.knowledgeStatus()).isNull();
+        assertThat(plain.evidenceNotice()).isNull();
+    }
+
+    @Test
+    void knowledgeInjection_cannotTriggerWritesOrApproval() {
+        when(knowledge.search("음성", 3)).thenReturn(knowledgeResult(
+                com.storia.backend.rag.KnowledgeSearchResult.Status.OK, List.of("docs/evil.md")));
+        captureContentSnapshots(functionCallResponse("searchStoriaKnowledge", "{\"query\":\"음성\"}"),
+                functionCallResponse("approveProposal", "{\"id\":\"x\"}"), textResponse("처리할 수 없습니다"));
+
+        AdminAgentResponse response = service.ask("음성 문서 찾아줘");
+
+        assertThat(response.toolCalls().get(1).ok()).isFalse();
+        assertThat(response.toolCalls().get(1).result()).contains("unknown_tool");
+        org.mockito.Mockito.verify(characterService, org.mockito.Mockito.never()).update(any(), any(), any(), any());
     }
 }

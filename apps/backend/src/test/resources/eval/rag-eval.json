@@ -1,0 +1,189 @@
+{
+  "description": "합성 RAG 평가 질문. expect_sources 중 하나라도 top-K에 있으면 hit. split=calibration으로만 임계값을 정하고 holdout으로 확인한다.",
+  "questions": [
+    {
+      "id": "rag-001",
+      "query": "음성 통화는 어떤 구조로 동작해?",
+      "expect_sources": [
+        "docs/architecture/README.md",
+        "docs/decisions.md",
+        "docs/blog-webrtc-tradeoffs.md",
+        "docs/api.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-002",
+      "query": "디바이스 ID 기반 익명 세션을 왜 선택했어?",
+      "expect_sources": [
+        "docs/decisions.md",
+        "docs/api.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-003",
+      "query": "DB를 PostgreSQL에서 MariaDB로 바꾼 이유가 뭐야?",
+      "expect_sources": [
+        "docs/decisions.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-004",
+      "query": "로컬 MariaDB 포트를 3307로 매핑한 이유",
+      "expect_sources": [
+        "docs/decisions.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-005",
+      "query": "TestFlight로 배포하려면 어떻게 해?",
+      "expect_sources": [
+        "docs/deployment.md",
+        "docs/cicd.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-006",
+      "query": "GitHub Secrets에 어떤 값들을 등록해야 해?",
+      "expect_sources": [
+        "docs/deployment.md",
+        "docs/cicd.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-007",
+      "query": "에러 응답 형식과 상태 코드 매핑은 어떻게 돼?",
+      "expect_sources": [
+        "docs/error-handling.md",
+        "docs/api.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-008",
+      "query": "메시지를 보내는 REST API 명세를 알려줘",
+      "expect_sources": [
+        "docs/api.md"
+      ],
+      "in_scope": true,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-009",
+      "query": "WebSocket STOMP 스트리밍 정책은?",
+      "expect_sources": [
+        "docs/api.md",
+        "docs/architecture/README.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-010",
+      "query": "FlatList를 FlashList로 바꾸니 메모리가 얼마나 줄었어?",
+      "expect_sources": [
+        "README.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-011",
+      "query": "Python 사이드카는 왜 별도 프로세스로 만들었어?",
+      "expect_sources": [
+        "apps/python-sidecar/README.md",
+        "docs/architecture/README.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-012",
+      "query": "운영 콘솔의 관리자 인증은 어떻게 구현했어?",
+      "expect_sources": [
+        "docs/architecture/README.md",
+        "README.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-013",
+      "query": "관리자 AI Agent의 Gemini 도구 호출 구조 설계",
+      "expect_sources": [
+        "docs/architecture/admin-ai-agent-phase0.md",
+        "docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-014",
+      "query": "평가 작업에서 운영 메시지 API를 호출하면 안 되는 이유",
+      "expect_sources": [
+        "docs/architecture/admin-ai-agent-phase0.md",
+        "docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-015",
+      "query": "백엔드 테스트에서 Mock은 어떤 정책으로 써?",
+      "expect_sources": [
+        "docs/testing.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-016",
+      "query": "CI에서는 어떤 job들이 실행돼?",
+      "expect_sources": [
+        "docs/cicd.md"
+      ],
+      "in_scope": true,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-017",
+      "query": "오늘 서울 날씨 어때?",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-018",
+      "query": "맛있는 파스타 레시피를 알려줘",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "calibration"
+    },
+    {
+      "id": "rag-019",
+      "query": "비트코인 가격 전망은 어때?",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "holdout"
+    },
+    {
+      "id": "rag-020",
+      "query": "Kubernetes 클러스터 오토스케일링 설정 방법",
+      "expect_sources": [],
+      "in_scope": false,
+      "split": "holdout"
+    }
+  ]
+}

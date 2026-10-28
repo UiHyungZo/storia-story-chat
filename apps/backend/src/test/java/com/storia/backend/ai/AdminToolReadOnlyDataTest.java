@@ -45,6 +45,7 @@ class AdminToolReadOnlyDataTest {
                 new CharacterService(characterRepository),
                 new AdminConversationService(conversationRepository, messageRepository),
                 new ProposalStore(),
+                org.mockito.Mockito.mock(com.storia.backend.rag.KnowledgeSearchService.class),
                 new ObjectMapper());
         ObjectMapper mapper = new ObjectMapper();
 

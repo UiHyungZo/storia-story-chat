@@ -28,6 +28,7 @@ class AdminObservabilityControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private AgentTelemetryStore telemetryStore;
+    @MockitoBean private com.storia.backend.rag.RagMetrics ragMetrics;
     @MockitoBean private AdminSessionStore adminSessionStore;
 
     @Test
@@ -41,6 +42,7 @@ class AdminObservabilityControllerTest {
         when(adminSessionStore.isValid("token-123")).thenReturn(true);
         when(telemetryStore.summary()).thenReturn(new Summary(1, 200, 24, Instant.now(), Map.of("completed", 1L),
                 Map.of(), 120.0, 120L, 50.0, null, List.of()));
+        when(ragMetrics.summary()).thenReturn(new com.storia.backend.rag.RagMetrics.Summary(2, Map.of("OK", 1L, "NO_EVIDENCE", 1L), 12.0, 20L, 30, 4000, 1));
         when(telemetryStore.recent(50)).thenReturn(List.of(new AgentRunRecord("abc12345", Instant.now(), 120,
                 "completed", null, 1, List.of(50L), null, null, null, List.of())));
 
@@ -49,6 +51,8 @@ class AdminObservabilityControllerTest {
                 .andExpect(jsonPath("$.summary.runs").value(1))
                 .andExpect(jsonPath("$.summary.byStopReason.completed").value(1))
                 .andExpect(jsonPath("$.recentRuns[0].runId").value("abc12345"))
+                .andExpect(jsonPath("$.knowledge.searches").value(2))
+                .andExpect(jsonPath("$.knowledge.byStatus.NO_EVIDENCE").value(1))
                 .andExpect(jsonPath("$.recentRuns[0].totalTokens").doesNotExist());
     }
 }

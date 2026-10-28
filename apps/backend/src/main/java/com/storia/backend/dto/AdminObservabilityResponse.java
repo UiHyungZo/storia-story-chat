@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.Map;
 
 /** 관리자 AI Agent 실행 관측 요약. 내용(질문/답변/도구 인자·결과)은 포함하지 않는다. */
-public record AdminObservabilityResponse(Summary summary, List<AgentRunRecord> recentRuns) {
+public record AdminObservabilityResponse(Summary summary, List<AgentRunRecord> recentRuns,
+                                         com.storia.backend.rag.RagMetrics.Summary knowledge) {
 
     public record Summary(
             int runs,

@@ -9,7 +9,7 @@ export default async function ObservabilityPage() {
   if (!res.ok) {
     return <p className="text-sm text-red-600">관측 데이터를 불러오지 못했습니다. (HTTP {res.status})</p>;
   }
-  const { summary, recentRuns }: AgentObservability = await res.json();
+  const { summary, recentRuns, knowledge }: AgentObservability = await res.json();
 
   return (
     <div className="max-w-4xl space-y-4">
@@ -56,6 +56,21 @@ export default async function ObservabilityPage() {
             {summary.tools.length === 0 && <tr><td colSpan={4} className="text-neutral-400">기록 없음</td></tr>}
           </tbody>
         </table>
+      </section>
+
+      <section className="space-y-1 rounded-lg border border-neutral-200 bg-white p-4 text-sm">
+        <h2 className="font-medium text-neutral-700">문서 검색(RAG)</h2>
+        <p>
+          검색 {knowledge.searches}회 · 평균 {fmt(knowledge.avgLatencyMs, "ms")} · p95 {fmt(knowledge.p95LatencyMs, "ms")} · 재인덱싱{" "}
+          {knowledge.rebuilds}회
+        </p>
+        <p className="font-mono text-xs">
+          {Object.entries(knowledge.byStatus).map(([k, v]) => `${k}: ${v}`).join(" · ") || "기록 없음"}
+        </p>
+        <p className="text-xs text-neutral-500">
+          임베딩에 보낸 글자 수(비용 대용 지표): 질의 {knowledge.queryCharsEmbedded} · 인덱스 {knowledge.indexCharsEmbedded} — 임베딩 제공자가
+          local이면 외부로 전송되지 않습니다. 질의·문서 내용은 기록하지 않습니다.
+        </p>
       </section>
 
       <section className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4">

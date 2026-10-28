@@ -2,6 +2,7 @@ package com.storia.backend.controller;
 
 import com.storia.backend.ai.AgentTelemetryStore;
 import com.storia.backend.dto.AdminObservabilityResponse;
+import com.storia.backend.rag.RagMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,9 +17,11 @@ public class AdminObservabilityController {
     private static final int RECENT_LIMIT = 50;
 
     private final AgentTelemetryStore telemetryStore;
+    private final RagMetrics ragMetrics;
 
     @GetMapping
     public AdminObservabilityResponse get() {
-        return new AdminObservabilityResponse(telemetryStore.summary(), telemetryStore.recent(RECENT_LIMIT));
+        return new AdminObservabilityResponse(telemetryStore.summary(), telemetryStore.recent(RECENT_LIMIT),
+                ragMetrics.summary());
     }
 }

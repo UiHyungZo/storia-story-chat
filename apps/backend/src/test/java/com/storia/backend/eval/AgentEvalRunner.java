@@ -22,6 +22,13 @@ import com.storia.backend.controller.AdminAgentController;
 import com.storia.backend.controller.AdminProposalController;
 import com.storia.backend.entity.Character;
 import com.storia.backend.exception.GlobalExceptionHandler;
+import com.storia.backend.rag.DocumentLoader;
+import com.storia.backend.rag.KnowledgeBase;
+import com.storia.backend.rag.KnowledgeSearchService;
+import com.storia.backend.rag.KnowledgeSource;
+import com.storia.backend.rag.LocalHashingEmbeddingProvider;
+import com.storia.backend.rag.MarkdownChunker;
+import com.storia.backend.rag.RagMetrics;
 import com.storia.backend.repository.CharacterRepository;
 import com.storia.backend.repository.ConversationRepository;
 import com.storia.backend.repository.MessageRepository;
@@ -30,6 +37,7 @@ import com.storia.backend.service.AdminConversationService;
 import com.storia.backend.service.CharacterService;
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -103,7 +111,7 @@ class AgentEvalRunner {
             AdminSessionStore sessions = new AdminSessionStore();
             CharacterService characterService = new CharacterService(characters);
             AdminToolRegistry registry = new AdminToolRegistry(characterService,
-                    new AdminConversationService(conversations, messages), proposalStore, MAPPER);
+                    new AdminConversationService(conversations, messages), proposalStore, fixtureKnowledge(), MAPPER);
             ProposalApprovalService approval = new ProposalApprovalService(proposalStore, characterService);
 
             ScriptedModel model = new ScriptedModel(seeded, proposalStore);
@@ -226,6 +234,24 @@ class AgentEvalRunner {
                 failures.add("stop_reason " + json.path("stopReason").asText() + " != 기대 " + expect.get("stop_reason").asText());
             }
             checkToolCalls(expect.path("tool_calls"), json.path("toolCalls"), failures, obs, expect.has("tool_calls"));
+            if (expect.has("knowledge_status")
+                    && !expect.get("knowledge_status").asText().equals(json.path("knowledgeStatus").asText())) {
+                failures.add("knowledgeStatus " + json.path("knowledgeStatus").asText() + " != 기대 " + expect.get("knowledge_status").asText());
+            }
+            for (JsonNode source : expect.path("knowledge_sources")) {
+                boolean found = false;
+                for (JsonNode actual : json.path("knowledgeSources")) {
+                    found |= actual.asText().equals(source.asText());
+                }
+                if (!found) {
+                    failures.add("knowledgeSources에 " + source.asText() + " 없음");
+                }
+            }
+            if (expect.has("evidence_notice")
+                    && expect.get("evidence_notice").asBoolean() == json.path("evidenceNotice").isNull()) {
+                failures.add("evidenceNotice 존재 여부 불일치 (기대 " + expect.get("evidence_notice").asBoolean() + ")");
+            }
+            obs.add("knowledge=" + json.path("knowledgeStatus").asText("-") + json.path("knowledgeSources"));
         }
     }
 
@@ -323,6 +349,21 @@ class AgentEvalRunner {
             return true;
         } catch (Exception ex) {
             return false;
+        }
+    }
+
+    /** 합성 지식 문서(테스트 리소스) 위의 검색 서비스. 로컬 해싱 벡터를 쓰므로 외부 호출이 없다. */
+    private KnowledgeSearchService fixtureKnowledge() {
+        try {
+            Path root = Path.of(AgentEvalRunner.class.getResource("/eval/knowledge-fixtures").toURI());
+            List<KnowledgeSource> sources = List.of(
+                    new KnowledgeSource("voice-call", "docs/voice-call.md", "음성 통화 구조"),
+                    new KnowledgeSource("deploy", "docs/deploy.md", "배포 절차"));
+            KnowledgeBase base = new KnowledgeBase(new DocumentLoader(root, sources),
+                    new LocalHashingEmbeddingProvider(), new MarkdownChunker(800), null);
+            return new KnowledgeSearchService(base, new RagMetrics());
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalStateException(e);
         }
     }
 
