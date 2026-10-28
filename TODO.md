@@ -312,6 +312,27 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
     - **시작 중 Gemini 호출 없음(간접 확인)**: RAG 인덱스는 첫 검색/상태/재인덱싱 요청 때 만들어지는 구조이고, 시작 로그에 RAG·임베딩 관련 줄 없음, 캐시 파일 해시·수정 시각이 재시작 전후 동일. 로그에 키 0건. 관리자 화면 중 자동으로 RAG를 호출하는 페이지 없음(검색·재인덱싱은 버튼 동작).
     - **실행 중 설정값(provider gemini, gemini-embedding-2, 768, min-score 0.75)**은 프로필 활성 로그 + `RagGeminiProfileTest` 바인딩 테스트 기준 — actuator가 없어 실행 중 빈 값을 직접 조회하지는 않음.
     - **미검증(실제 검색 필요)**: 실행 중 인덱스가 캐시 적중 283·문서 임베딩 호출 0으로 만들어지는지, 질의 임베딩 1회 호출의 성공·지연, 0.75 임계값에서 실제 질문의 근거 유지/거절, 관리자 Agent 답변 품질. 주의: `GET /api/admin/ai/knowledge/status`도 인덱스를 만들므로 이번엔 호출하지 않음.
+  - [x] **(2026-10-29) 실제 관리자 Wiki 검색 1회 검증 — 사용자 승인, rag-001 문장 그대로("음성 통화는 어떤 구조로 동작해?"), `POST /api/admin/ai/knowledge/search` 정확히 1회.** status·재인덱싱·Agent 질문 없음, 재시도 없음.
+    - **결과**: HTTP 200, `status: OK`, 서버 `tookMs` 1,110(curl 전체 1.13초). 인덱스 `gemini:gemini-embedding-2:768`·의미 임베딩·문서 14·조각 283·누락 문서 0(이 검색에서 처음 빌드됨).
+    - **반환(임계값 0.75 적용)**: 1건 — 1위 `docs/architecture/README.md` "아키텍처 > 음성 통화 — 축소판 A안 (PRD 3.9 / ADR-004 갱신 1~3)", 점수 **0.7528** → 오프라인 평가(1위, 0.7528)와 **동일**. 나머지 조각은 0.75 미만이라 반환되지 않음(점수는 API가 돌려주지 않아 미확인).
+    - **docRole**: 관리자 지식 검색 API 응답에는 `docRole` 필드가 없음(Agent 도구·MCP 결과에만 추가돼 있음). 규칙상 `docs/architecture/README.md`는 current.
+    - **문서 임베딩 호출 0회 근거**: ① `CachingEmbeddingProvider`는 미스가 하나라도 있으면 원격 호출 후 캐시 파일을 다시 쓰는 구조인데, 검색 전후 캐시 파일 SHA-256 동일(d142c761…)·파일 1개 그대로 ② 관측 지표 `queryCharsEmbedded` 0→18(질의 1건 분량), `indexCharsEmbedded` 0·`rebuilds` 0(단 이 두 값은 명시적 재인덱싱만 집계하므로 보조 근거) ③ 283개를 6배치로 보냈다면 1.1초 안에 끝나기 어렵고 RPM 429 가능성이 큼. **런타임 캐시 적중/미스 수(283/0)는 API로 노출되지 않아 직접 실측하지 못함** — 위 근거로 추론.
+    - **질의 임베딩 호출**: 코드상 검색 1회당 `embedContent` 1회(관측 지표 질의 글자 수 18과 일치). AI Studio 호출 기록은 검색 전 Embedding 2 RPD 411(=110+301), 검색 직후에도 411 — 집계 지연으로 보이며 +1 반영은 **미확인**.
+    - **소요 시간**: 전체 1,110ms(첫 인덱스 빌드 + 질의 임베딩 + 검색). 질의 임베딩만의 시간은 분리 측정 수단이 없어 **미검증**(평가 때 질의 포함 첫 검색 p50 459ms).
+    - 로그·응답에 키 0건.
+  - [ ] **(2026-10-29) 관리자 Agent 실모델 질문 1회 — 실패(Gemini 503), 재시도 안 함.** 사용자 승인, 질문 "음성 통화는 어떤 구조로 동작해?", `rag-gemini` 프로필·임계값 0.75 유지, `POST /api/admin/ai/agent/query` 1회.
+    - **결과**: HTTP 502 `UPSTREAM_ERROR`("외부 서비스 호출에 실패했습니다."), 전체 21.9초. 로그: 첫 모델 호출(`generateContent`, `gemini-3.6-flash`, 도구 모드 AUTO)에서 `Gemini tool call failed: status=503` → `stopReason=error`, `errorType=upstream_error`.
+    - **관측 기록(run eead4580)**: 모델 호출 1회(21,921ms, 실패), 도구 호출 0회, 토큰 null(응답 없음). 지식 검색 지표 전후 동일(searches 1·queryCharsEmbedded 18 그대로) → `searchStoriaKnowledge` 0회, 임베딩 호출 0회. 캐시 파일 해시 전후 동일(d142c761…).
+    - **검증 항목 1~8 전부 미검증**: 모델이 응답 전에 실패해 검색어·검색 결과·docRole 사용·답변 내용(LiveKit WebRTC → Track Egress → 서버 STT/Gemini/TTS 설명 여부, B+C/P2P 오설명 여부)을 확인할 수 없음. 503 원인(일시적 과부하/모델 가용성)은 응답 본문을 기록하지 않아 미확인. `GeminiToolClient`는 자동 재시도가 없음(코드 확인).
+    - 참고: 실행 전 스크립트(python) 쿠키 처리 오류로 관측 조회가 401로 실패해 Agent 요청 전에 중단됨 — Agent 요청은 이후 curl로 1회만 전송.
+    - 키 노출 0건(로그·응답·관측). 코드·설정 무변경.
+    - **재실행 1회(사용자 승인, 약 3분 뒤) — 다시 503.** HTTP 502 `UPSTREAM_ERROR`, 전체 5.7초. run 63f02167: 첫 모델 호출(5,739ms)에서 `status=503`, 도구·검색 0회, 토큰 null, 지식 검색 지표·캐시 해시 불변. 지시대로 즉시 중단, 추가 시도 없음. 검증 항목은 여전히 전부 **미검증**.
+    - **503 오프라인 점검(2026-10-29, Gemini API 호출 0회)** — 원인은 **미확인 유지**.
+      - 모델: `gemini-3.6-flash`는 공식 모델 목록(ai.google.dev/gemini-api/docs/models)에 **Stable**(이전 세대 Flash, 최신은 `gemini-3.8-flash`). 종료 모델 아님 — 종료였다면 404(`gemini-2.0-flash` 때처럼). 같은 모델로 2026-10-29 Agent 질문 3개 `completed` 이력 있음.
+      - 공개 상태: Google Cloud 상태 페이지 "No broad severe incidents"(마지막 갱신 10/28 09:55 PDT — 10/29 데이터 없음). incidents.json 앞부분(약 40%)만 확인, 최근 사건은 10/20 europe-west2 전원 장애(Vertex AI 등, 해결, Gemini API/AI Studio 언급 없음). AI Studio 상태 페이지는 스크립트 렌더링이라 내용 확인 못 함. 웹 검색에서 2026년 10월 `gemini-3.6-flash` 장애 보고 없음 → **관련 장애 공지 미확인**(공지 없음이 확정된 것은 아님).
+      - 요청 점검(코드·로그): `POST /v1beta/models/gemini-3.6-flash:generateContent`, 키는 `x-goog-api-key` 헤더, 모델은 `application.yml` 고정(`GEMINI_MODEL` env 없음). 두 실패 모두 첫 단계 `generate()`(`functionCallingConfig.mode=AUTO`, 도구 4개). 첫 요청 크기 약 5천 자 이하(시스템 안내 약 1.4천·도구 선언 문자열 약 3.2천 상한·질문 18자). 호출당 타임아웃 60초, 자동 재시도 없음. 형식 오류였다면 400 → 요청 형식·크기 문제 정황 없음.
+      - 한계: `GeminiToolClient`가 상태 코드만 로그에 남겨 Google `error.status`·메시지 없음. 정황상 Gemini 측 일시 과부하/가용성 문제 가능성이 크나 확정 불가.
+      - 구분: 관리자 Wiki 검색(Gemini Embedding, 0.75) = **검증 완료** / 관리자 Agent 최종 답변(`gemini-3.6-flash`) = **미검증**. Agent 실호출은 사용자 결정으로 당분간 보류.
 - [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② 캐릭터 세계관 RAG OFF/ON 비교 ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ 음성 통화에서 캐릭터 RAG 적용 확인
 
 ## 문서화 (진행 중 계속 갱신)
