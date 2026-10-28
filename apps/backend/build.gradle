@@ -44,5 +44,21 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+	// live 평가(@Tag("live"))는 외부 Gemini API를 호출하므로 기본 테스트에서 제외한다.
+	useJUnitPlatform {
+		excludeTags 'live'
+	}
+}
+
+// 실제 Gemini를 호출하는 평가. 비용 발생: RUN_LIVE_EVAL=true GEMINI_API_KEY=... ./gradlew evalLive
+tasks.register('evalLive', Test) {
+	group = 'verification'
+	description = 'Runs live (paid) LLM evaluation; requires RUN_LIVE_EVAL=true and GEMINI_API_KEY.'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'live'
+	}
+	outputs.upToDateWhen { false }
+	testLogging.showStandardStreams = true
 }
