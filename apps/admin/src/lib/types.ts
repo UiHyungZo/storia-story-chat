@@ -44,3 +44,16 @@ export type PagedResponse<T> = {
   content: T[];
   page: PageMeta;
 };
+
+export type AgentToolCall = {
+  name: string;
+  arguments: string;
+  ok: boolean;
+  result: string;
+};
+
+export type AgentResponse = {
+  answer: string;
+  toolCalls: AgentToolCall[];
+  stopReason: "completed" | "max_steps" | "timeout" | "no_response";
+};

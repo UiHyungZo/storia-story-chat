@@ -30,6 +30,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/characters">캐릭터</Link>
             <Link href="/conversations">대화 로그</Link>
             <Link href="/sessions">세션</Link>
+            <Link href="/agent">AI 조회</Link>
           </div>
           <form action={logoutAction}>
             <button type="submit" className="text-sm text-neutral-500 hover:text-neutral-900">
