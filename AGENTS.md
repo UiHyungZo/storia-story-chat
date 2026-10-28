@@ -1,31 +1,35 @@
-# Storia — Repository Agent Instructions
+# Storia — 저장소 개발 에이전트 지침
 
-These instructions apply to automated code changes throughout this repository.
+이 문서는 저장소 전체에서 코딩 에이전트가 수행하는 코드 변경에 적용한다.
 
-## Project structure
-- `apps/backend`: Spring Boot / Java application, persistence, Gemini integration, admin API.
-- `apps/admin`: Next.js admin console, server-side calls to the backend.
-- `apps/client`: React Native client.
-- `apps/python-sidecar`: real-time voice agent integration.
-- `docs`: architecture, API, testing, and implementation notes.
+## 프로젝트 구조
 
-Read the relevant existing code and documentation before changing behavior. Favor small, coherent changes to established services over parallel infrastructure.
+- `apps/backend`: Spring Boot / Java 애플리케이션, 데이터 저장, Gemini 연동, 관리자 API
+- `apps/admin`: Next.js 관리자 콘솔 및 서버 측 백엔드 호출
+- `apps/client`: React Native 클라이언트
+- `apps/python-sidecar`: 실시간 음성 에이전트 연동
+- `docs`: 아키텍처, API, 테스트 및 구현 관련 문서
 
-## Admin AI agent roadmap
-The incremental plan is maintained in [`docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md`](docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md).
+기능을 변경하기 전에 관련 코드와 기존 문서를 읽는다. 별도의 인프라를 중복 구축하기보다 기존 서비스 구조를 활용해 작고 일관된 변경을 우선한다.
 
-- Work on **one requested phase at a time**. Finish its implementation, tests, and status report; then stop.
-- Phase 0–4 define the initial scope. Phase 5–6 are optional extensions requiring an explicit new instruction.
-- A roadmap checklist describes intended behavior, not implemented behavior. Verify current code before making assumptions.
-- Do not change the client chat, voice pipeline, or deployment configuration as a side effect of admin-agent work.
+## 관리자 AI Agent 개발 로드맵
 
-## Boundaries and safety
-- Keep admin operations under the existing `/api/admin/**` authentication boundary. The admin console uses the server-only backend adapter in `apps/admin/src/lib/backend.ts`. Never expose administrator credentials to browsers or clients.
-- Read-only tools must never write application data. Configuration changes must pass through an explicit human approval step and server-side validation.
-- Treat retrieved conversations and model-generated tool arguments as untrusted input. Use typed schemas, explicit allowlists, bounded queries, and authentication checks.
-- Protect user data, secrets, and model credentials. Use synthetic data for evaluations; do not commit raw conversation logs or tokens.
-- Avoid calling production message endpoints from evaluation jobs: current message flows can persist data and cause notifications. Isolate test data and external API costs.
-- Preserve existing service behavior. Add regression tests for each change, and state exactly which commands were run.
+단계별 구현 계획은 [`docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md`](docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md)를 따른다.
 
-## Phase completion report
-For a requested phase, summarize the changed files, observed behavior, executed tests, failures, data/security checks, and outstanding limitations. Do not begin a subsequent phase automatically.
+- **명시적으로 요청받은 Phase 하나씩** 진행한다. 해당 Phase의 구현, 테스트, 결과 보고를 마치면 작업을 중단한다.
+- Phase 0~4를 기본 범위로 한다. Phase 5~6은 별도 요청이 있을 때만 진행하는 선택적 확장이다.
+- 로드맵의 체크리스트는 구현 예정 사항이지 구현 완료 기록이 아니다. 현재 코드를 확인한 후 판단한다.
+- 관리자 AI Agent 작업의 부수 효과로 클라이언트 채팅, 음성 처리 흐름 또는 배포 설정을 변경하지 않는다.
+
+## 작업 경계 및 안전 원칙
+
+- 관리자 기능은 기존 `/api/admin/**` 인증 경계 안에 둔다. 관리자 콘솔은 `apps/admin/src/lib/backend.ts`의 서버 전용 백엔드 어댑터를 사용한다. 관리자 인증 정보를 브라우저나 클라이언트에 노출하지 않는다.
+- Read-only 도구는 애플리케이션 데이터를 변경해서는 안 된다. 설정 변경은 반드시 명시적인 관리자 승인과 서버 측 검증을 거친다.
+- 조회한 대화 내용과 모델이 생성한 도구 인자는 신뢰할 수 없는 입력으로 취급한다. 명시적인 타입 스키마, 허용 목록, 조회 범위 제한 및 인증 검사를 적용한다.
+- 사용자 데이터, 비밀값, 모델 인증 정보를 보호한다. Evaluation에는 합성 데이터를 사용하고 실제 대화 원문이나 토큰을 저장소에 커밋하지 않는다.
+- Evaluation 작업에서 운영 메시지 API를 호출하지 않는다. 기존 메시지 처리 흐름에는 데이터 저장이나 알림 전송과 같은 부수 효과가 있을 수 있다. 테스트 데이터와 외부 API 비용을 분리·관리한다.
+- 기존 서비스 동작을 보존한다. 변경 사항에 회귀 테스트를 추가하고 실제 실행한 명령어와 결과만 보고한다.
+
+## Phase 완료 보고
+
+요청받은 Phase를 마치면 변경 파일, 실제 확인한 동작, 수행한 테스트와 결과, 실패 사례, 데이터·보안 점검, 남은 한계를 정리한다. 별도 요청 없이 다음 Phase를 시작하지 않는다.
