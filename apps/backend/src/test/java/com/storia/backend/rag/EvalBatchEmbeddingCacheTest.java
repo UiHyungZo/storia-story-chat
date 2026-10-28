@@ -141,6 +141,13 @@ class EvalBatchEmbeddingCacheTest {
         assertThat(second.remoteBatchCalls).isEqualTo(1);
         assertThat(vectors).hasSize(130).allSatisfy(v -> assertThat(v).hasSize(3));
         assertThat(second.cachedTexts()).isEqualTo(130);
+        // 마지막 성공 응답의 형식 정보(벡터·텍스트 없음)
+        GeminiEmbeddingProvider probe = gemini(url2, "gemini-embedding-2", 3);
+        probe.embedDocuments(List.of("a"));
+        assertThat(probe.lastResponseInfo().status()).isEqualTo(200);
+        assertThat(probe.lastResponseInfo().topLevelFields()).containsExactly("embeddings");
+        assertThat(probe.lastResponseInfo().usage()).isEmpty();
+        batchSizes.clear();
 
         // 세 번째 실행은 원격 호출이 없다.
         batchSizes.clear();
@@ -227,6 +234,94 @@ class EvalBatchEmbeddingCacheTest {
         cache.embedQuery("질문");
         cache.embedQuery("질문");
         assertThat(queryCalls.get()).isEqualTo(2);
+    }
+
+    // ---- 속도 제어 (가짜 시계: 대기하면 시계가 그만큼 흐른다) ----
+
+    private static final class FakeClock {
+        long now = 1_000_000;
+        final List<Long> waits = new ArrayList<>();
+
+        void sleep(long ms) {
+            waits.add(ms);
+            now += ms;
+        }
+    }
+
+    @Test
+    void limiter_waitsUntilItemsFitInTheMinuteWindow_andCountsBatchItemsAsRequests() {
+        FakeClock clock = new FakeClock();
+        EvalRateLimiter limiter = new EvalRateLimiter(80, 1_000_000, () -> clock.now, clock::sleep);
+
+        limiter.acquire(50, 10);
+        limiter.acquire(30, 10); // 합 80 — 대기 없음
+        assertThat(clock.waits).isEmpty();
+        limiter.acquire(1, 10); // 81번째 항목 → 첫 요청이 창에서 빠질 때까지(60초 + 여유 1초)
+        assertThat(clock.waits).containsExactly(61_000L);
+    }
+
+    @Test
+    void limiter_tokenBudget_andSingleRequestOverBudgetIsRefusedWithoutWaiting() {
+        FakeClock clock = new FakeClock();
+        EvalRateLimiter limiter = new EvalRateLimiter(1_000, 24_000, () -> clock.now, clock::sleep);
+
+        limiter.acquire(10, 20_000);
+        limiter.acquire(1, 5_000); // 토큰 합 25,000 > 24,000 → 대기
+        assertThat(clock.waits).hasSize(1);
+
+        assertThatThrownBy(() -> limiter.acquire(1, 30_000)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("단일 요청");
+        assertThat(clock.waits).hasSize(1);
+    }
+
+    @Test
+    void batchesArePackedByCharsAndItems_planMatchesWhatIsSent(@TempDir Path dir) throws Exception {
+        String url = start(0, 3);
+        List<String> texts = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            texts.add("x".repeat(80) + i); // 실제 입력은 "title: none | text: " 접두어(20자) 포함 101자
+        }
+        EvalBatchEmbeddingCache cache = new EvalBatchEmbeddingCache(gemini(url, "gemini-embedding-2", 3), dir, 0,
+                4, 350, EvalRateLimiter.unlimited(), ms -> { });
+
+        List<int[]> plan = cache.plan(texts);
+        cache.embedDocuments(texts);
+
+        assertThat(plan).extracting(p -> p[0]).containsExactly(3, 3, 3, 1); // 101×3=303 ≤ 350, 4개째는 404 > 350
+        assertThat(plan).allSatisfy(p -> assertThat(p[1]).isLessThanOrEqualTo(350));
+        assertThat(batchSizes).containsExactly(3, 3, 3, 1);
+        assertThat(cache.plan(texts)).isEmpty(); // 전부 캐시됨
+    }
+
+    @Test
+    void documentsAndQueriesShareTheMinuteBudget_queriesWaitAfterALargeLastBatch(@TempDir Path dir) throws Exception {
+        String url = start(0, 3);
+        FakeClock clock = new FakeClock();
+        EvalRateLimiter limiter = new EvalRateLimiter(60, 1_000_000, () -> clock.now, clock::sleep);
+        EvalBatchEmbeddingCache cache = new EvalBatchEmbeddingCache(gemini(url, "gemini-embedding-2", 3), dir, 0,
+                50, Integer.MAX_VALUE, limiter, clock::sleep);
+
+        cache.embedDocuments(texts(50)); // 항목 50
+        for (int i = 0; i < 10; i++) {
+            cache.embedQuery("질문 " + i); // 51~60번째 — 대기 없음
+        }
+        assertThat(clock.waits).isEmpty();
+        cache.embedQuery("질문 10"); // 61번째 → 문서 배치가 창에서 빠질 때까지 대기
+        assertThat(clock.waits).containsExactly(61_000L);
+        assertThat(queryCalls.get()).isEqualTo(11);
+    }
+
+    @Test
+    void chunkLargerThanTheTokenBudget_isNotSent_andReportedAsOverBudget(@TempDir Path dir) throws Exception {
+        String url = start(0, 3);
+        EvalBatchEmbeddingCache cache = new EvalBatchEmbeddingCache(gemini(url, "gemini-embedding-2", 3), dir, 0,
+                50, 100, new EvalRateLimiter(80, 100, System::currentTimeMillis, ms -> { }), ms -> { });
+
+        assertThatThrownBy(() -> cache.embedDocuments(List.of("y".repeat(200))))
+                .isInstanceOf(EvalBatchEmbeddingCache.BatchAbortException.class);
+
+        assertThat(cache.lastFailure.errorType()).isEqualTo("request_over_budget");
+        assertThat(batchSizes).isEmpty(); // 원격 호출 없음
     }
 
     @Test

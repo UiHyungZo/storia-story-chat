@@ -36,6 +36,15 @@ public final class GeminiEmbeddingProvider implements EmbeddingProvider {
     private final int dimensions;
     private final boolean taskInText;
 
+    /**
+     * 마지막 성공 응답의 형식 정보(진단용): HTTP 상태, 최상위 필드 이름, {@code usageMetadata}의 숫자 필드.
+     * 벡터 값·텍스트는 담지 않는다. 호출 동작에는 쓰지 않는다.
+     */
+    record ResponseInfo(int status, List<String> topLevelFields, java.util.Map<String, Long> usage) {
+    }
+
+    private volatile ResponseInfo lastResponseInfo;
+
     public GeminiEmbeddingProvider(String apiKey, String baseUrl, String model, int dimensions) {
         this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), apiKey, baseUrl, model, dimensions);
     }
@@ -106,7 +115,8 @@ public final class GeminiEmbeddingProvider implements EmbeddingProvider {
         return taskInText ? "title: none | text: " + text : text;
     }
 
-    private String queryText(String text) {
+    /** 실제로 API에 보내는 질의 입력(모델에 따라 접두어 포함). 평가의 요청량 추정에도 쓴다. */
+    String queryText(String text) {
         return taskInText ? "task: search result | query: " + text : text;
     }
 
@@ -126,13 +136,32 @@ public final class GeminiEmbeddingProvider implements EmbeddingProvider {
                 // 응답 본문에는 요청 내용이 반영될 수 있으므로 상태 코드와 형식이 정해진 진단 값만 꺼낸다.
                 throw httpFailure(response);
             }
-            return mapper.readTree(response.body());
+            JsonNode parsed = mapper.readTree(response.body());
+            lastResponseInfo = responseInfo(response.statusCode(), parsed);
+            return parsed;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("임베딩 호출 중단");
         } catch (IOException e) {
             throw new IllegalStateException("임베딩 호출 실패: " + e.getClass().getSimpleName());
         }
+    }
+
+    private static ResponseInfo responseInfo(int status, JsonNode parsed) {
+        List<String> fields = new ArrayList<>();
+        parsed.fieldNames().forEachRemaining(fields::add);
+        java.util.Map<String, Long> usage = new java.util.LinkedHashMap<>();
+        parsed.path("usageMetadata").fields().forEachRemaining(e -> {
+            if (e.getValue().isIntegralNumber() && e.getKey().matches("[A-Za-z]{1,40}")) {
+                usage.put(e.getKey(), e.getValue().asLong());
+            }
+        });
+        return new ResponseInfo(status, List.copyOf(fields), java.util.Map.copyOf(usage));
+    }
+
+    /** 마지막 성공 응답의 형식 정보. 아직 성공한 호출이 없으면 null. */
+    ResponseInfo lastResponseInfo() {
+        return lastResponseInfo;
     }
 
     private EmbeddingHttpException httpFailure(HttpResponse<String> response) {

@@ -59,6 +59,9 @@ final class EvalBatchEmbeddingCache implements EmbeddingProvider {
     private final String signature;
     private final Path file;
     private final long intervalMs;
+    private final int maxItemsPerBatch;
+    private final int maxCharsPerBatch;
+    private final EvalRateLimiter limiter;
     private final LongConsumer sleeper;
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<String, float[]> cache = new HashMap<>();
@@ -72,12 +75,70 @@ final class EvalBatchEmbeddingCache implements EmbeddingProvider {
     }
 
     EvalBatchEmbeddingCache(GeminiEmbeddingProvider delegate, Path cacheDir, long intervalMs, LongConsumer sleeper) {
+        this(delegate, cacheDir, intervalMs, GeminiEmbeddingProvider.BATCH_SIZE, Integer.MAX_VALUE,
+                EvalRateLimiter.unlimited(), sleeper);
+    }
+
+    /**
+     * @param maxItemsPerBatch 배치당 최대 항목 수 (≤ {@link GeminiEmbeddingProvider#BATCH_SIZE})
+     * @param maxCharsPerBatch 배치당 실제 API 입력 글자 수 상한(토큰 추정 상한). 한 조각이 이보다 길면 그 조각만 단독 배치.
+     * @param limiter          문서 배치와 질의 모두에 적용하는 분당 항목·토큰 예산
+     */
+    EvalBatchEmbeddingCache(GeminiEmbeddingProvider delegate, Path cacheDir, long intervalMs, int maxItemsPerBatch,
+                            int maxCharsPerBatch, EvalRateLimiter limiter, LongConsumer sleeper) {
         this.delegate = delegate;
         this.signature = delegate.documentRequestSignature();
         this.file = cacheDir.resolve("eval-batch-cache-" + MarkdownChunker.sha256(signature).substring(0, 16) + ".json");
         this.intervalMs = Math.max(0, intervalMs);
+        this.maxItemsPerBatch = Math.max(1, Math.min(maxItemsPerBatch, GeminiEmbeddingProvider.BATCH_SIZE));
+        this.maxCharsPerBatch = Math.max(1, maxCharsPerBatch);
+        this.limiter = limiter;
         this.sleeper = sleeper;
         load();
+    }
+
+    /** 아직 캐시에 없는 문서를 실제로 보낼 배치 계획(배치마다 항목 수·입력 글자 수). 원격 호출 없음. */
+    List<int[]> plan(List<String> texts) {
+        List<int[]> out = new ArrayList<>();
+        for (List<Map.Entry<String, String>> batch : batches(missing(texts))) {
+            out.add(new int[] {batch.size(), chars(batch)});
+        }
+        return out;
+    }
+
+    private Map<String, String> missing(List<String> texts) {
+        Map<String, String> missing = new LinkedHashMap<>(); // key → text (중복 제거, 순서 유지)
+        for (String text : texts) {
+            String k = key(text);
+            if (!cache.containsKey(k)) {
+                missing.putIfAbsent(k, text);
+            }
+        }
+        return missing;
+    }
+
+    private List<List<Map.Entry<String, String>>> batches(Map<String, String> missing) {
+        List<List<Map.Entry<String, String>>> out = new ArrayList<>();
+        List<Map.Entry<String, String>> current = new ArrayList<>();
+        int currentChars = 0;
+        for (Map.Entry<String, String> e : missing.entrySet()) {
+            int c = delegate.documentText(e.getValue()).length();
+            if (!current.isEmpty() && (current.size() >= maxItemsPerBatch || currentChars + c > maxCharsPerBatch)) {
+                out.add(current);
+                current = new ArrayList<>();
+                currentChars = 0;
+            }
+            current.add(e);
+            currentChars += c;
+        }
+        if (!current.isEmpty()) {
+            out.add(current);
+        }
+        return out;
+    }
+
+    private int chars(List<Map.Entry<String, String>> batch) {
+        return batch.stream().mapToInt(e -> delegate.documentText(e.getValue()).length()).sum();
     }
 
     @Override
@@ -97,6 +158,7 @@ final class EvalBatchEmbeddingCache implements EmbeddingProvider {
 
     @Override
     public float[] embedQuery(String text) {
+        limiter.acquire(1, delegate.queryText(text).length());
         return delegate.embedQuery(text);
     }
 
@@ -106,34 +168,32 @@ final class EvalBatchEmbeddingCache implements EmbeddingProvider {
 
     @Override
     public List<float[]> embedDocuments(List<String> texts) {
-        Map<String, String> missing = new LinkedHashMap<>(); // key → text (중복 제거, 순서 유지)
-        for (String text : texts) {
-            String k = key(text);
-            if (!cache.containsKey(k)) {
-                missing.putIfAbsent(k, text);
-            }
-        }
+        Map<String, String> missing = missing(texts);
         reusedTexts += texts.size() - missing.size();
 
-        List<Map.Entry<String, String>> pending = new ArrayList<>(missing.entrySet());
-        int totalBatches = (pending.size() + GeminiEmbeddingProvider.BATCH_SIZE - 1) / GeminiEmbeddingProvider.BATCH_SIZE;
+        List<List<Map.Entry<String, String>>> plan = batches(missing);
+        int totalBatches = plan.size();
         int succeeded = 0;
         for (int b = 0; b < totalBatches; b++) {
-            List<Map.Entry<String, String>> batch = pending.subList(b * GeminiEmbeddingProvider.BATCH_SIZE,
-                    Math.min(pending.size(), (b + 1) * GeminiEmbeddingProvider.BATCH_SIZE));
+            List<Map.Entry<String, String>> batch = plan.get(b);
             if (b > 0 && intervalMs > 0) {
                 sleeper.accept(intervalMs);
+            }
+            try {
+                limiter.acquire(batch.size(), chars(batch));
+            } catch (IllegalStateException e) {
+                throw abort(b, plan, succeeded, new OverBudget());
             }
             List<float[]> vectors;
             try {
                 remoteBatchCalls++;
                 vectors = delegate.embedDocuments(batch.stream().map(Map.Entry::getValue).toList());
             } catch (RuntimeException e) {
-                throw abort(b, totalBatches, batch.size(), succeeded, pending.size(), e);
+                throw abort(b, plan, succeeded, e);
             }
             if (vectors.size() != batch.size()
                     || vectors.stream().anyMatch(v -> v == null || v.length != delegate.dimensions())) {
-                throw abort(b, totalBatches, batch.size(), succeeded, pending.size(), null);
+                throw abort(b, plan, succeeded, null);
             }
             for (int i = 0; i < batch.size(); i++) {
                 cache.put(batch.get(i).getKey(), vectors.get(i));
@@ -143,7 +203,7 @@ final class EvalBatchEmbeddingCache implements EmbeddingProvider {
             } catch (IOException e) {
                 // 저장하지 못하면 다음 배치를 진행해도 재실행 때 다시 과금되므로 여기서 멈춘다.
                 cache.keySet().removeAll(batch.stream().map(Map.Entry::getKey).toList());
-                throw abort(b, totalBatches, batch.size(), succeeded, pending.size(), new CacheWriteFailed());
+                throw abort(b, plan, succeeded, new CacheWriteFailed());
             }
             succeeded++;
         }
@@ -158,8 +218,17 @@ final class EvalBatchEmbeddingCache implements EmbeddingProvider {
     private static final class CacheWriteFailed extends RuntimeException {
     }
 
-    private BatchAbortException abort(int batchIndex, int totalBatches, int batchSize, int succeeded, int pendingTexts,
+    private static final class OverBudget extends RuntimeException {
+    }
+
+    private BatchAbortException abort(int batchIndex, List<List<Map.Entry<String, String>>> plan, int succeeded,
                                       RuntimeException cause) {
+        int totalBatches = plan.size();
+        int batchSize = plan.get(batchIndex).size();
+        int remainingTexts = 0;
+        for (int i = succeeded; i < plan.size(); i++) {
+            remainingTexts += plan.get(i).size();
+        }
         Integer status = null;
         String errorStatus = null;
         String retryAfter = null;
@@ -175,14 +244,14 @@ final class EvalBatchEmbeddingCache implements EmbeddingProvider {
             type = "invalid_response";
         } else if (cause instanceof CacheWriteFailed) {
             type = "cache_write_failed";
+        } else if (cause instanceof OverBudget) {
+            type = "request_over_budget";
         } else {
             type = "client_error:" + cause.getClass().getSimpleName();
         }
-        int succeededTexts = Math.min(pendingTexts, succeeded * GeminiEmbeddingProvider.BATCH_SIZE);
-        int remainingTexts = pendingTexts - succeededTexts;
+        // 재실행 시에는 남은 조각을 같은 규칙으로 다시 묶으므로 배치 수는 남은 계획 배치 수와 같다.
         BatchFailure f = new BatchFailure(batchIndex + 1, totalBatches, batchSize, status, type, errorStatus, retryAfter,
-                retryDelay, succeeded, cache.size(), remainingTexts,
-                (remainingTexts + GeminiEmbeddingProvider.BATCH_SIZE - 1) / GeminiEmbeddingProvider.BATCH_SIZE);
+                retryDelay, succeeded, cache.size(), remainingTexts, totalBatches - succeeded);
         lastFailure = f;
         return new BatchAbortException(f);
     }

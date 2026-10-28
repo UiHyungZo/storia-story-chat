@@ -35,14 +35,30 @@ class RagLiveEvalTest {
         String model = System.getenv().getOrDefault("EVAL_EMBEDDING_MODEL", "gemini-embedding-2");
         Path repoRoot = Path.of("../..").toAbsolutePath().normalize();
 
-        // 배치마다 저장하는 평가 전용 캐시. 배치 사이 간격은 EVAL_EMBEDDING_BATCH_INTERVAL_MS(기본 0). 자동 재시도 없음.
-        long intervalMs = Long.parseLong(System.getenv().getOrDefault("EVAL_EMBEDDING_BATCH_INTERVAL_MS", "0"));
+        // 배치마다 저장하는 평가 전용 캐시 + 무료 한도(RPM 100 / TPM 30,000) 기준의 보수적 속도 제어. 자동 재시도 없음.
+        // 배치 안 항목도 요청 1건씩 집계된다고 보고, 토큰은 입력 글자 수로 추정한다(기본값은 한도의 80%).
+        long intervalMs = envLong("EVAL_EMBEDDING_BATCH_INTERVAL_MS", 70_000);
+        int maxItemsPerBatch = (int) envLong("EVAL_EMBEDDING_MAX_BATCH_ITEMS", 50);
+        int maxCharsPerBatch = (int) envLong("EVAL_EMBEDDING_MAX_BATCH_CHARS", 24_000);
+        int itemsPerMinute = (int) envLong("EVAL_EMBEDDING_ITEMS_PER_MINUTE", 80);
+        long tokensPerMinute = envLong("EVAL_EMBEDDING_TOKENS_PER_MINUTE", 24_000);
+        int maxDocumentBatches = (int) envLong("EVAL_EMBEDDING_MAX_DOC_BATCHES", 6);
         EvalBatchEmbeddingCache provider = new EvalBatchEmbeddingCache(
                 new GeminiEmbeddingProvider(apiKey, "https://generativelanguage.googleapis.com", model, 768),
-                Path.of("build/rag-live-cache"), intervalMs);
+                Path.of("build/rag-live-cache"), intervalMs, maxItemsPerBatch, maxCharsPerBatch,
+                new EvalRateLimiter(itemsPerMinute, tokensPerMinute, System::currentTimeMillis, RagLiveEvalTest::sleep),
+                RagLiveEvalTest::sleep);
         Double minScore = System.getenv("EVAL_RAG_MIN_SCORE") == null ? null : Double.valueOf(System.getenv("EVAL_RAG_MIN_SCORE"));
 
-        // 호출 상한: 문서 임베딩 최대 6배치(300개), 질의 임베딩은 질문 수만큼. 첫 실패에서 중단하고 재시도하지 않는다.
+        // 원격 호출 전 사전 점검: 남은 문서 배치 계획이 허용 배치 수를 넘으면 아무것도 호출하지 않고 멈춘다.
+        List<int[]> plan = provider.plan(documentTexts(repoRoot));
+        System.out.println("rag live preflight: cached=" + provider.cachedTexts() + " planned_batches=" + plan.size()
+                + " planned_items=" + plan.stream().mapToInt(p -> p[0]).sum()
+                + " max_batch_chars=" + plan.stream().mapToInt(p -> p[1]).max().orElse(0)
+                + " interval_ms=" + intervalMs + " items_per_min=" + itemsPerMinute + " tokens_per_min=" + tokensPerMinute);
+        assertThat(plan.size()).as("문서 배치 계획이 허용치(EVAL_EMBEDDING_MAX_DOC_BATCHES)를 넘음").isLessThanOrEqualTo(maxDocumentBatches);
+
+        // 호출 상한: 문서 임베딩 300개, 질의 임베딩은 질문 수만큼. 첫 실패에서 중단하고 재시도하지 않는다.
         List<RagEvaluator.Question> questions = RagEvaluator.loadQuestions();
         RagEvaluator.MeteredEmbeddingProvider metered = new RagEvaluator.MeteredEmbeddingProvider(
                 provider, 6 * GeminiEmbeddingProvider.BATCH_SIZE, questions.size());
@@ -58,6 +74,30 @@ class RagLiveEvalTest {
         System.out.println("rag live report: build/eval-reports/" + runId + ".md");
         assertThat(Files.exists(Path.of("build/eval-reports", runId + ".md"))).isTrue();
         assertThat(List.of(result.get("embedding_provider"))).isNotEmpty();
+    }
+
+    /** 평가가 임베딩할 문서 입력(인덱스 구축과 같은 로더·청커). 원격 호출 없음. */
+    static List<String> documentTexts(Path repoRoot) {
+        List<String> texts = new java.util.ArrayList<>();
+        MarkdownChunker chunker = new MarkdownChunker(800);
+        for (KnowledgeDocument doc : new DocumentLoader(repoRoot, KnowledgeSources.DEFAULT).load().documents()) {
+            chunker.chunk(doc).forEach(c -> texts.add(c.embeddingText()));
+        }
+        return texts;
+    }
+
+    private static long envLong(String name, long fallback) {
+        String v = System.getenv(name);
+        return v == null || v.isBlank() ? fallback : Long.parseLong(v.strip());
+    }
+
+    private static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("대기 중단");
+        }
     }
 
     /**
