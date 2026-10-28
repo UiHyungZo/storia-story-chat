@@ -19,6 +19,7 @@ apps/client/ios/Pods/
 apps/client/ios/build/
 apps/client/android/build/
 apps/client/android/.gradle/
+apps/client/modules/storia-native/android/.gradle/
 apps/client/android/app/build/
 *.jks
 *.p8
