@@ -1,153 +1,154 @@
-# Storia Admin AI Agent — Implementation Roadmap
+# Storia 관리자 AI Agent — 단계별 구현 로드맵
 
-> **Status: proposed, not implemented.**
+> **상태: 구현 계획 단계 (미구현)**
 >
-> **Core scope:** Phase 0–4. **Optional extensions:** Phase 5–6, based on demonstrated product requirements.
+> **기본 범위:** Phase 0~4 / **선택적 확장:** Phase 5~6
 >
-> Purpose: extend the existing Storia admin console with bounded AI-assisted inspection and human-approved configuration updates, supported by reproducible evaluation and regression checks.
+> **목표:** 기존 Storia 관리자 콘솔에 AI 기반 정보 조회와 관리자 승인형 설정 변경 기능을 추가하고, 재현 가능한 Evaluation 및 회귀 테스트로 품질을 검증한다.
 
-## Existing components and integration points
+## 1. 기존 구성 요소 및 연동 지점
 
-| Component | Current behavior | Integration approach |
+| 구성 요소 | 현재 동작 | 적용 방향 |
 | --- | --- | --- |
-| `apps/backend/src/main/java/com/storia/backend/service/GeminiService.java` | Uses Gemini streaming responses and extracts text chunks from SSE | Reuse model configuration where practical; handle function-call parts in an **isolated admin orchestration path** |
-| `apps/backend/src/main/java/com/storia/backend/controller/ConversationController.java` | Saves user and assistant messages; assistant flow may produce notifications | Do **not** invoke this endpoint from evaluations |
-| `apps/backend/src/main/java/com/storia/backend/controller/ConversationStompController.java` | WebSocket/STOMP chat stream | Preserve existing chat behavior |
-| `apps/backend/src/main/java/com/storia/backend/controller/AdminCharacterController.java` | Admin character GET/PUT | Reuse existing authorized read/update services |
-| `apps/backend/src/main/java/com/storia/backend/controller/AdminConversationController.java` | Admin conversation search and message paging | Reuse bounded, read-only queries |
-| `apps/backend/src/main/java/com/storia/backend/config/AdminWebConfig.java` | Authentication gate for `/api/admin/**` | Keep new admin endpoints under the same gate |
-| `apps/admin/src/lib/backend.ts` | Server-only backend adapter with admin session cookie | Reuse for admin UI and server actions |
-| `apps/backend/src/test/resources/application.yml` | H2 test database in MySQL compatibility mode | Isolate integration tests from real application data |
+| `apps/backend/src/main/java/com/storia/backend/service/GeminiService.java` | Gemini 스트리밍 응답을 받아 SSE에서 텍스트를 추출 | 기존 모델 설정을 필요에 따라 재사용하되, Function Calling은 **관리자 전용 실행 경로**로 분리 |
+| `apps/backend/src/main/java/com/storia/backend/controller/ConversationController.java` | 사용자·AI 메시지를 저장하며 처리 과정에서 알림이 발생할 수 있음 | Evaluation에서는 해당 엔드포인트를 호출하지 않음 |
+| `apps/backend/src/main/java/com/storia/backend/controller/ConversationStompController.java` | WebSocket/STOMP 기반 채팅 | 기존 채팅 흐름 유지 |
+| `apps/backend/src/main/java/com/storia/backend/controller/AdminCharacterController.java` | 관리자용 캐릭터 설정 조회 및 수정(GET/PUT) | 인증된 기존 조회·수정 서비스 활용 |
+| `apps/backend/src/main/java/com/storia/backend/controller/AdminConversationController.java` | 관리자용 대화 목록 조회 및 메시지 페이지네이션 | 조회 범위를 제한한 Read-only 도구에 활용 |
+| `apps/backend/src/main/java/com/storia/backend/config/AdminWebConfig.java` | `/api/admin/**` 인증 검사 | 새 관리자 API도 동일 인증 범위 안에 배치 |
+| `apps/admin/src/lib/backend.ts` | 관리자 세션 쿠키를 사용하는 서버 전용 백엔드 어댑터 | 관리자 UI 및 Server Actions에서 재사용 |
+| `apps/backend/src/test/resources/application.yml` | MySQL 호환 모드의 H2 테스트 DB 설정 | 실제 운영 데이터와 테스트 환경 분리 |
 
-**Design note:** `GeminiService.streamReply` currently parses text from SSE; it is not itself a function-calling orchestrator. Parsing model tool-call parts, validating arguments, executing allowlisted functions, and returning results are separate implementation tasks.
+**설계 유의사항:** 현재 `GeminiService.streamReply`는 SSE 응답에서 텍스트를 추출한다. 이 메서드만으로 Function Calling이 완성되는 것은 아니다. 도구 호출 파싱, 인자 검증, 허용된 함수 실행 및 결과 전달은 별도로 구현해야 한다.
 
-## Phase overview
+## 2. 전체 Phase 요약
 
-| Phase | Scope | Completion artifact |
+| Phase | 주요 작업 | 완료 기준 |
 | --- | --- | --- |
-| **0 — Architecture & isolation** | Inspect data flow, identify side effects, define evaluation boundaries | Integration note and test strategy |
-| **1 — Response evaluation** | Establish 20 synthetic scenarios and baseline comparison | Reproducible results and failure analysis |
-| **2 — Read-only tool calling** | Admin tool declarations, dispatch, secure retrieval, UI | Two functional, bounded lookup tools |
-| **3 — Human-approved changes** | Configuration proposal and explicit confirmation | Tested propose/review/apply flow |
-| **4 — Regression evaluation** | Expand to 30–50 scenarios, automated assertions and reports | Re-runnable evaluation report |
-| **5 — Observability** | Trace and latency instrumentation | Optional, scoped instrumentation |
-| **6 — External tools or retrieval** | MCP **or** RAG, when a concrete need is identified | Optional integration with tests |
+| **0 — 구조 분석 및 격리 설계** | 데이터 흐름, 부수 효과, 인증 및 평가 경계 확인 | 기술 설계와 테스트 전략 |
+| **1 — LLM 응답 Evaluation** | 합성 시나리오 20개와 기준 성능 측정 | 재현 가능한 평가 결과 및 실패 분석 |
+| **2 — Read-only Tool Calling** | 관리자 도구 정의, 호출 처리, 안전한 조회, UI | 조회 도구 2개가 실제로 동작 |
+| **3 — 관리자 승인형 변경** | 설정 변경 제안, 차이 비교, 명시적 승인 | 제안·검토·적용 흐름과 테스트 |
+| **4 — 통합 회귀 평가** | 시나리오 30~50개, 자동 검증 및 결과 보고 | 반복 실행 가능한 평가 리포트 |
+| **5 — Observability (선택)** | 실행 추적 및 지연 시간 측정 | 필요성이 확인된 관측 기능 |
+| **6 — MCP 또는 RAG (선택)** | 구체적 요구에 따른 외부 도구 또는 검색 연동 | 범위를 제한한 연동 및 검증 |
 
-Phases 0–4 form a discrete implementation increment. Any additional integration should address an identified functional or operational need, rather than expand the stack by default.
+Phase 0~4를 하나의 기본 구현 범위로 정의한다. Phase 5~6은 실제 기능 및 운영상의 필요가 확인되었을 때 별도로 결정한다.
 
 ---
 
-## Phase 0 — Architecture review and safe execution boundary
+## Phase 0 — 구조 분석 및 안전한 실행 경계 설계
 
-**Objective:** document the minimal code paths needed to add admin AI functionality without altering user chat behavior.
+**목표:** 사용자 채팅의 기존 동작을 바꾸지 않고 관리자 AI 기능을 추가할 수 있도록 최소 변경 범위를 정의한다.
 
-- [ ] Trace Gemini request/response handling and error paths, including timeouts and model configuration.
-- [ ] Trace REST/STOMP conversation writes, notification side effects, and production data dependencies.
-- [ ] Verify admin session enforcement, backend endpoints, and Next.js server-only API calls.
-- [ ] Specify a non-production evaluation path with no message writes or push notifications.
-- [ ] Choose a deterministic local/mock execution mode for default tests. Keep actual Gemini requests explicit and cost-bounded.
-- [ ] Define scoped modules, input schemas, allowed fields, query limits, and test ownership.
+- [ ] Gemini 요청·응답 처리, 타임아웃, 오류 흐름, 모델 설정 확인
+- [ ] REST/STOMP 대화 저장, 알림 등 부수 효과와 운영 데이터 의존성 파악
+- [ ] 관리자 세션 인증, 백엔드 API, Next.js 서버 전용 호출 구조 검증
+- [ ] 메시지 저장과 푸시 알림이 발생하지 않는 별도 Evaluation 실행 경로 설계
+- [ ] 기본 테스트는 Mock 기반으로 재현 가능하게 구성하고 실제 Gemini 호출은 명시적으로 실행하도록 분리
+- [ ] 모듈 경계, 입력 스키마, 허용 필드, 조회 제한 및 테스트 범위 정의
 
-**Done when:** a brief technical design records component boundaries, security assumptions, evaluation isolation, and concrete files to change. Do not begin Phase 1 automatically.
+**완료 기준:** 구성 요소 간 경계, 보안 전제, 평가 환경 격리 방식, 변경 대상 파일이 기술 설계 문서에 정리되어 있어야 한다. Phase 1은 자동으로 시작하지 않는다.
 
-## Phase 1 — Baseline LLM response evaluation
+## Phase 1 — LLM 응답 기준 평가
 
-**Objective:** establish a reproducible baseline for character responses and identify measurable regressions.
+**목표:** 캐릭터 응답의 현재 품질을 측정하고 향후 변경에 따른 회귀를 확인할 기준을 확보한다.
 
-- [ ] Create an evaluation dataset with **20 synthetic scenarios** covering character consistency, fabricated memories, multi-turn context, correction/uncertainty, and error conditions.
-- [ ] Define dataset fields: `id`, `system_prompt`, `history`, `input`, `expected_behavior`, `rubric`, `tags`.
-- [ ] Add a runner that calls an isolated response-generation service or an explicit test adapter; do not route evaluation through conversation-save endpoints.
-- [ ] Record model identifier, generation settings, prompt version, evaluation method, and run ID.
-- [ ] Separate deterministic assertions from human-scored response characteristics. Record `pass`, `fail`, and `undetermined` without silently promoting ambiguous results to passing.
-- [ ] Document at least one observed failure, a specific correction attempt, and re-evaluation under comparable conditions.
+- [ ] 캐릭터 일관성, 존재하지 않는 기억 생성, 다중 턴 문맥, 정정·불확실성 처리, 오류 상황을 포함해 **합성 시나리오 20개** 작성
+- [ ] 평가 데이터에 `id`, `system_prompt`, `history`, `input`, `expected_behavior`, `rubric`, `tags` 필드 정의
+- [ ] 격리된 응답 생성 서비스 또는 테스트 어댑터를 사용하는 평가 실행기 구성. 실제 대화 저장 API는 호출하지 않음
+- [ ] 모델 이름, 생성 설정, 프롬프트 버전, 평가 방법, 실행 ID 기록
+- [ ] 기계적으로 검증할 수 있는 조건과 사람의 판단이 필요한 품질 기준 분리
+- [ ] 결과를 `pass`, `fail`, `undetermined`로 구분하고 판단 불가 결과를 자동으로 성공 처리하지 않음
+- [ ] 실제 관찰된 실패 사례 하나 이상을 선정해 수정 전후 결과 비교
 
-**Done when:** 20 scenarios can be executed and yield a baseline report with actual observations, limitations, and no writes to production conversation state.
+**완료 기준:** 합성 시나리오 20개를 반복 실행할 수 있고, 관찰 결과와 한계를 포함한 기준 평가 리포트가 생성되어야 한다. 운영 대화 데이터에는 쓰기가 없어야 한다.
 
-## Phase 2 — Admin read-only tool calling
+## Phase 2 — 관리자 Read-only Tool Calling
 
-**Objective:** allow an authenticated administrator to request bounded application information using natural language.
+**목표:** 인증된 관리자가 자연어 요청을 통해 필요한 서비스 정보를 제한된 범위에서 조회할 수 있게 한다.
 
-### Proposed tools
+### 구현할 도구
 
-| Tool | Operation | Constraints |
+| 도구 | 기능 | 제한 사항 |
 | --- | --- | --- |
-| `getCharacterConfig(characterId)` | Read character configuration | Validate ID; return only required fields |
-| `getConversationLogs(filters, limit)` | Search and summarize conversation records | Bounded pagination, permitted filters, minimal sensitive data |
+| `getCharacterConfig(characterId)` | 캐릭터 설정 조회 | ID 검증 후 필요한 필드만 반환 |
+| `getConversationLogs(filters, limit)` | 대화 로그 검색 및 요약 | 허용 필터, 페이지네이션, 반환 건수 및 민감 정보 제한 |
 
-- [ ] Add a dedicated admin-only Gemini function-calling orchestration path; do not repurpose the text-only streaming parser to infer tool calls.
-- [ ] Declare typed tool schemas and a fixed server-side dispatch allowlist. Reject unknown functions and invalid arguments.
-- [ ] Enforce admin session checks for every tool execution and keep Next.js credentials server-side.
-- [ ] Add maximum row counts, timeouts, execution-step limits, and meaningful error handling.
-- [ ] Treat model input and retrieved log messages as data. Embedded instructions within logs must not gain authority.
-- [ ] Build a minimal admin UI for issuing a request and viewing retrieved information using the existing server-only backend adapter.
-- [ ] Test correct selection, invalid arguments, missing records, unauthorized access, limits, and absence of DB writes.
+- [ ] 관리자 전용 Gemini Function Calling 실행 흐름 구축. 기존 텍스트 추출 로직만으로 도구 호출을 추정하지 않음
+- [ ] 타입이 있는 도구 스키마와 서버 측 고정 허용 목록을 정의하고, 등록되지 않은 함수나 잘못된 인자 차단
+- [ ] 모든 도구 호출에서 관리자 인증 검사. Next.js의 인증 정보는 서버에만 유지
+- [ ] 최대 조회 건수, 타임아웃, 실행 단계 수 제한 및 오류 처리 추가
+- [ ] 모델 입력과 조회된 로그를 데이터로 취급하며 로그 내부 문장을 실행 명령으로 해석하지 않도록 구성
+- [ ] 기존 서버 전용 백엔드 어댑터를 이용해 요청과 조회 결과를 보여주는 간단한 관리자 UI 개발
+- [ ] 정상 조회, 잘못된 인자, 없는 데이터, 권한 없음, 조회 한도 초과, DB 쓰기 미발생 테스트
 
-**Done when:** both tool calls run through the authenticated admin flow, with bounded output and tested read-only guarantees.
+**완료 기준:** 두 가지 도구가 관리자 인증하에 동작하고, 조회 범위 및 Read-only 조건을 테스트로 검증해야 한다.
 
-## Phase 3 — Proposed configuration changes and human confirmation
+## Phase 3 — 설정 변경 제안 및 관리자 승인
 
-**Objective:** support AI-assisted configuration review while preventing unapproved mutation.
+**목표:** AI가 설정 개선안을 제안할 수 있지만 관리자 승인 없이는 데이터가 수정되지 않도록 한다.
 
-- [ ] Implement `proposeCharacterConfigChange(characterId, proposedFields, reason)` as a **proposal operation only**; it must not write to the database.
-- [ ] Restrict candidate fields to the existing admin update contract (`concept`, `systemPrompt`, `ttsVoiceId`) and validate field-level requirements.
-- [ ] Show a before/after diff and explicit **Approve** / **Reject** actions in the admin console.
-- [ ] Only the authenticated approval action may invoke the authorized character update path.
-- [ ] Recheck target ID, field allowlist, current value, and session on approval. Prevent stale proposals from silently overwriting later changes.
-- [ ] Add tests for rejection, approval, absent approval, invalid fields, outdated proposals, and injected instructions.
+- [ ] `proposeCharacterConfigChange(characterId, proposedFields, reason)` 도구를 **제안 전용**으로 구현. 이 단계에서 DB를 수정하지 않음
+- [ ] 제안 가능한 필드는 기존 관리자 API의 `concept`, `systemPrompt`, `ttsVoiceId`로 제한하고 검증 적용
+- [ ] 관리자 콘솔에서 현재 값과 제안 값을 비교하는 Diff, **승인 / 거절** 동작 제공
+- [ ] 인증된 관리자가 승인한 경우에만 기존 캐릭터 수정 경로 호출
+- [ ] 승인 시 대상 ID, 허용 필드, 현재 설정값 및 세션을 재확인해 오래된 제안이 최신 설정을 덮어쓰지 않게 함
+- [ ] 거절, 승인, 승인 누락, 유효하지 않은 필드, 오래된 제안, 지시문 삽입에 대한 테스트 추가
 
-**Done when:** proposal/rejection leaves the DB unchanged, and only an authorized explicit approval can persist validated changes.
+**완료 기준:** 제안 또는 거절만으로 DB가 변경되지 않아야 하며, 명시적으로 승인한 유효한 변경만 저장되어야 한다.
 
-## Phase 4 — Integrated regression evaluation and reports
+## Phase 4 — 통합 Evaluation 및 회귀 검증
 
-**Objective:** measure both response quality and operational correctness across the complete admin-agent flow.
+**목표:** 응답 품질과 관리자 도구의 정확성·안전성을 함께 측정한다.
 
-- [ ] Extend the Phase 1 dataset to **30–50 synthetic scenarios** in total.
-- [ ] Include tool selection, argument validation, authorization, bounded queries, unavailable records, approval gating, injected log content, and API failures.
-- [ ] Run deterministic tool/authorization/state assertions with mocks and isolated test storage. Separate these from optional live model calls.
-- [ ] Maintain explicit scoring rubrics for qualitative behavior; do not substitute automated confidence for unreviewed judgments.
-- [ ] Produce machine-readable results (JSON) and a concise Markdown report with run parameters, totals, categories, observed failures, and unresolved cases.
-- [ ] Compare at least two controlled runs, document material differences, and preserve regression cases.
-- [ ] Run relevant backend tests and admin build checks. Report commands and results; do not claim checks that were not executed.
-- [ ] Confirm evaluation does not trigger application messages, notifications, unauthorized reads, or unapproved configuration updates.
+- [ ] Phase 1의 데이터를 확장해 **합성 시나리오 총 30~50개** 구성
+- [ ] 도구 선택, 인자 검증, 접근 권한, 조회 한도, 없는 데이터, 승인 절차, 로그 속 지시문, API 장애 사례 포함
+- [ ] 도구·인증·상태 검사는 Mock과 격리된 테스트 저장소에서 수행하고 실제 모델 호출은 별도 선택 항목으로 분리
+- [ ] 정성 평가에는 명확한 평가 기준을 적용하며 미검토 결과를 확정적인 성공으로 처리하지 않음
+- [ ] 실행 설정, 전체 건수, 유형별 결과, 실패 원인 및 미해결 항목을 JSON과 Markdown 리포트로 생성
+- [ ] 통제된 조건에서 최소 두 번 실행하고 유의미한 차이를 비교해 회귀 사례로 보존
+- [ ] 백엔드 테스트와 관리자 빌드를 실행하며 실제 명령과 결과 기록
+- [ ] 평가 실행이 메시지 저장, 알림 전송, 무단 조회 및 승인되지 않은 설정 변경을 일으키지 않는지 확인
 
-**Done when:** the scenario suite and reporting command are repeatable, authorization and approval invariants are tested, and findings can be independently reproduced.
+**완료 기준:** 평가와 리포트 생성이 반복 실행 가능하고, 인증·승인 규칙을 테스트로 확인하며 결과를 재현할 수 있어야 한다.
 
-## Phase 5 — Observability (optional)
+## Phase 5 — Observability (선택)
 
-Introduce tracing, latency, error classification, and measured usage only if Phase 4 reveals a concrete diagnostic gap. Keep secrets and conversation content out of telemetry by default. Evaluate retention and access control before using an external provider.
+Phase 4에서 구체적인 진단 필요성이 확인되었을 때 실행 추적, 응답 지연, 오류 유형, 사용량 측정을 도입한다. 기본적으로 비밀값과 대화 내용을 관측 데이터에 포함하지 않는다. 외부 서비스 사용 전 보존 기간과 접근 권한을 검토한다.
 
-## Phase 6 — MCP or RAG (optional)
+## Phase 6 — MCP 또는 RAG (선택)
 
-Implement **one** extension after defining its use case:
+구체적인 요구를 먼저 정의한 뒤 필요한 **한 가지 확장**을 선택한다.
 
-- **MCP:** expose a narrowly scoped, authenticated integration for selected admin tools and test caller permissions.
-- **RAG:** retrieve from approved character/reference material; test citation accuracy, missing evidence, and retrieval failures.
+- **MCP:** 선택한 관리자 도구를 인증된 호출자에게 제한적으로 제공하고 권한 검증
+- **RAG:** 승인된 캐릭터·참고 자료에서 검색하고 출처 정확성, 근거 부족, 검색 오류 검증
 
-Avoid expanding both directions without a concrete requirement.
+명확한 필요 없이 두 가지를 동시에 도입하지 않는다.
 
 ---
 
-## Verification conventions
+## 검증 및 보고 규칙
 
-Run the relevant commands in the actual local environment, for example:
+관련 명령어를 **실제 개발 환경에서** 실행하고 결과를 기록한다. 예시:
 
 ```bash
 cd apps/backend && ./gradlew test
 cd apps/admin && npm run build
 ```
 
-External paid-model evaluations should be explicitly triggered, with controlled cost and safe test data.
+비용이 발생하는 외부 모델 평가 호출은 별도 명령으로 실행하고 호출 범위와 비용을 관리한다.
 
-### Phase result template
+### Phase 완료 보고 형식
 
 ```markdown
 ## Phase N
-- Files changed:
-- Implemented behavior:
-- Commands executed and results:
-- Observed failures and limitations:
-- Authentication / data access / side-effect checks:
-- Next phase: not started
+- 변경 파일:
+- 구현 및 확인한 동작:
+- 실행한 명령어와 실제 결과:
+- 관찰된 실패 및 남은 한계:
+- 인증 / 데이터 접근 / 부수 효과 검증:
+- 다음 Phase: 시작하지 않음
 ```
 
-**Documentation rule:** distinguish plans from shipped behavior. Scenario counts are targets until executed; synthetic evaluation is not evidence of real-user service performance.
+**문서 작성 원칙:** 계획과 실제 구현 상태를 구분한다. 시나리오 개수는 실행 전까지 목표치이며, 합성 데이터 평가 결과를 실제 사용자 환경의 성능 검증으로 표현하지 않는다.
