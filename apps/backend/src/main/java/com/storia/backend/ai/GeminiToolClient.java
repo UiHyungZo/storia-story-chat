@@ -78,12 +78,41 @@ public class GeminiToolClient {
                     .block(effective);
             return objectMapper.readTree(response == null ? "{}" : response);
         } catch (WebClientResponseException e) {
-            // 응답 본문에는 요청 내용이 반영될 수 있으므로 상태 코드만 남긴다.
-            log.warn("Gemini tool call failed: status={}", e.getStatusCode().value());
+            // 응답 본문에는 요청 내용이 반영될 수 있으므로 형식이 정해진 진단 값만 남긴다(메시지 문장·본문 제외).
+            String retryAfter = e.getHeaders().getFirst("Retry-After");
+            if (retryAfter != null && !retryAfter.matches("[0-9A-Za-z ,:-]{1,40}")) {
+                retryAfter = null;
+            }
+            String[] diagnostics = errorDiagnostics(e.getResponseBodyAsString());
+            log.warn("Gemini tool call failed: status={} errorStatus={} retryAfter={} retryDelay={} mode={}",
+                    e.getStatusCode().value(), diagnostics[0], retryAfter, diagnostics[1], functionCallingMode);
             throw new IllegalStateException("Gemini 호출 실패: " + e.getStatusCode().value());
         } catch (Exception e) {
             log.warn("Gemini tool call failed: {}", e.getClass().getSimpleName());
             throw new IllegalStateException("Gemini 호출 실패");
         }
+    }
+
+    /**
+     * 오류 본문에서 {@code error.status}(대문자 열거값)와 RetryInfo {@code retryDelay}(예: "30s")만 꺼낸다.
+     * 형식이 다르거나 본문이 JSON이 아니면 해당 값은 null.
+     */
+    private String[] errorDiagnostics(String body) {
+        String errorStatus = null;
+        String retryDelay = null;
+        try {
+            JsonNode error = objectMapper.readTree(body == null ? "" : body).path("error");
+            String s = error.path("status").asText("");
+            errorStatus = s.matches("[A-Z_]{1,40}") ? s : null;
+            for (JsonNode detail : error.path("details")) {
+                String delay = detail.path("retryDelay").asText("");
+                if (detail.path("@type").asText("").endsWith("RetryInfo") && delay.matches("\\d{1,6}(\\.\\d{1,9})?s")) {
+                    retryDelay = delay;
+                }
+            }
+        } catch (Exception ignored) {
+            // 본문이 JSON이 아니면 상태 코드만 남긴다.
+        }
+        return new String[] {errorStatus, retryDelay};
     }
 }

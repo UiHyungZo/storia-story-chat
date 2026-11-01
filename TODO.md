@@ -333,6 +333,7 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
       - 요청 점검(코드·로그): `POST /v1beta/models/gemini-3.6-flash:generateContent`, 키는 `x-goog-api-key` 헤더, 모델은 `application.yml` 고정(`GEMINI_MODEL` env 없음). 두 실패 모두 첫 단계 `generate()`(`functionCallingConfig.mode=AUTO`, 도구 4개). 첫 요청 크기 약 5천 자 이하(시스템 안내 약 1.4천·도구 선언 문자열 약 3.2천 상한·질문 18자). 호출당 타임아웃 60초, 자동 재시도 없음. 형식 오류였다면 400 → 요청 형식·크기 문제 정황 없음.
       - 한계: `GeminiToolClient`가 상태 코드만 로그에 남겨 Google `error.status`·메시지 없음. 정황상 Gemini 측 일시 과부하/가용성 문제 가능성이 크나 확정 불가.
       - 구분: 관리자 Wiki 검색(Gemini Embedding, 0.75) = **검증 완료** / 관리자 Agent 최종 답변(`gemini-3.6-flash`) = **미검증**. Agent 실호출은 사용자 결정으로 당분간 보류.
+    - **(2026-11-01) 503 진단 로그 보강 — 오프라인, Gemini 호출 0회.** `GeminiToolClient`가 HTTP 오류 시 `status`에 더해 형식 검증된 `errorStatus`(오류 본문 `error.status`, 예: UNAVAILABLE/RESOURCE_EXHAUSTED)·`Retry-After`·RetryInfo `retryDelay`·`mode`(AUTO/NONE)를 로그에 남김(정규식은 `GeminiEmbeddingProvider.httpFailure`와 동일). 오류 메시지 문장·본문·키는 기록 안 함, 예외 메시지·502 매핑·`upstream_error` 분류·재시도 없음은 그대로. Mock 테스트 3개 추가(503/429/비정상 형식), `./gradlew test` 280개 통과. **다음 실호출 때 로그의 `errorStatus`로 일시 과부하인지 할당량 문제인지 먼저 확인**한 뒤 재시도 도입 여부를 결정.
 - [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② 캐릭터 세계관 RAG OFF/ON 비교 ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ 음성 통화에서 캐릭터 RAG 적용 확인
 
 ## 문서화 (진행 중 계속 갱신)

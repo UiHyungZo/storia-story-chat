@@ -3,6 +3,9 @@ package com.storia.backend.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -13,6 +16,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -35,13 +39,19 @@ class GeminiToolClientTest {
     private final AtomicReference<ClientRequest> captured = new AtomicReference<>();
 
     private GeminiToolClient clientReturning(HttpStatus status, String body, String apiKey) {
+        return clientReturning(status, body, apiKey, Map.of());
+    }
+
+    private GeminiToolClient clientReturning(HttpStatus status, String body, String apiKey,
+                                             Map<String, String> headers) {
         WebClient webClient = WebClient.builder()
                 .baseUrl("http://gemini.test")
                 .exchangeFunction(request -> {
                     captured.set(request);
-                    return Mono.just(ClientResponse.create(status)
-                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                            .body(body).build());
+                    ClientResponse.Builder response = ClientResponse.create(status)
+                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+                    headers.forEach(response::header);
+                    return Mono.just(response.body(body).build());
                 }).build();
         return new GeminiToolClient(webClient, new GeminiProperties(apiKey, "test-model", "http://gemini.test"), MAPPER);
     }
@@ -117,5 +127,64 @@ class GeminiToolClientTest {
         assertThatThrownBy(() -> client.generate("s", MAPPER.createArrayNode(), MAPPER.createArrayNode(), Duration.ofSeconds(5)))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(captured.get()).isNull();
+    }
+
+    /** 실패 시 남는 경고 로그 한 줄을 캡처한다. */
+    private String failureLog(GeminiToolClient client) {
+        Logger logger = (Logger) LoggerFactory.getLogger(GeminiToolClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThatThrownBy(() -> client.generate("s", MAPPER.createArrayNode(), MAPPER.createArrayNode(),
+                    Duration.ofSeconds(5)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageNotContaining(API_KEY);
+        } finally {
+            logger.detachAppender(appender);
+        }
+        assertThat(appender.list).hasSize(1);
+        return appender.list.get(0).getFormattedMessage();
+    }
+
+    @Test
+    void generate_503_logsErrorStatusOnly_withoutMessageOrKey() {
+        GeminiToolClient client = clientReturning(HttpStatus.SERVICE_UNAVAILABLE,
+                "{\"error\":{\"code\":503,\"status\":\"UNAVAILABLE\",\"message\":\"overloaded echo " + API_KEY + "\"}}",
+                API_KEY);
+
+        String log = failureLog(client);
+
+        assertThat(log).contains("status=503", "errorStatus=UNAVAILABLE", "retryAfter=null", "retryDelay=null",
+                "mode=AUTO");
+        assertThat(log).doesNotContain(API_KEY, "overloaded");
+        assertThatThrownBy(() -> client.generate("s", MAPPER.createArrayNode(), MAPPER.createArrayNode(),
+                Duration.ofSeconds(5)))
+                .hasMessage("Gemini 호출 실패: 503");
+    }
+
+    @Test
+    void generate_429_logsRetryAfterAndRetryDelay() {
+        GeminiToolClient client = clientReturning(HttpStatus.TOO_MANY_REQUESTS,
+                "{\"error\":{\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":"
+                        + "\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"30s\"}]}}",
+                API_KEY, Map.of("Retry-After", "30"));
+
+        assertThat(failureLog(client))
+                .contains("status=429", "errorStatus=RESOURCE_EXHAUSTED", "retryAfter=30", "retryDelay=30s");
+    }
+
+    @Test
+    void generate_unexpectedErrorShape_logsNullDiagnostics() {
+        GeminiToolClient nonJson = clientReturning(HttpStatus.SERVICE_UNAVAILABLE, "<html>busy</html>", API_KEY,
+                Map.of("Retry-After", "30\u0007; echo"));
+        assertThat(failureLog(nonJson)).contains("status=503", "errorStatus=null", "retryAfter=null",
+                "retryDelay=null");
+
+        GeminiToolClient oddStatus = clientReturning(HttpStatus.SERVICE_UNAVAILABLE,
+                "{\"error\":{\"status\":\"unavailable please retry\",\"details\":[{\"@type\":\"RetryInfo\","
+                        + "\"retryDelay\":\"soon\"}]}}", API_KEY);
+        assertThat(failureLog(oddStatus)).contains("errorStatus=null", "retryDelay=null")
+                .doesNotContain("please");
     }
 }
