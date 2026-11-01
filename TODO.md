@@ -377,6 +377,24 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
 - [ ] **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 준비 상태 확인만, 외부 호출·공개 터널 0회(사용자 승인 대기).** iPhone 12 Pro 연결·개발 빌드 설치 재확인, `livekit.env`에 LiveKit·Egress URL·STT·TTS·Gemini 값 모두 있음(값 미출력), Egress URL 호스트는 예약 ngrok 도메인, `ngrok.yml` 유효, 사이드카 미실행. 서버 쪽 자동 재시도 없음, 클라이언트는 턴 상태 600ms 폴링(최대 75초, 로컬 호출)만 하고 턴을 다시 시작하지 않음.
   - **실기기 시도(사용자 승인, 23:46~23:48) — 실패: Egress가 백엔드에 도달하지 못함.** 백엔드(`rag-gemini`, 캐릭터 RAG on/local, Firebase 없음, Tomcat 접근 로그)·Metro(LAN 192.168.219.109:8081) 기동, iPhone이 수동 URL로 접속. 접근 로그: 통화 토큰 2회, `POST /api/calls/2/turns` **2회**(턴 `d01bb8dd…`, `1894da66…` — 통화를 다시 시작한 것으로 보임), 턴 상태 폴링이 계속 `recording`. 백엔드 로그에 `Voice turn … completing` 없음, Egress WebSocket 접속 0건. 원인: 이 Mac에 ngrok 프로세스가 없었고(`pgrep` 없음, 4040 미리슨) 예약 도메인 공개 주소가 `ERR_NGROK_3200`(엔드포인트 오프라인) 404 → LiveKit Egress가 `wss://…/egress/audio`에 접속 불가.
   - 외부 호출(관측 기준): LiveKit `startTrackEgress` 2회(HTTP 200, 각 1.2~2.5초), STT 0·Gemini 0·TTS 0·임베딩 0. DB 메시지 수 변화 없음(125개, max id 2125). 캐릭터 RAG 검색 0회. **STT·RAG·Gemini·TTS 실기기 경로는 미검증.**
+- [x] **(2026-11-01) Phase 6E 렌 캐릭터 음성 실기기 1턴 검증 완료 — turn 모드(Track Egress), 사용자 승인, 1턴만, 재시도 0.**
+  - **사전 터널 검증(유료 API 호출 전)**: 사용자가 이 Mac에서 `ngrok http --url=https://feline-request-backtrack.ngrok-free.dev 8080` 실행(Claude Code는 자동 모드 권한 검사 `External Ingress Tunnel`로 실행 차단 — 우회 안 함). 확인: ngrok 프로세스 PID 9587, `localhost:4040` 터널 `→ http://localhost:8080`, 공개 주소 `GET /api/characters` 200(백엔드 접근 로그에 기록), 공개 주소 `wss://…/egress/audio?turnId=tunnel-probe` **101** + 백엔드 `Egress WS connected`(없는 turnId라 처리 없이 종료).
+  - **환경**: 백엔드 `SPRING_PROFILES_ACTIVE=rag-gemini`, `STORIA_CHARACTER_RAG_ENABLED=true`, `STORIA_CHARACTER_RAG_PROVIDER=local`(프로세스 환경 확인), Firebase 미설정, Tomcat 접근 로그(실행 설정만). Metro LAN `192.168.219.109:8081`, iPhone 12 Pro 개발 빌드(수동 URL 접속). 사이드카 미실행.
+  - **단계별 결과(서버 로그·DB 기준)**:
+    1. 마이크·WebRTC: Egress가 오디오 프레임 595개(1,142,172바이트, 약 8.8초)를 받음 → iPhone 마이크 publish와 LiveKit 연결이 동작한 것으로 판단(클라이언트 로그는 수집 안 함).
+    2. Track Egress → 백엔드: `POST /api/calls/2/turns` 1회(200, 1.97초) → `Egress WS connected` 23:56:43.97 → `closed status=1000` 23:56:52.76 → `Voice turn … completing`.
+    3. STT 인식 문장(DB 메시지 2126): **"이 서점에서는 비 오는 날 책을 사지 않아도 보여 줘"** — 원문 "달무리 서점에서는 비 오는 날 책을 사지 않아도 뭘 줘?"와 비교해 "달무리"→"이", "뭘 줘"→"보여 줘"로 **고유명사·끝부분 오인식**, 핵심 구("서점", "비 오는 날 책을 사지 않아도")는 인식. 처리 약 2.9초(턴 종료 → USER 저장).
+    4·5. 캐릭터 RAG: 관리자 관측 searches 0→1, `ren: OK 1`, 지연 **4.6ms**, isolationViolations 0. 근거 문서(같은 코드·같은 문장의 오프라인 재현, 런타임 근거 원문은 로그에 없음): 1위 "렌 세계관 > 서점의 규칙과 명물" 0.338(보리차 문장 포함), 2위 "과거 사건: 첫 북토크" 0.117, 3위 "배경" 0.106 — 모두 `ren`.
+    6. Gemini(DB 메시지 2127, 저장까지 약 12.3초, 실패 로그·폴백 문구 없음): **"…비가 내리는 날엔 책을 꼭 사지 않으셔도 괜찮아요. … 김이 모락모락 나는 따뜻한 보리차 한 잔을 정성껏 내어드리거든요."** — 보리차 사실 반영, 다정함 + 끈질긴 책 추천 말투 유지. 이 대화의 이전 메시지 38개에는 "보리차"·"달무리"가 0건 → 이력에서 온 정보가 아님. 세계관에 없는 세부(창가 소파, 책 제목 「비가 내리면 펼치는 작은 기적」)와 괄호 지문을 덧붙임.
+    7. TTS: `HEAD /api/messages/2127/audio` 200(5.1초) → `GET` 200이지만 139,264바이트 전송 중 클라이언트가 끊음(Broken pipe, 3.0초) → `GET` 200 702,528바이트(5.0초). **사용자가 iPhone 스피커에서 렌 음성을 들었다고 확인.**
+    8. 다른 캐릭터: 관측상 검색은 `ren`만, 답변에 아리아·노아 세계관 내용 없음.
+  - **외부 호출 수**: LiveKit `startTrackEgress` 1회(접근 로그 `POST /turns` 1회). Google STT 1회·Gemini 1회(`completeTurn` 1회 실행, 코드상 각 1회 호출, 실패 로그 0). Google TTS **3회로 추정** — `/audio` 요청이 3회(HEAD 1 + GET 2)였고 코드상 요청마다 `TtsService.synthesize`를 1회 호출함(Google 쪽 사용량으로는 확인 안 함). 코드 기준 예상은 "최소 2회"였고, 실제로는 재생 플레이어가 GET을 한 번 더 보냄. 임베딩 0, 관리자 Agent 0, FCM 0. iPhone↔LiveKit room 연결 횟수는 서버에서 셀 수 없음.
+  - **폴백**: 없음(RAG OK, Gemini 실응답, TTS 성공).
+  - **지연(서버 로그 기준)**: ■ 탭(Egress 종료) → 답변 저장 약 15.3초 → 오디오 요청 시작까지 약 20초 → 완전한 오디오 응답 약 30초.
+  - **저장**: iPhone 기기(`b11b72a3…`)의 기존 렌 대화에 USER 2126 + ASSISTANT 2127, 2개 추가(메시지 125 → 127, 사용자 수 39 그대로). 세계관 참고 블록은 DB에 저장되지 않음. 테스트 데이터는 삭제하지 않음.
+  - **기존 동작 영향**: 코드·설정 파일 변경 없음. 관리자 RAG 캐시 해시 동일(d142c761…).
+  - **부수 관찰**: 첫 GET 중단 때 `GlobalExceptionHandler`가 Broken pipe를 `ERROR "Unhandled exception"`으로 기록하고, `audio/mpeg` 응답에 `ErrorResponse`를 쓰려다 `HttpMessageNotWritableException`(WARN)이 남(부하 측정 때 본 로그 노이즈와 같은 계열, 사용자 영향 없음). `/audio`는 요청마다 TTS를 다시 합성해 한 번 재생에 TTS가 3회 나감(비용·지연). 답변의 괄호 지문이 TTS로 그대로 읽힐 수 있음(청취 내용은 미확인).
+  - **미검증**: STT의 고유명사("달무리") 인식 정확도, 다른 문장·다른 캐릭터·여러 턴, agent 모드(사이드카) 실기기 RAG, 클라이언트 측 지연 측정, Google 콘솔 기준 실제 과금 호출 수.
 - [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② ~~캐릭터 세계관 RAG OFF/ON 비교~~(2026-11-01 렌 1문항 완료) ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ 음성 통화에서 캐릭터 RAG 적용 확인
 
 ## 문서화 (진행 중 계속 갱신)
