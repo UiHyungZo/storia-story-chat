@@ -180,7 +180,7 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 - [x] **GitHub Actions CI** (`.github/workflows/ci.yml`) — push/PR마다 백엔드(`./gradlew test`, H2라 DB 불필요)와 클라이언트(`npm ci` → `tsc --noEmit` → `jest --ci`)를 각각 별도 job으로 실행. 계정/시크릿이 전혀 필요 없는 순수 CI라 지금 바로 완성 가능했음 — 워크플로 안의 실제 커맨드를 이 머신에서 그대로 실행해 통과 확인(GitHub Actions 러너에서 직접 돌려본 건 아니지만 커맨드 자체는 동일하게 검증됨).
   - **(2026-09-02)** `.github/workflows/release.yml` 추가(CD) — 태그 `v*` 푸시 또는 수동 실행 시 Fastlane으로 iOS→TestFlight / Android→Play internal. `ci.yml`과 독립. 시크릿 미입력 상태로는 실행 시 fail(설계상 정상). 상세 [[ADR-008]] / `docs/deployment.md`.
 - [x] **백엔드 Dockerfile** (`apps/backend/Dockerfile`, `.dockerignore`) — multi-stage(`eclipse-temurin:17-jdk`로 `bootJar` 빌드 → `eclipse-temurin:17-jre` 런타임). **이 머신엔 Docker가 없어 `docker build` 자체는 미검증** — 파일 존재/참조 경로(`gradlew`/`settings.gradle`/`gradle/`)만 확인함.
-- [ ] **Fastlane, 실제 클라우드 배포(GitHub Actions CD 포함), iOS/Android/백엔드 실배포는 보류** — Apple Developer 계정(인증서/프로비저닝 프로파일), AWS/GCP 계정, Firebase App Distribution 설정 등 실제 계정이 있어야 의미 있는 코드가 나옴(계정 없이 짜면 추측성 스켈레톤이라 검증도 안 되고 가치가 낮음). 클라우드에 실제로 배포하는 작업은 비용이 발생하고 되돌리기 어려운 변경이라 사용자 승인 없이 진행하지 않음 — 계정 준비되면 다음 세션에서 진행.
+- [x] **(이후 정리, 2026-11-02)** iOS/Android는 Fastlane + GitHub Actions로 TestFlight(2026-09-11)·Play 내부 테스트(2026-09-12) 배포 완료, 백엔드 상시 배포는 의도적으로 범위 밖(ADR-007). 아래는 당시 기록: **Fastlane, 실제 클라우드 배포(GitHub Actions CD 포함), iOS/Android/백엔드 실배포는 보류** — Apple Developer 계정(인증서/프로비저닝 프로파일), AWS/GCP 계정, Firebase App Distribution 설정 등 실제 계정이 있어야 의미 있는 코드가 나옴(계정 없이 짜면 추측성 스켈레톤이라 검증도 안 되고 가치가 낮음). 클라우드에 실제로 배포하는 작업은 비용이 발생하고 되돌리기 어려운 변경이라 사용자 승인 없이 진행하지 않음 — 계정 준비되면 다음 세션에서 진행.
   - **클라우드 제공자(AWS vs GCP)는 아직 미확정** — PRD가 "AWS/GCP" 둘 다 허용해서 실제 지원할 채용 공고 요구사항 보고 정할 것(`docs/decisions.md` ADR-007 참고).
   - **백엔드는 상시 운영하지 않기로 함** — 이 프로젝트는 실사용자 없는 포트폴리오 데모라, 평소엔 클라우드 리소스를 내려두고 TestFlight 심사/실제 데모 시점에만 기동. 배포 파이프라인을 짤 때 "24시간 떠있다" 전제로 설계하지 말 것(ADR-007).
 - [ ] **(5주차 신규)** 배포 환경 시크릿에 `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/`LIVEKIT_EGRESS_AUDIO_WS_URL`/`STT_API_KEY`/`TTS_API_KEY` 추가 — 로컬 개발은 LiveKit Cloud가 `localhost`로 못 붙어 ngrok 터널이 필요했지만, 배포 후에는 실제 공인 도메인이 생기므로 `LIVEKIT_EGRESS_AUDIO_WS_URL`을 그 도메인 기준으로 설정하면 터널 불필요
@@ -191,12 +191,12 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 
 이 프로젝트의 목적은 스토어 정식 출시가 아니라 **"RN으로 iOS/Android 양쪽 실제 배포 파이프라인까지 처리할 수 있음"을 증명하는 것**으로 확정. 목표선은 **TestFlight + Google Play 내부 테스트까지**(정식 스토어 출시는 이번 범위 밖 — 필요해지면 지원 시작 후 진행). 이미 Swift 개인 앱으로 App Store 정식 출시 경험이 있어 재증명 가치가 낮고, RN+Android+Backend+AI 완성도에 시간을 쓰는 게 취업 전환엔 더 효율적이라는 판단.
 
-- [ ] Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
-- [ ] Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
-- [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨. **(2026-08-25 iOS 대부분 검증)** 실제 iPhone(무료 Apple ID 개인 서명)에 Development Build 설치 → LAN IP로 캐릭터 목록 로드 + 채팅방 진입 + 메시지 전송 + 실제 Gemini 응답 수신까지 확인. 시뮬레이터/코드 리뷰로는 못 잡았던 **실기기 전용 UX 버그 2개 발견/수정**: (1) `keyboardVerticalOffset={80}`이 시뮬레이터 기준 매직 넘버라 실기기에서 키보드가 입력창을 가림 — `useHeaderHeight()`로 동적 계산하도록 수정. (2) 전송 버튼의 `disabled={isSending}`이 스타일 변화 없이 그냥 안 눌리기만 해서, Gemini 응답 대기(20~40초) 중 사용자가 "안 눌리는" 버튼을 보고 실패한 줄 알고 재입력을 시도하는 혼란스러운 UX였음 — 버튼에 스피너/dim 스타일 추가 + "답변을 생각하는 중이에요…" 배너 신규 추가로 해결. Android 실기기는 USB 디버깅 트러블슈팅 실패(위 4주차 항목 참고)로 여전히 미검증. 음성 통화/설정 등 나머지 iOS 화면도 미검증.
+- [x] (완료 — TestFlight 배포로 확인) Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
+- [x] (완료 — 2026-09-10 본인인증, Play 내부 테스트 배포) Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
+- [x] (이후 iPhone 12 Pro 실기기 검증 다수 — 음성 통화·푸시·Native Module) iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨. **(2026-08-25 iOS 대부분 검증)** 실제 iPhone(무료 Apple ID 개인 서명)에 Development Build 설치 → LAN IP로 캐릭터 목록 로드 + 채팅방 진입 + 메시지 전송 + 실제 Gemini 응답 수신까지 확인. 시뮬레이터/코드 리뷰로는 못 잡았던 **실기기 전용 UX 버그 2개 발견/수정**: (1) `keyboardVerticalOffset={80}`이 시뮬레이터 기준 매직 넘버라 실기기에서 키보드가 입력창을 가림 — `useHeaderHeight()`로 동적 계산하도록 수정. (2) 전송 버튼의 `disabled={isSending}`이 스타일 변화 없이 그냥 안 눌리기만 해서, Gemini 응답 대기(20~40초) 중 사용자가 "안 눌리는" 버튼을 보고 실패한 줄 알고 재입력을 시도하는 혼란스러운 UX였음 — 버튼에 스피너/dim 스타일 추가 + "답변을 생각하는 중이에요…" 배너 신규 추가로 해결. Android 실기기는 USB 디버깅 트러블슈팅 실패(위 4주차 항목 참고)로 여전히 미검증. 음성 통화/설정 등 나머지 iOS 화면도 미검증.
 - [x] **(2026-08-26)** 개인정보처리방침 초안 작성 완료 — [`docs/legal/privacy-policy.md`](./docs/legal/privacy-policy.md). 수집 항목(디바이스ID/대화 내용/음성통화 오디오/FCM 토큰/Sentry 진단정보), 제3자 위탁(Gemini/Google Cloud STT·TTS/LiveKit/FCM/Sentry), 보관·삭제 절차, 아동 정책, 문의처 이메일(`lukaend@naver.com`)까지 포함.
 - [x] **(2026-09-01)** 개인정보처리방침 공개 URL 퍼블리시 완료 — **Notion 웹 게시: https://atlantic-castanet-88b.notion.site/Storia-3ceed8c75c3d8058b5b7d974df7e4d73** (md Import). 디자인 버전 `docs/legal/privacy-policy.html` = Claude Artifact `https://claude.ai/code/artifact/829101b2-b6fd-4c75-9d02-4882a6539b47`(백업).
-- [ ] 스토어 필수 관문 설문: Google Play Data Safety, Apple App Privacy, Export Compliance (위 개인정보처리방침 2절 수집 항목 기준으로 응답)
+- [x] (완료 — README 배포 현황) 스토어 필수 관문 설문: Google Play Data Safety, Apple App Privacy, Export Compliance (위 개인정보처리방침 2절 수집 항목 기준으로 응답)
 - [x] **(2026-08-26 완료)** `apps/client/assets/icon.png`가 Expo 기본 템플릿 아이콘이던 것을 Storia 브랜딩 아이콘으로 교체 — 인디고/퍼플 그라디언트 배경 + 흰색 말풍선(채팅) + "S" 레터마크. PIL(Pillow)로 직접 생성(`icon.png` 1024x1024, `android-icon-foreground/background/monochrome.png`, `favicon.png` 전부 갱신, 세이프존/모노크롬 컷아웃까지 합성 검증 완료). `splash-icon.png`는 `app.json`에 참조가 없어(splash 미설정) 그대로 둠.
 - [x] ~~**(2026-08-26)** Release 빌드 파이프라인 — EAS Build 채택, `apps/client/eas.json` 작성~~ → **(2026-09-02) EAS 폐기, Fastlane + GitHub Actions로 전환** ([[ADR-008]]). `eas.json` 삭제. 상세는 위 "다음 작업" 2026-09-02 항목 + `docs/deployment.md`.
 - [x] iOS Release Build → TestFlight 내부 테스트 배포 (2026-09-11)
@@ -348,7 +348,7 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
   - **오프라인 프로브(저장소 밖, local 제공자)**: "달무리 서점에서는 비 오는 날 책을 사지 않아도 뭘 줘?" 렌 `OK` — 1위 "서점의 규칙과 명물" 0.300(보리차 포함). STT 변형 가정("?" 없음 0.300 / "달 무리" 0.275 / "다무리…비오는" 0.241 / "비 오는 날 책 안 사도 뭐 줘?" 0.152)도 모두 같은 조각 1위. 같은 질문 아리아 `NO_EVIDENCE`, 노아 `OK`(자기 "배경" 0.128 — 타 캐릭터 문서 아님, 기존에 기록한 약한 무관 조각 현상).
   - **발견된 결함**: 없음.
   - **실기기 1회 검증 조건(미실행)**: turn 모드를 검증하려면 python-sidecar를 띄우지 않아야 함(워커가 있으면 클라이언트가 agent 모드로 전환). 필요: Docker MariaDB, `livekit.env`(LIVEKIT_*·`LIVEKIT_EGRESS_AUDIO_WS_URL`·STT/TTS/Gemini 키) + `admin.env` 로드, `STORIA_CHARACTER_RAG_ENABLED=true`, `SPRING_PROFILES_ACTIVE=rag-gemini`, `STORIA_CHARACTER_RAG_PROVIDER` unset, `ngrok http 8080`(예약 도메인), iPhone dev 빌드 + Metro. 예상 외부 호출(1턴): LiveKit room 연결 1 + `startTrackEgress` 1, Google STT `speech:recognize` 1, Gemini `streamGenerateContent` 1, Cloud TTS 1, 임베딩 0. 서버 쪽 자동 재시도 없음. `FIREBASE_CREDENTIALS_PATH`를 설정하면 실기기로 FCM 1건 발송. iPhone 기기 ID에 기존 렌 대화가 있으면 Gemini 이력에 포함됨(검색 질의에는 영향 없음 — 발화가 15자 이상).
-- [ ] **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 미실행(환경 준비 단계에서 차단), 외부 API 호출 0회.**
+- [x] (이력 — 이후 같은 날 성공, 아래 "Phase 6E 렌 캐릭터 음성 실기기 1턴") **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 미실행(환경 준비 단계에서 차단), 외부 API 호출 0회.**
   - 준비 상태 확인: iPhone 12 Pro 연결됨(`devicectl` connected), `com.storia.client` 개발 빌드 설치됨, ngrok 설치됨, 사이드카(8083) 미실행.
   - 차단: Docker DB와 `ngrok http 8080`을 함께 띄우는 명령이 Claude Code 자동 모드 권한 검사에서 거부됨(사유 미표시, 공개 터널 노출 때문으로 추정). turn 모드는 LiveKit Cloud Egress가 ngrok 주소로 백엔드 WebSocket에 접속해야 하므로 ngrok 없이 진행할 수 없음 → 우회하지 않고 중단. 백엔드·Metro는 띄우지 않았고 DB 변경 없음.
   - 다시 시도하려면: 사용자가 ngrok을 직접 실행하거나 권한을 허용한 뒤 진행. 계획한 계측: Tomcat 접근 로그(실행 시 설정만, 코드 변경 없음)로 `/api/calls/*/turns`(Egress)·`/api/messages/{id}/audio`(요청마다 TTS 1회 — 클라이언트 HEAD 확인 + 재생 GET이므로 최소 2회 예상) 집계, `Voice turn … completing` 로그로 STT/Gemini 각 1회 확인, 관리자 관측으로 `ren: OK` 확인.
@@ -374,7 +374,7 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
   - **가능한 원인(프로파일링 안 함, 미확정)**: ① 페이지네이션 없이 전체 이력을 엔티티 → DTO → JSON으로 만드는 비용(응답 크기에 비례) ② `show-sql: true`가 요청마다 SQL 5개를 표준 출력에 씀(측정 6분 동안 로그 135MB, `Hibernate:` 62만 줄) ③ 같은 `app_user` 행 동시 UPDATE의 행 잠금 대기 ④ 부하 도구가 같은 머신에서 CPU를 나눠 씀. 원인별 분리 측정은 하지 않았고 코드도 고치지 않음.
   - **부수 발견**: `ab`가 시간 제한으로 끊을 때 진행 중이던 큰 응답이 `Broken pipe`/`Connection reset`(31건)이 되고, `GlobalExceptionHandler`가 이를 `ERROR "Unhandled exception"`으로 기록함 — 클라이언트가 끊은 것이라 서버 실패는 아니지만 오류 로그가 부풀려짐. HikariCP "Retrograde clock change" 경고 1회(측정 수치에 영향 없음).
   - **한계**: 로컬 단일 머신, 테스트 기기 2개, 짧은 측정(단계당 25초), 응답 1종(이력 조회만, 쓰기·Gemini 경로 제외). 실제 다수 사용자 동시 접속 규모의 검증이 아님. 모바일 네트워크에서 421KB 응답의 체감 지연은 측정하지 않음.
-- [ ] **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 준비 상태 확인만, 외부 호출·공개 터널 0회(사용자 승인 대기).** iPhone 12 Pro 연결·개발 빌드 설치 재확인, `livekit.env`에 LiveKit·Egress URL·STT·TTS·Gemini 값 모두 있음(값 미출력), Egress URL 호스트는 예약 ngrok 도메인, `ngrok.yml` 유효, 사이드카 미실행. 서버 쪽 자동 재시도 없음, 클라이언트는 턴 상태 600ms 폴링(최대 75초, 로컬 호출)만 하고 턴을 다시 시작하지 않음.
+- [x] (이력 — 첫 시도는 ngrok 미실행으로 실패, 2차 성공) **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 준비 상태 확인만, 외부 호출·공개 터널 0회(사용자 승인 대기).** iPhone 12 Pro 연결·개발 빌드 설치 재확인, `livekit.env`에 LiveKit·Egress URL·STT·TTS·Gemini 값 모두 있음(값 미출력), Egress URL 호스트는 예약 ngrok 도메인, `ngrok.yml` 유효, 사이드카 미실행. 서버 쪽 자동 재시도 없음, 클라이언트는 턴 상태 600ms 폴링(최대 75초, 로컬 호출)만 하고 턴을 다시 시작하지 않음.
   - **실기기 시도(사용자 승인, 23:46~23:48) — 실패: Egress가 백엔드에 도달하지 못함.** 백엔드(`rag-gemini`, 캐릭터 RAG on/local, Firebase 없음, Tomcat 접근 로그)·Metro(LAN 192.168.219.109:8081) 기동, iPhone이 수동 URL로 접속. 접근 로그: 통화 토큰 2회, `POST /api/calls/2/turns` **2회**(턴 `d01bb8dd…`, `1894da66…` — 통화를 다시 시작한 것으로 보임), 턴 상태 폴링이 계속 `recording`. 백엔드 로그에 `Voice turn … completing` 없음, Egress WebSocket 접속 0건. 원인: 이 Mac에 ngrok 프로세스가 없었고(`pgrep` 없음, 4040 미리슨) 예약 도메인 공개 주소가 `ERR_NGROK_3200`(엔드포인트 오프라인) 404 → LiveKit Egress가 `wss://…/egress/audio`에 접속 불가.
   - 외부 호출(관측 기준): LiveKit `startTrackEgress` 2회(HTTP 200, 각 1.2~2.5초), STT 0·Gemini 0·TTS 0·임베딩 0. DB 메시지 수 변화 없음(125개, max id 2125). 캐릭터 RAG 검색 0회. **STT·RAG·Gemini·TTS 실기기 경로는 미검증.**
 - [x] **(2026-11-01) Phase 6E 렌 캐릭터 음성 실기기 1턴 검증 완료 — turn 모드(Track Egress), 사용자 승인, 1턴만, 재시도 0.**
@@ -395,7 +395,29 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
   - **기존 동작 영향**: 코드·설정 파일 변경 없음. 관리자 RAG 캐시 해시 동일(d142c761…).
   - **부수 관찰**: 첫 GET 중단 때 `GlobalExceptionHandler`가 Broken pipe를 `ERROR "Unhandled exception"`으로 기록하고, `audio/mpeg` 응답에 `ErrorResponse`를 쓰려다 `HttpMessageNotWritableException`(WARN)이 남(부하 측정 때 본 로그 노이즈와 같은 계열, 사용자 영향 없음). `/audio`는 요청마다 TTS를 다시 합성해 한 번 재생에 TTS가 3회 나감(비용·지연). 답변의 괄호 지문이 TTS로 그대로 읽힐 수 있음(청취 내용은 미확인).
   - **미검증**: STT의 고유명사("달무리") 인식 정확도, 다른 문장·다른 캐릭터·여러 턴, agent 모드(사이드카) 실기기 RAG, 클라이언트 측 지연 측정, Google 콘솔 기준 실제 과금 호출 수.
-- [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② ~~캐릭터 세계관 RAG OFF/ON 비교~~(2026-11-01 렌 1문항 완료) ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ 음성 통화에서 캐릭터 RAG 적용 확인
+- [x] **(2026-11-02) Python Sidecar agent 모드 렌 캐릭터 RAG 실기기 1턴 성공 — 사용자 승인, 1턴만, 재시도 0, ngrok 불필요(agent 모드는 Egress를 쓰지 않음).**
+  - **환경**: DB·백엔드(`rag-gemini`, 캐릭터 RAG on/local, Firebase 없음, 접근 로그)·Metro(LAN) + `apps/python-sidecar` `agent.py dev`(livekit-agents 1.7.1, 워커 `AW_ZwQbCw4Vtycz`, `STORIA_BACKEND_URL=http://localhost:8080`). iPhone 12 Pro 개발 빌드.
+  - **자동 재시도 확인(실행 전, 코드)**: livekit-agents `LLMStream`은 `APIError`만 최대 3회 재시도 — `StoriaLLM`의 httpx 예외는 대상 아님. STT/TTS 플러그인은 일시 API 오류 시 SDK 재시도 가능(이번 로그엔 재시도·실패 0건).
+  - **단계별 결과**:
+    1. agent 모드: LiveKit 디스패치 `AJ_2WKx6VFWy7f5`(room `call-b11b72a3…-2`), Sidecar가 사용자 마이크 스트림 구독, **사용자가 "실시간 통화" 배지 확인**. 앱은 `/api/calls/2/turns`(turn 모드)를 호출하지 않음(접근 로그 0건).
+    2. STT(Google 스트리밍, Sidecar): **"달무리 서점에서는 비 오는 날 책을 사지 않아도 모조."** — "달무리"는 정확, "뭘 줘?"가 "모조."로 오인식. EOT 확률 0.956으로 턴 1개 확정.
+    3. Sidecar → Spring REST: `POST /api/conversations/2/messages` **1회**(201, 10.3초). 다른 REST 대화 호출 없음.
+    4·5. 캐릭터 RAG: 관측 searches 0→1, `ren: OK 1`, **6.0ms**, 격리 위반 0. 근거(같은 문장 오프라인 재현): 1위 "서점의 규칙과 명물" 0.326(보리차 문장), 2위 "배경" 0.118, 3위 "과거 사건: 첫 북토크" 0.109 — 모두 `ren`.
+    6. Gemini(DB 2129): **"…책을 사지 않으셔도 괜찮아요. … 따뜻하고 구수한 보리차 한 잔을 가득 채워 내어드린답니다!"** — 렌 말투·끈질긴 책 추천 유지. 폴백 문구 아님, `Gemini REST call failed` 0건. **주의**: 이 기기의 기존 렌 대화(40개)에 2026-11-01 turn 모드 답변(2127, 보리차 언급)이 있어 Gemini 이력에 포함됨 → 답변의 보리차가 RAG만의 효과라고 단정할 수 없음. RAG 검색 실행·근거는 별도로 확인됨(질의는 마지막 발화만 사용).
+    7. TTS(Chirp3-HD, Sidecar): 00:12:09 재생 시작(`aec warmup active`) → 00:13:51 답변 항목 기록(재생 완료). **사용자가 iPhone 스피커로 렌 음성 청취 확인.**
+    8. 오류·폴백: Sidecar 로그 WARNING은 워밍 프로세스 대기 1건뿐, ERROR 0. 백엔드 오류 로그 0(Netty DNS 공급자 기본 경고 제외).
+    9. DB: USER 2128 + ASSISTANT 2129 저장(127 → 129), 사용자 수 39 그대로.
+  - **외부 호출(관측 가능 범위)**: Gemini 1회(REST 1회). Google STT 스트리밍 세션 1개(통화 약 2분). Google TTS 요청 수는 Sidecar 로그에 남지 않아 **미확인**(긴 답변이라 플러그인이 문장 단위로 여러 번 요청했을 수 있음). LiveKit: 워커 등록 1·디스패치 1. 임베딩·관리자 Agent·FCM 0.
+  - 종료 후 Sidecar·Metro·백엔드·DB 정지. 코드·설정 변경 없음.
+- [x] **(2026-11-02) TTS 중복 합성 — 원인 확인 + 최소 수정(Google TTS 추가 호출 0회).**
+  - **원인**: `GET /api/messages/{id}/audio`(Spring이 HEAD도 같은 핸들러로 처리)가 요청마다 `TtsService.synthesize`를 호출. 클라이언트는 재생 1회에 HEAD(가용성 확인, 15초 제한) + `createAudioPlayer` GET을 보내고, iOS 플레이어가 첫 GET을 139KB에서 끊고 다시 GET → 2026-11-01 실기기에서 재생 1회에 합성 3회(HEAD 5.1초·GET 3.0초·GET 5.0초). 클라이언트 요청 패턴은 정상 동작이고, 결과를 재사용하지 않는 서버가 문제(비용 3배, 재생 전 지연 누적).
+  - **수정(`MessageService`만)**: 메시지 id + 캐릭터 보이스를 키로 성공한 합성 결과만 메모리 LRU에 저장(바이트 합계 상한 16MB, 초과분은 오래된 것부터 제거, 단일 항목이 상한을 넘으면 저장 안 함). 같은 키의 동시 요청은 진행 중인 합성 하나를 기다려 결과를 공유. 실패(null)는 저장하지 않음. 컨트롤러·응답 형식·HEAD/GET 동작·접근 범위(기존과 동일하게 메시지 id만으로 조회)는 그대로. 재시작 시 비워짐.
+  - **테스트(Mock)**: `MessageServiceTest` 5개 추가 — 반복 요청 합성 1회, 실패 미캐시, 보이스 변경 시 재합성, 동시 요청 합성 1회 공유, 바이트 상한 LRU 제거. 기존 3개 포함 8개 통과.
+  - **미검증**: 실기기에서 실제 합성 횟수가 1회로 줄었는지(추가 TTS 호출 금지로 실행 안 함).
+- [x] **(2026-11-02) 클라이언트 연결 종료(Broken pipe) 로그 — 최소 수정.** `GlobalExceptionHandler.handleUnexpected`가 원인 체인에 Spring `AsyncRequestNotUsableException`(응답 쓰기 중 클라이언트 연결 끊김)이 있으면 ERROR 대신 DEBUG로 남기고 바디 없이 종료. 관측된 두 형태(직접 / `HttpMessageNotWritableException`의 원인)를 테스트로 확인, 다른 IO 오류(`disk full`)는 그대로 ERROR·500. 부수 효과로 `audio/mpeg` 응답에 `ErrorResponse`를 쓰려다 나던 `HttpMessageNotWritableException` WARN도 사라짐. `GlobalExceptionHandlerTest` 2개 추가(5개 통과).
+- [x] **(2026-11-02) 최종 테스트**: 백엔드 `./gradlew test` 287개 통과(실패 0, 건너뜀 1 = 게이트), 클라이언트 `tsc --noEmit` 통과·Jest 34개 통과(코드 변경 없음, CI 결과를 `gh` 인증 만료로 확인 못 해 로컬 실행), 관리자 콘솔 빌드는 코드 변경 없어 미실행.
+- **남은 미검증·후속 과제(2026-11-02 기준)**: 관리자 Agent `rag-gemini` 최종 답변(503) / 다른 캐릭터·여러 턴 음성 RAG / 캐릭터 RAG 전용 Gemini 임베딩 실평가 / STOMP 첫 토큰 지연 정밀 측정 / 메시지 히스토리 페이지네이션 미구현 / 부하 병목 원인별 분리 측정 / TTS 캐시 적용 후 실기기 합성 횟수 / Sidecar TTS 요청 수 계측 / STT 고유명사·문장 끝 오인식.
+- [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② ~~캐릭터 세계관 RAG OFF/ON 비교~~(2026-11-01 렌 1문항 완료) ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ ~~음성 통화에서 캐릭터 RAG 적용 확인~~(2026-11-01 turn 모드, 2026-11-02 agent 모드 렌 1턴씩 완료)
 
 ## 문서화 (진행 중 계속 갱신)
 

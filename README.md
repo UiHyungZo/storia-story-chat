@@ -100,7 +100,7 @@ docs/                # 아키텍처, ERD, API, ADR, 테스트/CI/배포 문서
 | 관리자 Agent (Gemini Function Calling) | 읽기 전용 도구, 관리자 승인형 설정 변경 제안, 검색 2회·모델 호출 4회 상한, 실행 관측 | 실모델 질문 3개 `completed` (local 검색). 답변이 과거 결정을 현재 구조처럼 설명한 정확도 문제를 확인. Gemini 임베딩 환경의 최종 답변은 503으로 **미검증** |
 | 문서 RAG | 허용 목록 Markdown 14개 → 청킹 → 벡터 검색, 출처·점수, 근거 없음 처리. 임베딩은 local 해싱(기본) / Gemini 선택 | `gemini-embedding-2` 28문항 평가: Hit@1 0.79 → 1.0, 임계값 0.75(calibration 기준). 개발 프로필에서 실검색 1회 |
 | MCP 서버 | 공식 Java SDK STDIO 서버, `searchStoriaKnowledge` Tool | MCP Inspector와 SDK 클라이언트로 발견·호출·스키마 검증 |
-| 캐릭터 세계관 RAG | 캐릭터별 인덱스 격리, REST·STOMP·음성 경로, Feature Flag(기본 꺼짐), 800ms 예산·실패 시 기존 프롬프트 | 실제 Gemini 채팅으로 렌 1문항 ON/OFF 비교: OFF는 사실을 지어냄 → ON은 세계관 사실로 정답. **1개 사례**이며 실기기 음성 경로는 미검증 |
+| 캐릭터 세계관 RAG | 캐릭터별 인덱스 격리, REST·STOMP·음성 경로, Feature Flag(기본 꺼짐), 800ms 예산·실패 시 기존 프롬프트 | 실제 Gemini 채팅으로 렌 1문항 ON/OFF 비교: OFF는 사실을 지어냄 → ON은 세계관 사실로 정답. iPhone 실기기 음성으로도 렌 1턴씩 확인: turn 모드(Track Egress)와 agent 모드(Python Sidecar) 모두 `ren: OK`이고, 답변에 세계관 사실(보리차)이 나오며, TTS 재생도 확인. 모두 **1문항 사례**이고, 다른 캐릭터와 여러 턴 평가는 하지 않음 |
 
 평가에는 합성 데이터만 썼고, 외부 유료 호출은 매번 승인을 받고 호출량을 제한해 실행했습니다.
 
@@ -108,12 +108,13 @@ docs/                # 아키텍처, ERD, API, ADR, 테스트/CI/배포 문서
 
 | 영역 | 도구 | 규모 |
 |---|---|---|
-| 백엔드 | JUnit5 + Mockito, `@WebMvcTest`, `@DataJpaTest` (H2 인메모리) | `./gradlew test` 51개 클래스 · 280개 케이스 (실모델 평가는 별도 `evalLive`) |
+| 백엔드 | JUnit5 + Mockito, `@WebMvcTest`, `@DataJpaTest` (H2 인메모리) | `./gradlew test` 287개 케이스 (실모델 평가는 별도 `evalLive`) |
 | 클라이언트 | `jest-expo` + `@testing-library/react-native` | 단위 17 + UI 17 |
 
 - **CI** (`.github/workflows/ci.yml`): push/PR마다 `./gradlew test`, `tsc --noEmit`, `jest --ci`를 별도 job으로 실행. 시크릿 불필요.
 - **릴리스** (`.github/workflows/release.yml`, 태그 트리거): Fastlane으로 iOS는 `.p12` 수동 서명 + `gym`/`pilot` → TestFlight(`macos-26` 러너), Android는 `bundleRelease` + `supply` → Play 내부 테스트. EAS 대신 직접 구축한 이유는 [ADR-008](./docs/decisions.md).
 - WebRTC 트랙 상태·마이크 권한·오디오 라우팅처럼 자동화로 검증할 수 없는 부분은 **실기기(iPhone) 수동 검증**을 별도 단계로 거쳤습니다. 위 3번 같은 버그가 여기서만 나왔습니다.
+- **소규모 부하 측정** (로컬 M1 Pro, 격리 DB, ApacheBench, 단계별 25초): 캐릭터 목록 10 VU에서 3,108 RPS·p95 4.4ms. 메시지 이력 1,000개(421KB, 페이지네이션 없음)는 10 VU에서 420 RPS·p95 28.9ms, 오류 0. 실제 사용자 트래픽을 측정한 값이 아니며, 측정 조건은 [TODO](./TODO.md)에 있습니다.
 
 세부 규칙: [테스트 정책](./docs/testing.md) · [CI/CD](./docs/cicd.md)
 

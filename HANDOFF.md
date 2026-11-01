@@ -4,6 +4,8 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-11-02) 최종 마무리.** ① **Python Sidecar agent 모드 렌 캐릭터 RAG 실기기 1턴 성공** — "실시간 통화" 배지 확인, Sidecar STT "달무리 서점에서는 비 오는 날 책을 사지 않아도 모조."("뭘 줘" 오인식) → REST 1회 → `ren: OK` 6.0ms(1위 "서점의 규칙과 명물") → Gemini "따뜻하고 구수한 보리차 한 잔" → Chirp3 TTS를 사용자가 청취 확인. 단 기존 대화에 전날 turn 모드 보리차 답변이 있어 답변 내용은 이력 영향 가능(검색 실행은 별도 확인). ② TTS 중복 합성 수정: `MessageService`에 16MB 상한 메모리 LRU + 동시 요청 공유(성공만 저장). ③ 클라이언트 연결 끊김(`AsyncRequestNotUsableException`)을 ERROR 대신 DEBUG로. ④ `./gradlew test` 287개, 클라이언트 tsc·Jest 34개 통과. `gh` 인증 만료로 PR #2·CI는 확인 못 함. 상세 `TODO.md`.
+
 - **(2026-11-01) 백엔드 소규모 부하 측정 — 격리 DB(임시 컨테이너, 삭제함)·외부 호출 0회·코드 무변경.** ApacheBench, 로컬 M1 Pro, 단계당 25초. 캐릭터 목록 10 VU 3,108 RPS·p95 4.4ms. 메시지 이력(페이지네이션 없음): 100개(41.9KB) 10 VU 1,204 RPS·p95 10.7ms, **1,000개(421KB) 1→10 VU에서 RPS 99→420, p95 15.1→28.9ms**, 오류 0. GET 이력 조회는 매번 `app_user` UPDATE를 함(부수 효과). 원인 후보(전체 직렬화, `show-sql` 로그, 같은 행 UPDATE, 같은 머신 부하)는 분리 측정 안 함. 클라이언트 끊김(Broken pipe)이 `ERROR`로 기록되는 로그 노이즈 발견. 실제 다수 사용자 검증 아님. 상세 `TODO.md`.
 - **(2026-11-01) Phase 6E 렌 음성 실기기 1턴 — 완료(2차 시도, turn 모드).** 첫 시도는 ngrok 미실행(`ERR_NGROK_3200`)으로 Egress 미도달(LiveKit Egress 2회만 호출). 2차: 사용자가 이 Mac에서 ngrok 실행 → 공개 주소 200·Egress WS 101 확인 후 1턴. Egress 595프레임 수신 → STT "이 서점에서는 비 오는 날 책을 사지 않아도 보여 줘"(달무리·끝부분 오인식) → `ren: OK` 4.6ms(1위 "서점의 규칙과 명물") → Gemini "따뜻한 보리차 한 잔을 정성껏 내어드리거든요"(말투 유지, 이전 이력 38개에 보리차 0건) → TTS 재생, 사용자가 스피커로 청취 확인. 호출: Egress 1·STT 1·Gemini 1·TTS 3(추정: `/audio` HEAD 1 + GET 2, 요청마다 합성). 폴백 없음, 메시지 2개 저장, 코드 무변경. Claude Code는 ngrok 실행이 권한 검사(`External Ingress Tunnel`)로 막혀 사용자가 직접 실행해야 함. 상세 `TODO.md`.
 
