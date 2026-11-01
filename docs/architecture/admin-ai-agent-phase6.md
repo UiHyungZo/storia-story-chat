@@ -1,6 +1,6 @@
 # Storia 관리자 AI Agent — Phase 6 (RAG + MCP) 설계·구현·검증 기록
 
-> **상태:** 구현됨, 로컬에서 검증됨. **실제 Gemini 호출(임베딩 포함)을 사용한 검증은 하지 않았다** — 외부 유료 API는 사용자 승인 전이라 호출하지 않았다. 미검증 항목은 8절에 모았다.
+> **상태:** 구현됨, 로컬에서 검증됨. 작성 시점(2026-10-28)에는 실제 Gemini 호출 없이 검증했고, 이후 사용자 승인 하에 실호출 검증을 진행했다 — 2026-11-01 기준 현황은 8.1절, 남은 미검증은 8절.
 > **작성 기준:** 브랜치 `storiaDocs`, 2026-10-28. 관련 문서: [로드맵](../roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md), [Phase 0 설계](admin-ai-agent-phase0.md).
 > **범위 변경:** 로드맵 원안은 "MCP 또는 RAG 중 하나"였으나 사용자가 둘 다 구현하도록 요청해 로드맵의 Phase 6 절을 수정했다.
 
@@ -178,11 +178,18 @@ SDK와 **독립적으로 구현된** 클라이언트인 `@modelcontextprotocol/i
 
 ## 8. 남은 한계와 미검증
 
+### 8.1 이후 실호출 검증 (2026-10-28~11-01, 상세 `TODO.md`)
+
+- **관리자 Agent Function Calling (local 해싱 검색):** 실제 `gemini-3.6-flash`로 질문 3개 각 1회 `completed` — `searchStoriaKnowledge` 실제 호출(중복 없이 최대 2회), `getCharacterConfig` 호출, 근거 없는 질문은 "근거 문서가 없다"고 답함. 첫 시도의 반복 검색·`max_steps` 문제는 종료 로직 수정 후 재발 없음. 단 음성 통화 질문 답변이 과거 결정(ADR-004 원안)을 현재 구조처럼 설명한 **내용 정확도 문제**가 있었다.
+- **Gemini 임베딩 평가:** `gemini-embedding-2`(768) 28문항 1회 — Hit@1 0.789 → 1.0, 현재 문서 Hit@1 0.636 → 0.909(local 대비). 기본 임계값 0.55에서는 범위 밖 질문 9개 모두 오탐 → calibration 기준 0.75 선택(holdout 범위 밖 거절 1.0, 범위 내 유지 0.8). 28문항 표본이라 확정값이 아니다.
+- **관리자 Wiki 검색 (개발 프로필 `rag-gemini`, 0.75):** 실제 검색 1회 성공, 현재 구조 문서(`docs/architecture/README.md`) 1위.
+- **관리자 콘솔:** 브라우저에서 `/agent/knowledge` 검색, Agent 질문, 제안, 관측 화면을 확인했다.
+- **미검증:** `rag-gemini` 환경의 관리자 Agent 최종 답변 — 2026-10-29 두 번 모두 Gemini 503으로 모델 응답 전에 실패했다(원인 미확인, 재시도 보류).
+
 **검증하지 못한 것**
-- **Gemini 임베딩 실호출:** `GeminiEmbeddingProvider`는 Mock HTTP 서버로만 검증했다. 실제 모델 이름·응답 형식·한도, 의미 임베딩의 검색 품질과 적절한 점수 임계값(코드의 기본 0.55는 근거 없는 임시값)은 측정하지 않았다. → 승인 후 실행: 9.1절 참고.
-- **Gemini Agent가 실제로 `searchStoriaKnowledge`를 올바르게 호출하는지**(Function Calling 형식 포함, Phase 2부터의 미검증 사항): 스크립트 모델로만 검증했다.
+- **Gemini 임베딩 운영 적용:** 개발 프로필에서만 켰다. 기본 설정은 local이며, 임계값 0.75는 28문항 기준이다.
+- **Gemini Agent의 답변 정확도:** Function Calling 동작은 확인했지만(8.1), 의미 임베딩 환경에서 답변이 현재 구조를 올바르게 설명하는지는 503으로 확인하지 못했다.
 - **Claude Desktop 등 GUI 클라이언트**와 **Streamable HTTP** 전송, **2026-07-28 전용 클라이언트**.
-- 관리자 UI(`/agent/knowledge` 등)는 빌드만 통과했고 브라우저에서 확인하지 못했다.
 
 **설계상 한계**
 - 기본 로컬 해싱 벡터는 의미를 이해하지 못한다. 동의어·패러프레이즈 질문은 놓치고(테스트로 확인), 어휘가 많이 겹치는 다른 문서가 정답을 밀어낼 수 있다(`rag-001`, `rag-012`).
@@ -249,9 +256,9 @@ RUN_LIVE_EVAL=true RUN_LIVE_RAG_EVAL=true GEMINI_API_KEY=… ./gradlew evalLive 
 
 | # | 조건 | 상태 |
 | --- | --- | --- |
-| 1 | 실제 Embedding 및 Vector Retrieval 구현 | **부분** — Vector Retrieval은 구현·검증(로컬 해싱, 의미 아님). 의미 임베딩(Gemini)은 구현했으나 **실호출 미검증** |
+| 1 | 실제 Embedding 및 Vector Retrieval 구현 | 완료 — 로컬 해싱(기본) + Gemini 의미 임베딩. Gemini는 실호출 평가 1회와 개발 프로필 실검색 1회로 검증(8.1). 운영 기본값은 local |
 | 2 | 출처 포함 검색 결과 | 완료·검증 (77/77) |
-| 3 | 기존 Gemini Admin Agent와 연동 | 구현·스크립트 모델/Mock으로 검증. **실제 Gemini 호출 미검증** |
+| 3 | 기존 Gemini Admin Agent와 연동 | 구현·Mock 검증 + 실모델(local 검색) 질문 3개 `completed`. **답변 내용 정확도 문제 확인, `rag-gemini` 환경 최종 답변은 503으로 미검증** |
 | 4 | 실제 MCP Server·Tool Schema | 완료·검증 |
 | 5 | 외부 MCP Client에서 발견·호출 | 완료 — MCP Inspector 2.12.0(독립 구현) + Java SDK 클라이언트. Claude Desktop 미검증 |
 | 6 | 인증·접근 범위·입력값·Read-only | 완료·검증 (Spring: 인증 401/입력 400 테스트, MCP: 허용 목록·스키마·읽기 전용) |

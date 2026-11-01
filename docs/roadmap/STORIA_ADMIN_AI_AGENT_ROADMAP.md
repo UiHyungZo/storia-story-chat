@@ -1,6 +1,6 @@
 # Storia 관리자 AI Agent — 단계별 구현 로드맵
 
-> **상태: 구현 계획 단계 (미구현)**
+> **상태 (2026-11-01):** Phase 0~6(6E 포함)은 `storiaDocs` 브랜치에 구현됨. 이 문서는 계획서로 유지하며 체크리스트는 완료 기록이 아니다 — 실제 검증 범위와 미검증 항목은 [Phase 6 기록](../architecture/admin-ai-agent-phase6.md), [Phase 6E 기록](../architecture/admin-ai-agent-phase6-character-rag.md), `TODO.md`를 기준으로 한다.
 >
 > **기본 범위:** Phase 0~4 / **선택적 확장:** Phase 5~6
 >

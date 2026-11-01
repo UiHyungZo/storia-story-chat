@@ -348,6 +348,11 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
   - **오프라인 프로브(저장소 밖, local 제공자)**: "달무리 서점에서는 비 오는 날 책을 사지 않아도 뭘 줘?" 렌 `OK` — 1위 "서점의 규칙과 명물" 0.300(보리차 포함). STT 변형 가정("?" 없음 0.300 / "달 무리" 0.275 / "다무리…비오는" 0.241 / "비 오는 날 책 안 사도 뭐 줘?" 0.152)도 모두 같은 조각 1위. 같은 질문 아리아 `NO_EVIDENCE`, 노아 `OK`(자기 "배경" 0.128 — 타 캐릭터 문서 아님, 기존에 기록한 약한 무관 조각 현상).
   - **발견된 결함**: 없음.
   - **실기기 1회 검증 조건(미실행)**: turn 모드를 검증하려면 python-sidecar를 띄우지 않아야 함(워커가 있으면 클라이언트가 agent 모드로 전환). 필요: Docker MariaDB, `livekit.env`(LIVEKIT_*·`LIVEKIT_EGRESS_AUDIO_WS_URL`·STT/TTS/Gemini 키) + `admin.env` 로드, `STORIA_CHARACTER_RAG_ENABLED=true`, `SPRING_PROFILES_ACTIVE=rag-gemini`, `STORIA_CHARACTER_RAG_PROVIDER` unset, `ngrok http 8080`(예약 도메인), iPhone dev 빌드 + Metro. 예상 외부 호출(1턴): LiveKit room 연결 1 + `startTrackEgress` 1, Google STT `speech:recognize` 1, Gemini `streamGenerateContent` 1, Cloud TTS 1, 임베딩 0. 서버 쪽 자동 재시도 없음. `FIREBASE_CREDENTIALS_PATH`를 설정하면 실기기로 FCM 1건 발송. iPhone 기기 ID에 기존 렌 대화가 있으면 Gemini 이력에 포함됨(검색 질의에는 영향 없음 — 발화가 15자 이상).
+- [ ] **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 미실행(환경 준비 단계에서 차단), 외부 API 호출 0회.**
+  - 준비 상태 확인: iPhone 12 Pro 연결됨(`devicectl` connected), `com.storia.client` 개발 빌드 설치됨, ngrok 설치됨, 사이드카(8083) 미실행.
+  - 차단: Docker DB와 `ngrok http 8080`을 함께 띄우는 명령이 Claude Code 자동 모드 권한 검사에서 거부됨(사유 미표시, 공개 터널 노출 때문으로 추정). turn 모드는 LiveKit Cloud Egress가 ngrok 주소로 백엔드 WebSocket에 접속해야 하므로 ngrok 없이 진행할 수 없음 → 우회하지 않고 중단. 백엔드·Metro는 띄우지 않았고 DB 변경 없음.
+  - 다시 시도하려면: 사용자가 ngrok을 직접 실행하거나 권한을 허용한 뒤 진행. 계획한 계측: Tomcat 접근 로그(실행 시 설정만, 코드 변경 없음)로 `/api/calls/*/turns`(Egress)·`/api/messages/{id}/audio`(요청마다 TTS 1회 — 클라이언트 HEAD 확인 + 재생 GET이므로 최소 2회 예상) 집계, `Voice turn … completing` 로그로 STT/Gemini 각 1회 확인, 관리자 관측으로 `ren: OK` 확인.
+- [x] **(2026-11-01) 포트폴리오 문서 정리 — 문서만.** README에 "AI Agent · RAG · MCP" 절 추가(구현 범위·실제 검증·한계), 백엔드 테스트 규모 갱신(12개 파일·38개 → `./gradlew test` 51개 클래스·280개, 실패 0·건너뜀 1 = `RUN_EVAL_CACHE_EXPORT` 게이트, 2026-11-01 실행). 로드맵 상태 "미구현" → Phase 0~6 구현됨(계획서 성격은 유지). Phase 6 문서: 상태 문구, 8.1절(이후 실호출 검증), 10절 표 1·3행 정정. Phase 6E 문서: 상태 문구, 12.1절(렌 1문항 결과·음성 코드 확인·미검증), 캐릭터 Gemini 제공자 미호출 명시. 유지한 한계: 관리자 Agent 최종 답변(`rag-gemini`)은 503으로 미검증, 캐릭터 RAG ON/OFF는 렌 1문항.
 - [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② ~~캐릭터 세계관 RAG OFF/ON 비교~~(2026-11-01 렌 1문항 완료) ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ 음성 통화에서 캐릭터 RAG 적용 확인
 
 ## 문서화 (진행 중 계속 갱신)

@@ -56,7 +56,7 @@ apps/
 ├── client/         # React Native (Expo, TypeScript)
 │   └── modules/storia-native/  # 로컬 Expo 모듈 — iOS(Swift) / Android(Kotlin) 네이티브 코드
 ├── backend/        # Spring Boot 4.0.7 (Java 17)
-├── admin/          # Next.js 15 운영 콘솔 (캐릭터 설정/대화 로그/음성 세션 관리, 로컬 전용)
+├── admin/          # Next.js 15 운영 콘솔 (캐릭터 설정/대화 로그/음성 세션 관리, AI Agent, 로컬 전용)
 └── python-sidecar/ # LiveKit Agents 워커 — 완전한 실시간 음성 (선택 실행)
 docs/                # 아키텍처, ERD, API, ADR, 테스트/CI/배포 문서
 ```
@@ -91,11 +91,24 @@ docs/                # 아키텍처, ERD, API, ADR, 테스트/CI/배포 문서
 
 그 밖의 트러블슈팅(스테레오/모노 불일치로 STT 0건, TTS 응답 256KB 버퍼 초과, 실기기 전용 dyld 크래시, Xcode 버전별 CI 빌드 실패 등)은 [HANDOFF](./HANDOFF.md)와 [CI/CD 디버깅 일지](./docs/cicd.md)에 있습니다.
 
+## AI Agent · RAG · MCP
+
+운영 콘솔에 붙인 관리자 AI Agent와, 사용자 채팅에 붙인 캐릭터 세계관 RAG입니다. 단계별 계획은 [로드맵](./docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md)에 있고, 검증 기록은 [Phase 6](./docs/architecture/admin-ai-agent-phase6.md)과 [Phase 6E](./docs/architecture/admin-ai-agent-phase6-character-rag.md) 문서에 있습니다.
+
+| 기능 | 구현 | 실제 검증 |
+|---|---|---|
+| 관리자 Agent (Gemini Function Calling) | 읽기 전용 도구, 관리자 승인형 설정 변경 제안, 검색 2회·모델 호출 4회 상한, 실행 관측 | 실모델 질문 3개 `completed` (local 검색). 답변이 과거 결정을 현재 구조처럼 설명한 정확도 문제를 확인. Gemini 임베딩 환경의 최종 답변은 503으로 **미검증** |
+| 문서 RAG | 허용 목록 Markdown 14개 → 청킹 → 벡터 검색, 출처·점수, 근거 없음 처리. 임베딩은 local 해싱(기본) / Gemini 선택 | `gemini-embedding-2` 28문항 평가: Hit@1 0.79 → 1.0, 임계값 0.75(calibration 기준). 개발 프로필에서 실검색 1회 |
+| MCP 서버 | 공식 Java SDK STDIO 서버, `searchStoriaKnowledge` Tool | MCP Inspector와 SDK 클라이언트로 발견·호출·스키마 검증 |
+| 캐릭터 세계관 RAG | 캐릭터별 인덱스 격리, REST·STOMP·음성 경로, Feature Flag(기본 꺼짐), 800ms 예산·실패 시 기존 프롬프트 | 실제 Gemini 채팅으로 렌 1문항 ON/OFF 비교: OFF는 사실을 지어냄 → ON은 세계관 사실로 정답. **1개 사례**이며 실기기 음성 경로는 미검증 |
+
+평가에는 합성 데이터만 썼고, 외부 유료 호출은 매번 승인을 받고 호출량을 제한해 실행했습니다.
+
 ## 테스트 / CI
 
 | 영역 | 도구 | 규모 |
 |---|---|---|
-| 백엔드 | JUnit5 + Mockito, `@WebMvcTest`, `@DataJpaTest` (H2 인메모리) | 12개 파일 · 38개 케이스 |
+| 백엔드 | JUnit5 + Mockito, `@WebMvcTest`, `@DataJpaTest` (H2 인메모리) | `./gradlew test` 51개 클래스 · 280개 케이스 (실모델 평가는 별도 `evalLive`) |
 | 클라이언트 | `jest-expo` + `@testing-library/react-native` | 단위 17 + UI 17 |
 
 - **CI** (`.github/workflows/ci.yml`): push/PR마다 `./gradlew test`, `tsc --noEmit`, `jest --ci`를 별도 job으로 실행. 시크릿 불필요.
