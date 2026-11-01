@@ -1,5 +1,6 @@
 package com.storia.backend.exception;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,6 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.storia.backend.admin.AdminSessionStore;
 import com.storia.backend.controller.ConversationController;
+import com.storia.backend.dto.ErrorResponse;
+import java.io.IOException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotWritableException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import com.storia.backend.service.ConversationService;
 import com.storia.backend.service.GeminiService;
 import org.junit.jupiter.api.Test;
@@ -29,6 +36,7 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean private ConversationService conversationService;
     @MockitoBean private GeminiService geminiService;
+    @MockitoBean private com.storia.backend.service.ChatContextAssembler chatContextAssembler;
 
     // AdminWebConfig(WebMvcConfigurer)가 모든 @WebMvcTest 슬라이스에 자동으로 로드되며 이 빈을
     // 요구한다 — /api/conversations는 /api/admin/**이 아니라 인터셉터가 실제로 개입하진 않는다.
@@ -53,6 +61,29 @@ class GlobalExceptionHandlerTest {
                         .content("{\"content\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void clientDisconnect_isNotReportedAsServerError() {
+        // 2026-11-01 실기기·부하 측정에서 관측된 두 형태: 직접 / HttpMessageNotWritableException의 원인.
+        AsyncRequestNotUsableException direct = new AsyncRequestNotUsableException(
+                "ServletOutputStream failed to write: java.io.IOException: Broken pipe", new IOException("Broken pipe"));
+        HttpMessageNotWritableException wrapped = new HttpMessageNotWritableException("Could not write JSON", direct);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        assertThat(handler.handleUnexpected(direct)).isNull();
+        assertThat(handler.handleUnexpected(wrapped)).isNull();
+    }
+
+    @Test
+    void otherIoFailures_stillMapTo500() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        ResponseEntity<ErrorResponse> response =
+                handler.handleUnexpected(new HttpMessageNotWritableException("x", new IOException("disk full")));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody().code()).isEqualTo("INTERNAL_ERROR");
     }
 
     @Test

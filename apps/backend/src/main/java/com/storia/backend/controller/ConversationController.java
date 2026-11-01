@@ -4,6 +4,7 @@ import com.storia.backend.dto.MessageExchangeResponse;
 import com.storia.backend.dto.MessageRequest;
 import com.storia.backend.dto.MessageResponse;
 import com.storia.backend.entity.Message;
+import com.storia.backend.service.ChatContextAssembler;
 import com.storia.backend.service.ConversationService;
 import com.storia.backend.service.GeminiService;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ public class ConversationController {
 
     private final ConversationService conversationService;
     private final GeminiService geminiService;
+    private final ChatContextAssembler chatContextAssembler;
 
     @GetMapping("/{characterId}/messages")
     public List<MessageResponse> getMessages(
@@ -51,10 +53,12 @@ public class ConversationController {
             @Valid @RequestBody MessageRequest request) {
         Message userMessage = conversationService.postMessage(deviceId, characterId, request.content());
 
+        List<Message> history = conversationService.getMessages(deviceId, characterId);
+        String systemPrompt = chatContextAssembler.systemPromptFor(
+                characterId, conversationService.getSystemPrompt(characterId), history);
+
         String reply = geminiService
-                .streamReply(
-                        conversationService.getSystemPrompt(characterId),
-                        conversationService.getMessages(deviceId, characterId))
+                .streamReply(systemPrompt, history)
                 .collect(Collectors.joining())
                 .defaultIfEmpty("죄송해요, 지금은 답변을 생성할 수 없어요.")
                 .doOnError(error -> log.warn("Gemini REST call failed for character {}", characterId, error))

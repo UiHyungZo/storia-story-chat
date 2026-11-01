@@ -30,6 +30,10 @@ dependencies {
 	implementation 'com.google.firebase:firebase-admin:9.4.3'
 	implementation 'io.livekit:livekit-server:0.15.0'
 	implementation 'io.sentry:sentry-spring-boot-4:8.50.1'
+	// MCP 공식 Java SDK 2.1.0 (프로토콜 2025-11-25까지 지원). STDIO 서버(com.storia.backend.mcp)와
+	// 테스트용 클라이언트가 사용한다. Jackson 2 바인딩을 쓰므로 앱의 기존 ObjectMapper와 맞는다.
+	implementation 'io.modelcontextprotocol.sdk:mcp-core:2.1.0'
+	implementation 'io.modelcontextprotocol.sdk:mcp-json-jackson2:2.1.0'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -43,6 +47,70 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+// ---- Storia MCP 서버 (STDIO) 패키징 ----------------------------------------------------------
+// Spring 없이 실행되는 별도 프로세스라서 RAG/MCP 클래스와 최소 의존성만 모아 build/mcp-server에 설치한다.
+configurations {
+	mcpServer
+}
+dependencies {
+	mcpServer 'io.modelcontextprotocol.sdk:mcp-core:2.1.0'
+	mcpServer 'io.modelcontextprotocol.sdk:mcp-json-jackson2:2.1.0'
+	mcpServer 'com.fasterxml.jackson.core:jackson-databind'
+	mcpServer 'org.slf4j:slf4j-simple'
+}
+tasks.register('mcpServerJar', Jar) {
+	archiveBaseName = 'storia-mcp-classes'
+	archiveVersion = ''
+	destinationDirectory = layout.buildDirectory.dir('mcp-server-classes')
+	from(sourceSets.main.output.classesDirs) {
+		include 'com/storia/backend/rag/**', 'com/storia/backend/mcp/**'
+	}
+	dependsOn classes
+}
+tasks.register('installMcpServer', Sync) {
+	group = 'distribution'
+	description = 'Installs the standalone Storia MCP (STDIO) server into build/mcp-server (run: build/mcp-server/storia-mcp-server).'
+	into layout.buildDirectory.dir('mcp-server')
+	into('lib') {
+		from configurations.mcpServer
+		from mcpServerJar
+	}
+	from(layout.buildDirectory.dir('mcp-server-scripts'))
+	dependsOn 'writeMcpLauncher'
+}
+tasks.register('writeMcpLauncher') {
+	def script = layout.buildDirectory.file('mcp-server-scripts/storia-mcp-server')
+	outputs.file(script)
+	doLast {
+		def f = script.get().asFile
+		f.parentFile.mkdirs()
+		f.text = '''#!/bin/sh
+# Storia MCP (STDIO) server launcher. stdout is reserved for MCP messages; logs go to stderr.
+DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -n "$JAVA_HOME" ]; then JAVA="$JAVA_HOME/bin/java"; else JAVA=java; fi
+exec "$JAVA" -cp "$DIR/lib/*" com.storia.backend.mcp.StoriaMcpServerMain "$@"
+'''
+		f.setExecutable(true)
+	}
+}
+
 tasks.named('test') {
-	useJUnitPlatform()
+	dependsOn 'installMcpServer'
+	// live 평가(@Tag("live"))는 외부 Gemini API를 호출하므로 기본 테스트에서 제외한다.
+	useJUnitPlatform {
+		excludeTags 'live'
+	}
+}
+
+// 실제 Gemini를 호출하는 평가. 비용 발생: RUN_LIVE_EVAL=true GEMINI_API_KEY=... ./gradlew evalLive
+tasks.register('evalLive', Test) {
+	group = 'verification'
+	description = 'Runs live (paid) LLM evaluation; requires RUN_LIVE_EVAL=true and GEMINI_API_KEY.'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'live'
+	}
+	outputs.upToDateWhen { false }
+	testLogging.showStandardStreams = true
 }

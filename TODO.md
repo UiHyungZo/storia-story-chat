@@ -180,7 +180,7 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 - [x] **GitHub Actions CI** (`.github/workflows/ci.yml`) — push/PR마다 백엔드(`./gradlew test`, H2라 DB 불필요)와 클라이언트(`npm ci` → `tsc --noEmit` → `jest --ci`)를 각각 별도 job으로 실행. 계정/시크릿이 전혀 필요 없는 순수 CI라 지금 바로 완성 가능했음 — 워크플로 안의 실제 커맨드를 이 머신에서 그대로 실행해 통과 확인(GitHub Actions 러너에서 직접 돌려본 건 아니지만 커맨드 자체는 동일하게 검증됨).
   - **(2026-09-02)** `.github/workflows/release.yml` 추가(CD) — 태그 `v*` 푸시 또는 수동 실행 시 Fastlane으로 iOS→TestFlight / Android→Play internal. `ci.yml`과 독립. 시크릿 미입력 상태로는 실행 시 fail(설계상 정상). 상세 [[ADR-008]] / `docs/deployment.md`.
 - [x] **백엔드 Dockerfile** (`apps/backend/Dockerfile`, `.dockerignore`) — multi-stage(`eclipse-temurin:17-jdk`로 `bootJar` 빌드 → `eclipse-temurin:17-jre` 런타임). **이 머신엔 Docker가 없어 `docker build` 자체는 미검증** — 파일 존재/참조 경로(`gradlew`/`settings.gradle`/`gradle/`)만 확인함.
-- [ ] **Fastlane, 실제 클라우드 배포(GitHub Actions CD 포함), iOS/Android/백엔드 실배포는 보류** — Apple Developer 계정(인증서/프로비저닝 프로파일), AWS/GCP 계정, Firebase App Distribution 설정 등 실제 계정이 있어야 의미 있는 코드가 나옴(계정 없이 짜면 추측성 스켈레톤이라 검증도 안 되고 가치가 낮음). 클라우드에 실제로 배포하는 작업은 비용이 발생하고 되돌리기 어려운 변경이라 사용자 승인 없이 진행하지 않음 — 계정 준비되면 다음 세션에서 진행.
+- [x] **(이후 정리, 2026-11-02)** iOS/Android는 Fastlane + GitHub Actions로 TestFlight(2026-09-11)·Play 내부 테스트(2026-09-12) 배포 완료, 백엔드 상시 배포는 의도적으로 범위 밖(ADR-007). 아래는 당시 기록: **Fastlane, 실제 클라우드 배포(GitHub Actions CD 포함), iOS/Android/백엔드 실배포는 보류** — Apple Developer 계정(인증서/프로비저닝 프로파일), AWS/GCP 계정, Firebase App Distribution 설정 등 실제 계정이 있어야 의미 있는 코드가 나옴(계정 없이 짜면 추측성 스켈레톤이라 검증도 안 되고 가치가 낮음). 클라우드에 실제로 배포하는 작업은 비용이 발생하고 되돌리기 어려운 변경이라 사용자 승인 없이 진행하지 않음 — 계정 준비되면 다음 세션에서 진행.
   - **클라우드 제공자(AWS vs GCP)는 아직 미확정** — PRD가 "AWS/GCP" 둘 다 허용해서 실제 지원할 채용 공고 요구사항 보고 정할 것(`docs/decisions.md` ADR-007 참고).
   - **백엔드는 상시 운영하지 않기로 함** — 이 프로젝트는 실사용자 없는 포트폴리오 데모라, 평소엔 클라우드 리소스를 내려두고 TestFlight 심사/실제 데모 시점에만 기동. 배포 파이프라인을 짤 때 "24시간 떠있다" 전제로 설계하지 말 것(ADR-007).
 - [ ] **(5주차 신규)** 배포 환경 시크릿에 `LIVEKIT_HOST`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/`LIVEKIT_EGRESS_AUDIO_WS_URL`/`STT_API_KEY`/`TTS_API_KEY` 추가 — 로컬 개발은 LiveKit Cloud가 `localhost`로 못 붙어 ngrok 터널이 필요했지만, 배포 후에는 실제 공인 도메인이 생기므로 `LIVEKIT_EGRESS_AUDIO_WS_URL`을 그 도메인 기준으로 설정하면 터널 불필요
@@ -191,12 +191,12 @@ PRD v3 마일스톤 **1~6주차 완료**(6주차는 재평가로 코드 작업 �
 
 이 프로젝트의 목적은 스토어 정식 출시가 아니라 **"RN으로 iOS/Android 양쪽 실제 배포 파이프라인까지 처리할 수 있음"을 증명하는 것**으로 확정. 목표선은 **TestFlight + Google Play 내부 테스트까지**(정식 스토어 출시는 이번 범위 밖 — 필요해지면 지원 시작 후 진행). 이미 Swift 개인 앱으로 App Store 정식 출시 경험이 있어 재증명 가치가 낮고, RN+Android+Backend+AI 완성도에 시간을 쓰는 게 취업 전환엔 더 효율적이라는 판단.
 
-- [ ] Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
-- [ ] Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
-- [ ] iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨. **(2026-08-25 iOS 대부분 검증)** 실제 iPhone(무료 Apple ID 개인 서명)에 Development Build 설치 → LAN IP로 캐릭터 목록 로드 + 채팅방 진입 + 메시지 전송 + 실제 Gemini 응답 수신까지 확인. 시뮬레이터/코드 리뷰로는 못 잡았던 **실기기 전용 UX 버그 2개 발견/수정**: (1) `keyboardVerticalOffset={80}`이 시뮬레이터 기준 매직 넘버라 실기기에서 키보드가 입력창을 가림 — `useHeaderHeight()`로 동적 계산하도록 수정. (2) 전송 버튼의 `disabled={isSending}`이 스타일 변화 없이 그냥 안 눌리기만 해서, Gemini 응답 대기(20~40초) 중 사용자가 "안 눌리는" 버튼을 보고 실패한 줄 알고 재입력을 시도하는 혼란스러운 UX였음 — 버튼에 스피너/dim 스타일 추가 + "답변을 생각하는 중이에요…" 배너 신규 추가로 해결. Android 실기기는 USB 디버깅 트러블슈팅 실패(위 4주차 항목 참고)로 여전히 미검증. 음성 통화/설정 등 나머지 iOS 화면도 미검증.
+- [x] (완료 — TestFlight 배포로 확인) Apple Developer Program 가입 ($99/년 — 승인 대기 있을 수 있어 최우선 착수 권장)
+- [x] (완료 — 2026-09-10 본인인증, Play 내부 테스트 배포) Google Play Console 가입 ($25 1회 — 신규 계정 인증에 며칠 걸릴 수 있음)
+- [x] (이후 iPhone 12 Pro 실기기 검증 다수 — 음성 통화·푸시·Native Module) iOS/Android **실기기**로 실제 동작 확인 — 지금까지 전부 시뮬레이터/에뮬레이터만 검증됨. **(2026-08-25 iOS 대부분 검증)** 실제 iPhone(무료 Apple ID 개인 서명)에 Development Build 설치 → LAN IP로 캐릭터 목록 로드 + 채팅방 진입 + 메시지 전송 + 실제 Gemini 응답 수신까지 확인. 시뮬레이터/코드 리뷰로는 못 잡았던 **실기기 전용 UX 버그 2개 발견/수정**: (1) `keyboardVerticalOffset={80}`이 시뮬레이터 기준 매직 넘버라 실기기에서 키보드가 입력창을 가림 — `useHeaderHeight()`로 동적 계산하도록 수정. (2) 전송 버튼의 `disabled={isSending}`이 스타일 변화 없이 그냥 안 눌리기만 해서, Gemini 응답 대기(20~40초) 중 사용자가 "안 눌리는" 버튼을 보고 실패한 줄 알고 재입력을 시도하는 혼란스러운 UX였음 — 버튼에 스피너/dim 스타일 추가 + "답변을 생각하는 중이에요…" 배너 신규 추가로 해결. Android 실기기는 USB 디버깅 트러블슈팅 실패(위 4주차 항목 참고)로 여전히 미검증. 음성 통화/설정 등 나머지 iOS 화면도 미검증.
 - [x] **(2026-08-26)** 개인정보처리방침 초안 작성 완료 — [`docs/legal/privacy-policy.md`](./docs/legal/privacy-policy.md). 수집 항목(디바이스ID/대화 내용/음성통화 오디오/FCM 토큰/Sentry 진단정보), 제3자 위탁(Gemini/Google Cloud STT·TTS/LiveKit/FCM/Sentry), 보관·삭제 절차, 아동 정책, 문의처 이메일(`lukaend@naver.com`)까지 포함.
 - [x] **(2026-09-01)** 개인정보처리방침 공개 URL 퍼블리시 완료 — **Notion 웹 게시: https://atlantic-castanet-88b.notion.site/Storia-3ceed8c75c3d8058b5b7d974df7e4d73** (md Import). 디자인 버전 `docs/legal/privacy-policy.html` = Claude Artifact `https://claude.ai/code/artifact/829101b2-b6fd-4c75-9d02-4882a6539b47`(백업).
-- [ ] 스토어 필수 관문 설문: Google Play Data Safety, Apple App Privacy, Export Compliance (위 개인정보처리방침 2절 수집 항목 기준으로 응답)
+- [x] (완료 — README 배포 현황) 스토어 필수 관문 설문: Google Play Data Safety, Apple App Privacy, Export Compliance (위 개인정보처리방침 2절 수집 항목 기준으로 응답)
 - [x] **(2026-08-26 완료)** `apps/client/assets/icon.png`가 Expo 기본 템플릿 아이콘이던 것을 Storia 브랜딩 아이콘으로 교체 — 인디고/퍼플 그라디언트 배경 + 흰색 말풍선(채팅) + "S" 레터마크. PIL(Pillow)로 직접 생성(`icon.png` 1024x1024, `android-icon-foreground/background/monochrome.png`, `favicon.png` 전부 갱신, 세이프존/모노크롬 컷아웃까지 합성 검증 완료). `splash-icon.png`는 `app.json`에 참조가 없어(splash 미설정) 그대로 둠.
 - [x] ~~**(2026-08-26)** Release 빌드 파이프라인 — EAS Build 채택, `apps/client/eas.json` 작성~~ → **(2026-09-02) EAS 폐기, Fastlane + GitHub Actions로 전환** ([[ADR-008]]). `eas.json` 삭제. 상세는 위 "다음 작업" 2026-09-02 항목 + `docs/deployment.md`.
 - [x] iOS Release Build → TestFlight 내부 테스트 배포 (2026-09-11)
@@ -218,6 +218,206 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
 - [x] **(2026-09-21, 홈 세션) 브라우저로 직접 클릭 테스트 완료** — `claude-in-chrome`으로 실제 Chrome 조작. 틀린 비밀번호 에러 메시지 표시 → 정상 로그인 → 캐릭터(노아) 시스템 프롬프트 수정 → 저장 → **새로고침 후 값 유지 확인**(이전 세션 미검증 항목, 정상 persist 확인, 원래 값으로 복구함) → `/conversations?characterId=2` 필터(KST 타임스탬프 렌더링 확인) → 대화 상세 트랜스크립트 렌더링 확인 → `/sessions`(진행 중 세션 없음, 빈 상태 정상 렌더) → 로그아웃 → 로그아웃 후 `/characters` 재접근 시 `/login`으로 리다이렉트 확인.
   - **버그 발견 및 수정**: 이 머신엔 `apps/admin/.env.local`이 아예 없었음(`.env.local.example`만 존재) — `ADMIN_BACKEND_URL`이 `undefined`가 돼 로그인 Server Action이 `Failed to parse URL from undefined/api/admin/auth/login`으로 크래시. 코드 버그가 아니라 이 머신의 최초 로컬 셋업이 누락된 것(파일은 `.gitignore`에 있어 커밋 대상 아님) — `cp .env.local.example .env.local`로 해결, 이후 정상 동작. **다음에 새 머신/새 클론에서 `apps/admin`을 처음 띄울 때 이 스텝이 필요하다는 걸 기억할 것** — 현재 `README.md`엔 `apps/admin` 실행법 자체가 아예 문서화돼 있지 않음(추후 보완 여지).
 - [x] 실배포(Vercel 등)는 이번 스코프에서 의도적으로 제외 — 필요해지면 별도 단계로 논의. **운영 콘솔(`apps/admin`) 작업 전체 종료.**
+
+## 관리자 AI Agent — 실모델 동작 검증 (2026-10-28~29)
+
+로드맵(`docs/roadmap/STORIA_ADMIN_AI_AGENT_ROADMAP.md`) Phase 2~6을 처음으로 **실제 Gemini API**와 실제 MariaDB/관리자 콘솔(브라우저)로 확인함. 그 전까지 Function Calling은 Mock 테스트로만 검증돼 있었음. RAG 임베딩은 기본값 `local`(n-gram 해싱, 의미 임베딩 아님, 외부 호출 없음).
+
+- [x] Wiki RAG 직접 검색(`/agent/knowledge`, "음성 통화는 어떤 구조로 동작해?") — **성공.** 결과 3개가 출처(`PRD/Storia_PRD_final.md`)·점수(0.169/0.153/0.147)와 함께 표시됨. 단 상위 결과가 PRD "범위 제외" 섹션이라 관련성은 낮음.
+- [x] Admin Agent RAG 답변(`/agent`, 같은 질문) — **도구 호출은 성공, 답변 완성은 실패.** `searchStoriaKnowledge` 4회 모두 성공했으나 `stopReason=max_steps`, 약 47.5초, 약 11,262토큰.
+- [x] `getCharacterConfig` 실제 호출 — **성공.** 2번 캐릭터(렌) 컨셉·TTS 보이스 정확히 응답.
+- [x] 설정 변경 제안(`proposeCharacterConfigChange`) — **성공, 실제 변경 없음.** 제안 목록에 "승인 대기"로 표시, 캐릭터 concept 그대로임을 공개 API로 확인. 승인 버튼은 누르지 않음(테스트 제안은 메모리 저장이라 24시간 후/재시작 시 소멸).
+- [x] Observability(`/agent/observability`) 실제 확인 — **성공.** 실행 3건(completed 2 / max_steps 1), 오류 0, 도구별 통계·RAG 검색 통계 수집 확인.
+- [x] **반복 검색 문제(종료 로직) — 코드 수정(2026-10-29) + 실모델 재검증 통과(2026-10-29).** 수정 코드는 `storiaDocs`에 미커밋 상태.
+  - **확인된 코드 문제**: `AdminAgentService` 루프는 마지막(4번째) 단계에서 모델이 도구를 요청하면 도구를 실행하고 결과를 히스토리에 붙인 뒤 **모델에 다시 보내지 않고 종료** — 마지막 검색 결과가 답변에 쓰일 기회 없이 버려졌음. 검색 횟수 상한·중복 검색 방지도 없었음.
+  - **추정 원인(미확정)**: 원래 질문 표현("음성 통화 구조")으로는 local 해싱 검색이 블로그/Phase 0 문서를 0.19~0.21점으로 반환하고, 기술 용어("LiveKit Track Egress STT TTS")를 넣어야 `api.md`/`README.md` 음성 통화 섹션이 0.36~0.48점으로 잡힘. status는 항상 `OK`라 모델이 "결과는 있는데 내용이 안 맞아" 재검색했을 가능성. 실제 4회의 검색 인자는 남아있지 않아 확정 못 함.
+  - **수정**: `MAX_STEPS=4`(모델 호출 총 상한)는 그대로. 마지막 단계 또는 검색 예산(`MAX_KNOWLEDGE_SEARCHES=2`) 소진 후 다음 호출은 `GeminiToolClient.generateFinalAnswer`(`functionCallingConfig.mode=NONE`)로 도구 없이 답변만 받고, 직전 도구 결과에 "지금까지의 결과만 근거로, 부족하면 부족하다고 안내" 지시를 붙임. 정규화 기준 같은 검색어는 실행하지 않고 `duplicate_query`, 예산 초과 검색은 `search_budget_exhausted`로 돌려줌. 시스템 프롬프트에 검색 횟수·재검색 기준 추가. `TOTAL_TIMEOUT`(90초)/`MAX_CALLS_PER_STEP`(3) 유지.
+  - **테스트**: Mock 기반 신규/갱신 — RAG 1회 후 답변, 중복 검색 미실행, 예산 소진 후 최종 답변 단계, 한 단계 3검색 중 예산 초과분 건너뜀, 근거 없음 재검색 후 서버 안내 유지, 단계 제한 근처 최종 답변, 최종 단계에서도 도구 요청 시 미실행+`max_steps`, `mode=NONE` 요청 형식. Phase 4 시나리오 `agent-021` 기대 도구 수 4→3(마지막 단계가 도구 금지라서 — 의도된 변경, `max_steps`/모델 호출 4회는 동일). `./gradlew test` 249개 전부 통과.
+  - **실모델 재검증 (2026-10-29, 사용자 승인, `STORIA_RAG_PROVIDER=local`, 질문 3개 각 1회)**:
+    | 질문 | stopReason | 검색(실행) | 모델 호출 | 소요 | 토큰 |
+    |---|---|---|---|---|---|
+    | "음성 통화는 어떤 구조로 동작해?" | completed | 2회: "음성 통화 구조" → "WebRTC 음성 통화 아키텍처 STT TTS" (중복 없음) | 3 | 32.0초 | 7,279 |
+    | "Storia 결제 시스템은 어떻게 동작해?" | completed | 2회: "결제 시스템"(NO_EVIDENCE) → "payment"(OK, 0.14대 무관 문서) | 3 | 9.5초 | 6,289 |
+    | "2번 캐릭터의 컨셉과 TTS 보이스 설정을 알려줘" | completed | 0회, `getCharacterConfig` 1회 | 2 | 48.4초 | 2,829 |
+    - 이전 실패(47.5초/11,262토큰/`max_steps`) 대비 종료·비용 모두 개선. 중복 검색·`max_steps` 재발 없음. 3번의 48초는 Gemini 단일 호출 지연(41.6초)이고 루프 문제 아님(이 경로는 최종 답변 단계를 거치지 않음).
+    - 결제 질문은 추측 없이 "근거 문서가 없다"고 답함. 캐릭터 설정 변경·제안 승인 없음(렌 concept 그대로 확인). 로그에 키/비밀번호 0건.
+- [ ] **(신규, 2026-10-29) Agent 문서 답변의 내용 정확도 — 미해결.** 음성 통화 질문 답변이 출처(`docs/decisions.md`, `PRD/Storia_PRD_final.md`)는 인용했지만 내용은 ADR-004의 **초기 결정(B안+C안, WebRTC 미사용·P2P 데모)**을 현재 구조처럼 설명함 — 실제 구현은 "축소판 A안"(LiveKit WebRTC + Track Egress → 서버 STT/Gemini/TTS). 검색된 PRD 발췌가 "흐름" 직전에서 잘려 있었고, 모델은 "축소판 A안"을 P2P 데모와 섞어 표현함(발췌에 없는 연결). 추정 원인: local 해싱 검색이 ADR-004의 원 결정 청크를 갱신 섹션·`docs/architecture/README.md`보다 높게 반환. 결제 질문에서도 재검색이 무관 문서를 `OK`로 돌려줘 근거 목록에 노출됨(서버 측 근거 없음 안내가 안 붙음). → 아래 ③(의미 임베딩) 평가와 함께 다룰 것.
+- [ ] **(2026-10-29) RAG 최신성·관련성·근거 정확성 — 오프라인 분석·최소 보완 완료, 실모델 확인 전(유료 호출 없음).**
+  - **확인된 원인 (오프라인 실측, local 해싱)**:
+    - 현재 구조를 가장 정확히 설명하는 `docs/architecture/README.md` "음성 통화 — 축소판 A안" 섹션이 원 질문 기준 **21위(0.091)**, 기술 용어 질의로도 6위. 본문이 `LiveKit`/`Track Egress`/`pcm_s16le` 등 영문 식별자와 mermaid라 한국어 질문과 어휘가 안 겹침(어휘 해싱의 한계).
+    - ADR-004의 **원래 결정 청크**가 기술 용어 질의에서 1위(0.456). ADR 안의 "갱신 1~3"은 Markdown 헤딩이 아니라 굵은 글씨 문단이라, 갱신 2(현재 구조) 청크도 원 결정 제목("B안+C안 조합 채택")을 헤딩 경로로 가짐 — 청크만으로는 원 결정/갱신 구분 불가. 검색 결과에 "현재 구현 문서 vs 과거 기록" 신호가 전혀 없었음.
+    - 기존 평가(`rag-001`)는 `docs/decisions.md`도 정답 출처로 인정해서 이 문제가 지표에 드러나지 않았음.
+    - "payment" 재검색은 어휘가 전혀 없는 배포/API/CI 문서가 문자 n-gram 겹침만으로 0.137~0.147(임계값 0.12) 통과.
+    - 참고(수정 안 함): `PRD/Storia_PRD_final.md` 9절은 Python 사이드카를 "미완·미검증"으로 적고 있어 이후 실기기 검증과 어긋남. 역사 기록은 왜곡하지 않는다는 원칙에 따라 문서는 그대로 둠.
+  - **보완 (문서 원문·청킹·캐릭터 RAG 무변경)**:
+    - `KnowledgeSources.roleOf()` — `docs/decisions.md`, `docs/blog-webrtc-tradeoffs.md`, 로드맵, Phase 0 설계 분석은 `historical`, 나머지는 `current`. Agent 도구 결과·MCP 결과에 `docRole` 추가, 도구 notice와 시스템 프롬프트에 "현재 동작은 current 기준, historical의 원 결정과 갱신을 현재 구조처럼 섞지 말 것, 발췌에 없는 연결을 덧붙이지 말 것" 추가. Agent 루프·검색 2회·모델 호출 상한·승인 프로세스는 그대로.
+    - `LexicalSupport` + `KnowledgeSearchService(…, requireLexicalSupport)` — **비의미 인덱스에서만**, 점수를 넘어도 질의 내용어(한글 어절 앞 2글자 / 영문 3자 이상, 질문 형식어 제외)가 조각에 하나도 없으면 근거로 채택하지 않음. 프로젝트 문서 검색(`RagConfig`, MCP 서버)에서만 켬 — 캐릭터 RAG(`CharacterLoreService`)는 기존 2인자 생성자라 영향 없음.
+  - **평가 확장 (`rag-eval.json` 20→28문항, calibration/holdout 유지)**: `asks_current` 라벨 + 현재 구현 질문 3개(cal 1/holdout 2), 범위 밖 5개(cal: 실제 실패한 "결제 시스템"/"payment", holdout: 처음 보는 3개). 지표 추가: 현재 문서 Hit@1/@3, 현재 질문의 historical top-1 비율, 범위 밖 오탐 출처, 질문당 첫 검색 지연(질의 임베딩 포함), 임베딩 호출량(문서 요청/글자 수, 질의 요청/글자 수). 같은 질의는 한 번만 임베딩 — 기존 평가기는 Gemini에서 질의 임베딩을 질문당 7회(약 140회) 호출하는 구조였음.
+  - **결과 (local, 어휘 검사 끔 → 켬)**: 순위 지표는 동일(Hit@1 0.7895 / Hit@3 0.8947 / MRR 0.8465), 범위 내 근거 누락 0 → 0. 범위 밖 오탐 **calibration 0.5 → 0.0**, **holdout 0.4 → 0.4(개선 없음)**, 전체 0.444 → 0.222. holdout 잔여 오탐: "billing invoice refund flow"(`flow`가 `workflow`에 부분 일치), "Kafka 이벤트 스트리밍 파이프라인 구성"(`스트`·`구성` 일치) — 규칙을 holdout에 맞춰 조이면 holdout이 오염되므로 이번엔 조이지 않음. 현재 문서 Hit@1: cal 0.8 / holdout 0.5, 현재 질문의 historical top-1: holdout 0.333 — 순위 자체는 이번 보완으로 바뀌지 않음(라벨은 답변 단계에서만 작동, 실모델 확인 필요).
+  - `./gradlew test` 256개 통과. 실행 중 백엔드(local)에서 "payment"/"Storia 결제 시스템은 어떻게 동작해?" → `NO_EVIDENCE` 확인.
+  - **남은 것**: ① 실모델로 음성 통화 질문 재확인(답변이 current 문서 기준으로 축소판 A안을 설명하는지) ② Gemini 의미 임베딩 비교 평가(사용자 승인 후) ③ 어휘 검사 강화는 새 holdout 질문을 만든 뒤에 검증.
+- [x] **(2026-10-29) Gemini 의미 임베딩 비교 평가 — 첫 실행은 HTTP 429로 실패, 보강 후 재실행으로 완료(아래 "전체 평가 결과").**
+  - 사전 확인: 공식 문서 기준 `gemini-embedding-2`는 `taskType` 미지원 → 텍스트 접두어(`task: search result | query:` / `title: none | text:`), 768차원 지원(자동 정규화) — 코드와 일치. `models.get` 메타데이터(생성 호출 아님): `supportedGenerationMethods`에 `embedContent`/`asyncBatchEmbedContent`는 있으나 코드가 쓰는 `batchEmbedContents`는 목록에 없음(문서 예제에는 있음 — 불일치, 이번 429와의 관련은 미확인).
+  - 실행 전 평가기 보강(오프라인 테스트 3개로 확인): 호출 상한(문서 300개=6배치, 질의 28회), 첫 실패 후 하위 provider 호출 차단, 검색 `ERROR` 시 평가 중단 — 이전 구조는 오류 시 같은 질의를 최대 7번씩 다시 호출할 수 있었음. 임계값 스윕을 0.80까지 넓히고 calibration만으로 임계값을 고르는 `calibrated_threshold` 추가(holdout은 고른 값에서 읽기만).
+  - 실행: `RUN_LIVE_EVAL=true RUN_LIVE_RAG_EVAL=true ./gradlew evalLive --tests 'com.storia.backend.rag.RagLiveEvalTest'`(gemini-embedding-2, 768) → 7초 만에 문서 임베딩 단계에서 `임베딩 호출 실패: HTTP 429`, 즉시 중단. 질의 임베딩 0회, 재시도·모델 전환 없음, 로그에 키 0건. `STORIA_RAG_PROVIDER` 변경 없음.
+  - **확인된 것**: `GeminiEmbeddingProvider.embedDocuments`가 6배치를 한 호출 안에서 순차 전송하고 `CachingEmbeddingProvider`는 전체 성공 후에만 저장 → 429 이전에 성공한 배치(0~5회, 과금 가능)는 캐시에 남지 않았고 몇 번째 배치에서 실패했는지도 기록되지 않음(배치별 상태 로그 없음).
+  - **추정(미확정)**: 429는 요청 한도 초과(분당 요청/토큰 또는 일일 한도). 배치당 50개·약 2.6만 자라 분당 한도 가능성. 응답 본문은 보안상 기록하지 않아 종류 확인 불가.
+  - **다음(사용자 결정 필요)**: AI Studio에서 프로젝트 임베딩 한도 확인 → 재실행 시 배치마다 캐시 저장 + 배치 사이 간격 두기(이미 성공한 배치를 다시 과금하지 않도록) 검토.
+  - [x] **(2026-10-29) 재실행 전 오프라인 안정성 보강 — 완료(Gemini 호출 0회).** 운영·캐릭터 RAG가 쓰는 `CachingEmbeddingProvider`는 그대로 두고, 실평가 전용 `EvalBatchEmbeddingCache`(테스트 소스)를 추가:
+    - 문서를 50개씩 직접 나눠 배치마다 호출하고, **배치가 성공할 때마다 원자적으로 저장** → 뒤 배치가 실패해도 재실행 때 성공한 배치는 다시 호출하지 않음.
+    - 캐시 키 = SHA-256(요청 형식 식별자 + 실제 API 입력). 식별자 `gemini-doc-v1|method=batchEmbedContents|model=…|dims=…|task=text-prefix|taskType` — 모델·차원·호출 방식·작업 지정 방식이 바뀌면 재사용 안 함. 파일 헤더(버전·식별자·차원)가 다르거나 벡터 길이가 다르면 사용 안 함, 응답 개수·차원이 틀린 배치는 저장 안 함, 손상 파일은 무시.
+    - 실패 즉시 중단(자동 재시도 없음). 기록: 배치 번호/전체, 요청 건수, HTTP 상태, 오류 유형(`rate_limited`/`http_error`/`invalid_response`/`cache_write_failed`), `error.status` 열거값, `Retry-After`, `RetryInfo.retryDelay`, 이번 실행 성공 배치 수, 재실행 시 남은 문서 수·배치 수. 키·요청 본문·문서 내용·오류 메시지 문장은 기록 안 함. 실패 시 `build/eval-reports/rag-live-failure-*.json` 작성(남은 호출량 = 남은 문서 배치 + 질의 28).
+    - 배치 간격: `EVAL_EMBEDDING_BATCH_INTERVAL_MS`(기본 0, 원격 호출 사이에만 적용).
+    - 운영 코드 변경은 최소: `GeminiEmbeddingProvider`가 비정상 응답 시 `EmbeddingHttpException`(기존과 같은 `IllegalStateException` 계열·같은 메시지 "임베딩 호출 실패: HTTP n")을 던지고 형식이 정해진 진단 값만 담음, 캐시 키용 `documentRequestSignature()`/`documentText()`를 패키지 내부로 공개. 호출·재시도·캐시 동작은 무변경.
+    - Mock HTTP 서버 테스트 7개: 130개(3배치) 중 2배치 성공 → 3번째 429(Retry-After 30, RESOURCE_EXHAUSTED, retryDelay 30s) → 즉시 중단·실패 배치 재전송 없음 → 새 인스턴스 재실행 시 30개 1배치만 호출(100개 재사용) → 세 번째 실행 호출 0; 첫 배치 실패 시 캐시 없음·남은 6배치 보고; 모델/차원별 키 분리; 차원 불일치 응답 미저장; 손상·형식 불일치 파일 미사용; 간격은 원격 배치 사이에만; 비정상 헤더·비JSON 본문은 진단 값 null. 오류 메시지·리포트·캐시 파일에 키/문서 내용/오류 본문 문장 없음 확인. `./gradlew test` 266개 통과.
+  - **`batchEmbedContents` 조사(코드 변경 없음)**: REST 참조는 `POST v1beta/{model=models/*}:batchEmbedContents`, `requests[]`(EmbedContentRequest), 배치당 최대 개수 명시 없음, 예제는 `gemini-embedding-001`만. 임베딩 가이드에는 `gemini-embedding-2:batchEmbedContents` 예제가 있음. 반면 `models.get`의 `supportedGenerationMethods`에는 없음(`asyncBatchEmbedContent`는 Operation을 돌려주는 비동기 배치라 별개 방식). **지원 여부 불명확 → 추정으로 바꾸지 않음.** 재실행에서 첫 배치부터 4xx(400/404)가 나면 이 불일치를 우선 의심.
+  - [x] **Gemini 비교 평가** — 첫 실행(429) 이후 보강·프로브를 거쳐 2026-10-29 전체 평가 1회로 완료(아래).
+  - [x] **(2026-10-29) 무료 한도 기준 속도 제어 — 오프라인 준비 완료(Gemini 호출 0회).** 사용자 확인 한도: `GeminiStory` 프로젝트 Gemini Embedding 2 무료 RPM 100 / TPM 30,000 / RPD 1,000, 최근 28일 최대 RPM 100/100·TPM 27.69K/30K.
+    - **오프라인 실측**: 기존 50개 배치는 실제 API 입력 29,097 / 30,809 / 28,919 / 21,329 / 27,157 / 15,775자 — 배치 하나가 TPM 30K에 근접(2번째는 단독으로 초과 가능). 배치 안 항목이 요청 1건씩 집계된다면 50개 배치 2개로 RPM 100 도달 → 이전 429의 유력한 원인(미확정).
+    - **보완(평가 전용)**: `EvalRateLimiter` — 최근 60초 창의 항목 수(배치 안 항목 = 요청 1건)와 추정 토큰(입력 글자 수, 보수적)을 문서 배치·질의 모두에 적용해 호출 **전**에 대기, 예산을 넘는 단일 요청은 보내지 않고 중단(재시도 아님). `EvalBatchEmbeddingCache`가 항목 수 + 글자 수 상한으로 배치를 묶음. `RagLiveEvalTest`는 원격 호출 전에 배치 계획을 출력하고 `EVAL_EMBEDDING_MAX_DOC_BATCHES`를 넘으면 아무것도 호출하지 않음. 기본값: 간격 70초, 배치당 50개·24,000자, 분당 80항목·24,000토큰(한도의 80%), 허용 문서 배치 6. 부분 배치 저장·첫 오류 중단은 유지. 테스트 5개 추가(가짜 시계), `./gradlew test` 271개 통과.
+    - **실행 계획(오프라인 계산)**: 캐시 0개 → 문서 283개를 **7배치**(40/39/39/43/50/45/27개, 각 23,696 이하 … 12,446자) + 질의 28회(입력 1,514자). 기본 허용치 6을 넘으므로 실행하려면 `EVAL_EMBEDDING_MAX_DOC_BATCHES=7` 승인 필요. → (2026-10-29) 사용자가 7배치 상한 승인, 단 전체 평가는 미승인.
+  - [x] **(2026-10-29) 최초 실호출 검증 — 문서 배치 1회만(사용자 승인), 성공.** 전용 `RagLiveBatchProbeTest`(`RUN_LIVE_RAG_PROBE`, 질의 임베딩 없음): 코퍼스에서 28개 간격으로 고른 10개 조각(입력 4,456자, 한글 비율 25.1% — 코퍼스 25.9%와 유사). 결과: **HTTP 200**, 응답 최상위 필드 `embeddings`·`usageMetadata`, 임베딩 10개·768차원, **`usageMetadata.promptTokenCount` 2,006 → 입력 2.221자/토큰**. 10개는 배치 캐시에 저장(서명 `gemini-doc-v1|method=batchEmbedContents|model=models/gemini-embedding-2|dims=768|task=text-prefix`), 원격 호출 1회, 로그에 키 0건.
+    - **`batchEmbedContents`는 gemini-embedding-2에서 실제로 동작함** — `models.get` 목록에 없던 것과 무관하게 지원됨을 확인.
+    - **토큰 산정**: 오프라인 토크나이저는 없음. `countTokens` API는 있으나 별도 호출이라 실행 안 함. 실제 값은 배치 응답의 `usageMetadata`로 얻을 수 있음 → 배치마다 기록 가능. 글자 수=토큰 가정은 이 표본 기준 약 2.2배 보수적. **불확실성**: 표본 10개 한 번의 비율이라 조각별 편차(코드 블록·영문·한글 비중)는 미측정 — 영문 위주 조각은 자/토큰이 더 크고 한글 위주는 더 작을 수 있음.
+    - **이전 429 해석(미확정)**: 2.221자/토큰이면 기존 50개 배치(29~31K자)는 약 13~14K 토큰 — 단독으로 TPM 30K를 넘지 않음. 반면 50개 배치 2개 = 항목 100개(RPM 100/100)·약 27K 토큰으로, 사용자 화면의 28일 최대 기록(RPM 100/100, TPM 27.69K)과 맞음 → 배치 안 항목이 요청으로 집계되는 RPM 한도가 유력한 원인.
+    - **남은 전체 평가 계획**: 캐시 10 → 남은 문서 273개 7배치(40/39/41/43/49/45/16개, 배치당 ≤23,992자 ≈ ≤10.8K 토큰 추정) + 질의 28회. 남은 입력 148,630자 ≈ 6.7만 토큰(비율 2.221 가정). → 사용자 승인 후 실행(아래).
+  - [x] **(2026-10-29) 전체 평가 결과 — 사용자 승인, `RagLiveEvalTest`만 1회, 성공(exit 0, 7분 28초, 리포트 `build/eval-reports/rag-eval-fe0bec04`).**
+    - **실행 전 한도 확인(AI Studio 비율 제한 화면, 읽기만)**: `GeminiStory` 무료 등급, Gemini Embedding 2 지난 28일 최대 RPM 100/100·TPM 27.69K/30K·**RPD 110/1K**. 110 = 이전 429 실행 항목 100 + 프로브 10 → **배치 안 항목이 요청 1건씩 집계됨을 확인**(이전 429는 RPM 한도). 필요량 약 301건 < 잔여 약 890건이라 실행.
+    - **설정**: gemini-embedding-2·768, 간격 70초, 배치당 ≤50개·≤24,000자, 분당 80항목·24,000 추정 토큰(질의에도 적용), 허용 문서 배치 7. 오류 없음 → 재시도·모델 전환 발생 안 함. 로그·리포트에 키 0건. `STORIA_RAG_PROVIDER`(local)·운영 minScore 0.55 무변경.
+    - **실제 호출량**: 문서 `batchEmbedContents` **7회(273개)** + 질의 `embedContent` **28회** = 원격 HTTP 35회·항목 301건. 캐시 재사용 10개(프로브분) → 캐시 283개·768차원. **토큰**: 전체 평가 경로는 배치별 `usageMetadata`를 기록하지 않아 실측값 없음 — 추정 문서 약 6.7만 + 질의 약 0.7천 토큰(프로브 비율 2.221자/토큰 가정, 오차 미측정). 인덱스 구축 433초는 대부분 속도 제어 대기.
+    - **local(어휘 검사 켬, minScore 0.12, `rag-eval-6691c143`) vs Gemini(minScore 0.55)** — 전체 / calibration / holdout:
+      - Hit@1: 0.789 → **1.0** / 0.889 → 1.0 / 0.7 → 1.0
+      - Hit@3: 0.895 → **1.0** / 0.889 → 1.0 / 0.9 → 1.0
+      - MRR@5: 0.847 → **1.0** / 0.917 → 1.0 / 0.783 → 1.0
+      - 현재 문서 Hit@1: 0.636 → **0.909** / 0.8 → 1.0 / 0.5 → 0.833; Hit@3: 0.818 → 1.0 / 0.8 → 1.0 / 0.833 → 1.0
+      - 현재 질문의 historical top-1: 0.182 → 0.091 / 0.0 → 0.0 / 0.333 → 0.167 (남은 1건: rag-023 배포 질문, top-1 `docs/decisions.md`, 현재 문서 2위)
+      - **범위 밖 오탐(기본 임계값)**: 0.222 → **1.0** / 0.0 → 1.0 / 0.4 → 1.0 — Gemini 기본 0.55에서는 범위 밖 9문항 전부 근거를 돌려줌(top-1 0.554~0.709). **기본 0.55는 이 코퍼스에 너무 낮음.**
+    - **calibration 보정 임계값(holdout은 읽기만)**: local 0.16(cal 범위밖 거절 0.75 → holdout 거절 0.6·범위내 유지 0.9) / **Gemini 0.75(cal 거절 1.0·유지 1.0 → holdout 거절 1.0·범위내 유지 0.8)**. holdout에서 rag-014(0.717)·rag-023(0.729) 2건이 근거 없음으로 떨어짐. 범위 밖 최고 0.709 vs 범위 내 최저 0.717로 **여유가 거의 없음** — 28문항 표본이라 임계값은 확정 아님.
+    - **음성 통화 구조 질문**: rag-001(cal) local 정답 4위·현재 문서 top-5 밖 → **Gemini `docs/architecture/README.md` 1위**(0.753); rag-022(holdout) local 2위(top-1 historical 블로그) → **Gemini 1위**(0.760). 순위 문제는 의미 임베딩에서 해소. 단 관리자 Agent 실모델 답변 재확인은 하지 않음.
+    - **검색 지연**: 질문당 첫 검색(질의 임베딩 포함) local p50 0.48ms·p95 1.4ms → Gemini **p50 459ms·p95 564ms·max 595ms**. 반복 검색(인덱스만) Gemini p50 0.33ms.
+    - **질문별 변화**: 개선 rag-001(4→1), rag-009(3→1), rag-012(top-5 밖→1), rag-022(2→1), rag-002 현재 문서 3→2. 악화 rag-023 현재 문서 1→2(top-1이 ADR). Hit@3 실패 local 2건 → Gemini 0건.
+    - **결론(미적용)**: 순위·최신성은 Gemini가 뚜렷이 우수, 범위 밖 거절은 임계값 재보정이 전제(0.55 그대로 쓰면 오탐 100%). 추가 튜닝·재평가·provider 전환은 하지 않음 — 사용자 결정 대기.
+  - [x] **(2026-10-29) 관리자 Wiki RAG Gemini 적용 준비(개발 환경) — 오프라인, Gemini 호출 0회.** 사용자 결정: Gemini는 관리자 Wiki RAG에만, 개발 환경 기준.
+    - **캐시 비교**: 평가 캐시(`build/rag-live-cache/eval-batch-cache-1d7423062cf90e35.json`)와 관리자 캐시(`CachingEmbeddingProvider`, `.storia-rag-cache/embeddings-gemini_gemini-embedding-2_768.json`)는 **같은 `GeminiEmbeddingProvider`가 만든 같은 벡터 형식**(정규화 float32 big-endian Base64, 768차원). 모델·차원·접두어(`title: none | text:`)·호출 방식(`batchEmbedContents`)이 같고, 코퍼스도 같은 로더·허용 목록·`MarkdownChunker(800)`. 다른 것은 **키뿐**: 평가 = SHA-256(형식 식별자 + "\n" + 접두어 붙인 입력), 관리자 = SHA-256(조각 원문)이고 파일 이름은 제공자 id. 벡터 순서는 텍스트 키로 찾으므로 무관. 평가 이후 허용 목록 문서 변경 없음(TODO/HANDOFF는 허용 목록 밖).
+    - **변환(테스트 소스 `EvalCacheExport`)**: 현재 코퍼스 조각마다 평가 키로 벡터를 찾아 관리자 키로 옮김 → 지금 문서와 같은 텍스트만 옮겨짐. 식별자·차원·벡터 길이·노름 검사, 기존 관리자 캐시 파일은 덮어쓰지 않음.
+    - **검증(실제 평가 캐시, 원격 호출 없음)**: 283/283 일치·누락 0·미사용 0. 변환 결과로 실제 `KnowledgeBase`(허용 목록·청커 800·minScore 0.75)를 다시 만들면 캐시 적중 283·미스 0 — 제공자는 닫힌 로컬 포트를 가리켜 호출되면 실패하는 구조라 "API 호출 0"이 검증됨. 검증 결과는 임시 디렉터리에만 썼고 **실제 `.storia-rag-cache`는 아직 만들지 않음**.
+    - **개발 전용 설정**: `application-rag-gemini.yml`(프로필 `rag-gemini`) — `storia.rag.provider: gemini`, `min-score: 0.75`. 기본 `application.yml`(local, 임계값 미설정)·캐릭터 RAG(`storia.character-rag`, local·꺼짐)·MCP(환경변수 기반) 무변경 — 바인딩 테스트로 확인. 활성화: `SPRING_PROFILES_ACTIVE=rag-gemini`, 단 `STORIA_RAG_PROVIDER` 환경변수가 프로필보다 우선하므로 함께 설정하지 말 것(현재 실행 중인 백엔드는 `STORIA_RAG_PROVIDER=local`로 떠 있음 — 재기동 전까지 local).
+    - **임계값 근거 확인**: rag-001 정답 `docs/architecture/README.md` 1위 0.7528, rag-022 같은 문서 1위 0.7604 — 둘 다 0.75 이상이지만 여유 0.003·0.010. holdout의 rag-014(0.717)·rag-023(0.729)은 0.75에서 "근거 없음"이 됨.
+    - **실제 관리자 검색의 API 호출량**: ① 문서 인덱싱 — 캐시 연결 시 **0회**(문서가 바뀌면 바뀐 조각만). 캐시 없이 켜면 283개를 50개씩 6배치로 **간격 없이 연속 전송** → 항목 100개에서 RPM 한도 → 3번째 배치 429 가능성이 큼. `CachingEmbeddingProvider`는 전체 성공 후에만 저장하고, 첫 인덱스가 없으면 검색마다 `rebuild()`를 다시 시도하므로 **실패가 반복 과금으로 이어질 수 있음**. ② 질의 — 검색마다 `embedContent` 1회(캐시 안 함). Agent 실행당 최대 2회(검색 예산), `/agent/knowledge` 검색 1회당 1회. RPD 1,000을 다른 임베딩 사용과 공유.
+    - **한도 초과 방지(제안, 미구현)**: ① 프로필을 켜기 전에 변환 캐시를 `apps/backend/.storia-rag-cache`에 씀 → 초기 인덱싱 0회. 명령: `cd apps/backend && RUN_EVAL_CACHE_EXPORT=true EVAL_CACHE_EXPORT_TARGET=.storia-rag-cache ./gradlew test --tests 'com.storia.backend.rag.EvalCacheExportTest'`(원격 호출 없음, 기존 파일이 있으면 거부). ② 허용 목록 문서를 크게 고칠 땐 50개 넘는 조각이 한 번에 바뀌지 않게 하거나, 평가 캐시 경로(속도 제어)로 먼저 임베딩. ③ 운영 코드에 실패 후 재시도 간격·배치 간격을 넣는 것은 기능 변경이라 별도 승인 필요.
+    - `./gradlew test` 277개 통과(실캐시 검증 테스트 1개는 `RUN_EVAL_CACHE_EXPORT` 게이트로 기본 skip). 커밋 안 함.
+  - [x] **(2026-10-29) 개발 환경 전환 실행 — 캐시 생성 + 백엔드 재시작(사용자 승인), Gemini 호출 0회, 검색·Agent 질문 없음.**
+    - **캐시 생성**: 기존 파일 없음 확인 후 `RUN_EVAL_CACHE_EXPORT=true EVAL_CACHE_EXPORT_TARGET=.storia-rag-cache ./gradlew test --tests '…EvalCacheExportTest'`(GEMINI_API_KEY 미로드). 결과 `apps/backend/.storia-rag-cache/embeddings-gemini_gemini-embedding-2_768.json`: 항목 283개, 벡터 3,072바이트(768×float32)·노름 1.0, 벡터 집합이 평가 캐시와 동일, 형식 식별자 `…model=models/gemini-embedding-2|dims=768|task=text-prefix` 일치, 현재 코퍼스 283개 조각 원문 해시 전부 일치(누락 0). 같은 실행에서 변환본으로 `KnowledgeBase`를 오프라인 재구축 → 적중 283·미스 0(호출 시 실패하는 닫힌 포트 제공자). git 무시 대상(`apps/backend/.gitignore`) 확인.
+    - **백엔드 재시작**: 이전 실행은 프로필 없음 + `STORIA_RAG_PROVIDER=local`. 새 실행은 같은 비공개 env 파일을 로드한 뒤 `STORIA_RAG_PROVIDER`·`STORIA_RAG_MIN_SCORE`·`STORIA_RAG_CACHE_DIR`를 unset하고 `SPRING_PROFILES_ACTIVE=rag-gemini`로 `bootRun`. 로그 `The following 1 profile is active: "rag-gemini"`, 4.0초에 정상 시작. 프로세스 환경에 `STORIA_*` 변수 없음, 작업 디렉터리 `apps/backend` → 캐시 경로 `apps/backend/.storia-rag-cache`와 일치.
+    - **시작 중 Gemini 호출 없음(간접 확인)**: RAG 인덱스는 첫 검색/상태/재인덱싱 요청 때 만들어지는 구조이고, 시작 로그에 RAG·임베딩 관련 줄 없음, 캐시 파일 해시·수정 시각이 재시작 전후 동일. 로그에 키 0건. 관리자 화면 중 자동으로 RAG를 호출하는 페이지 없음(검색·재인덱싱은 버튼 동작).
+    - **실행 중 설정값(provider gemini, gemini-embedding-2, 768, min-score 0.75)**은 프로필 활성 로그 + `RagGeminiProfileTest` 바인딩 테스트 기준 — actuator가 없어 실행 중 빈 값을 직접 조회하지는 않음.
+    - **미검증(실제 검색 필요)**: 실행 중 인덱스가 캐시 적중 283·문서 임베딩 호출 0으로 만들어지는지, 질의 임베딩 1회 호출의 성공·지연, 0.75 임계값에서 실제 질문의 근거 유지/거절, 관리자 Agent 답변 품질. 주의: `GET /api/admin/ai/knowledge/status`도 인덱스를 만들므로 이번엔 호출하지 않음.
+  - [x] **(2026-10-29) 실제 관리자 Wiki 검색 1회 검증 — 사용자 승인, rag-001 문장 그대로("음성 통화는 어떤 구조로 동작해?"), `POST /api/admin/ai/knowledge/search` 정확히 1회.** status·재인덱싱·Agent 질문 없음, 재시도 없음.
+    - **결과**: HTTP 200, `status: OK`, 서버 `tookMs` 1,110(curl 전체 1.13초). 인덱스 `gemini:gemini-embedding-2:768`·의미 임베딩·문서 14·조각 283·누락 문서 0(이 검색에서 처음 빌드됨).
+    - **반환(임계값 0.75 적용)**: 1건 — 1위 `docs/architecture/README.md` "아키텍처 > 음성 통화 — 축소판 A안 (PRD 3.9 / ADR-004 갱신 1~3)", 점수 **0.7528** → 오프라인 평가(1위, 0.7528)와 **동일**. 나머지 조각은 0.75 미만이라 반환되지 않음(점수는 API가 돌려주지 않아 미확인).
+    - **docRole**: 관리자 지식 검색 API 응답에는 `docRole` 필드가 없음(Agent 도구·MCP 결과에만 추가돼 있음). 규칙상 `docs/architecture/README.md`는 current.
+    - **문서 임베딩 호출 0회 근거**: ① `CachingEmbeddingProvider`는 미스가 하나라도 있으면 원격 호출 후 캐시 파일을 다시 쓰는 구조인데, 검색 전후 캐시 파일 SHA-256 동일(d142c761…)·파일 1개 그대로 ② 관측 지표 `queryCharsEmbedded` 0→18(질의 1건 분량), `indexCharsEmbedded` 0·`rebuilds` 0(단 이 두 값은 명시적 재인덱싱만 집계하므로 보조 근거) ③ 283개를 6배치로 보냈다면 1.1초 안에 끝나기 어렵고 RPM 429 가능성이 큼. **런타임 캐시 적중/미스 수(283/0)는 API로 노출되지 않아 직접 실측하지 못함** — 위 근거로 추론.
+    - **질의 임베딩 호출**: 코드상 검색 1회당 `embedContent` 1회(관측 지표 질의 글자 수 18과 일치). AI Studio 호출 기록은 검색 전 Embedding 2 RPD 411(=110+301), 검색 직후에도 411 — 집계 지연으로 보이며 +1 반영은 **미확인**.
+    - **소요 시간**: 전체 1,110ms(첫 인덱스 빌드 + 질의 임베딩 + 검색). 질의 임베딩만의 시간은 분리 측정 수단이 없어 **미검증**(평가 때 질의 포함 첫 검색 p50 459ms).
+    - 로그·응답에 키 0건.
+  - [ ] **(2026-10-29) 관리자 Agent 실모델 질문 1회 — 실패(Gemini 503), 재시도 안 함.** 사용자 승인, 질문 "음성 통화는 어떤 구조로 동작해?", `rag-gemini` 프로필·임계값 0.75 유지, `POST /api/admin/ai/agent/query` 1회.
+    - **결과**: HTTP 502 `UPSTREAM_ERROR`("외부 서비스 호출에 실패했습니다."), 전체 21.9초. 로그: 첫 모델 호출(`generateContent`, `gemini-3.6-flash`, 도구 모드 AUTO)에서 `Gemini tool call failed: status=503` → `stopReason=error`, `errorType=upstream_error`.
+    - **관측 기록(run eead4580)**: 모델 호출 1회(21,921ms, 실패), 도구 호출 0회, 토큰 null(응답 없음). 지식 검색 지표 전후 동일(searches 1·queryCharsEmbedded 18 그대로) → `searchStoriaKnowledge` 0회, 임베딩 호출 0회. 캐시 파일 해시 전후 동일(d142c761…).
+    - **검증 항목 1~8 전부 미검증**: 모델이 응답 전에 실패해 검색어·검색 결과·docRole 사용·답변 내용(LiveKit WebRTC → Track Egress → 서버 STT/Gemini/TTS 설명 여부, B+C/P2P 오설명 여부)을 확인할 수 없음. 503 원인(일시적 과부하/모델 가용성)은 응답 본문을 기록하지 않아 미확인. `GeminiToolClient`는 자동 재시도가 없음(코드 확인).
+    - 참고: 실행 전 스크립트(python) 쿠키 처리 오류로 관측 조회가 401로 실패해 Agent 요청 전에 중단됨 — Agent 요청은 이후 curl로 1회만 전송.
+    - 키 노출 0건(로그·응답·관측). 코드·설정 무변경.
+    - **재실행 1회(사용자 승인, 약 3분 뒤) — 다시 503.** HTTP 502 `UPSTREAM_ERROR`, 전체 5.7초. run 63f02167: 첫 모델 호출(5,739ms)에서 `status=503`, 도구·검색 0회, 토큰 null, 지식 검색 지표·캐시 해시 불변. 지시대로 즉시 중단, 추가 시도 없음. 검증 항목은 여전히 전부 **미검증**.
+    - **503 오프라인 점검(2026-10-29, Gemini API 호출 0회)** — 원인은 **미확인 유지**.
+      - 모델: `gemini-3.6-flash`는 공식 모델 목록(ai.google.dev/gemini-api/docs/models)에 **Stable**(이전 세대 Flash, 최신은 `gemini-3.8-flash`). 종료 모델 아님 — 종료였다면 404(`gemini-2.0-flash` 때처럼). 같은 모델로 2026-10-29 Agent 질문 3개 `completed` 이력 있음.
+      - 공개 상태: Google Cloud 상태 페이지 "No broad severe incidents"(마지막 갱신 10/28 09:55 PDT — 10/29 데이터 없음). incidents.json 앞부분(약 40%)만 확인, 최근 사건은 10/20 europe-west2 전원 장애(Vertex AI 등, 해결, Gemini API/AI Studio 언급 없음). AI Studio 상태 페이지는 스크립트 렌더링이라 내용 확인 못 함. 웹 검색에서 2026년 10월 `gemini-3.6-flash` 장애 보고 없음 → **관련 장애 공지 미확인**(공지 없음이 확정된 것은 아님).
+      - 요청 점검(코드·로그): `POST /v1beta/models/gemini-3.6-flash:generateContent`, 키는 `x-goog-api-key` 헤더, 모델은 `application.yml` 고정(`GEMINI_MODEL` env 없음). 두 실패 모두 첫 단계 `generate()`(`functionCallingConfig.mode=AUTO`, 도구 4개). 첫 요청 크기 약 5천 자 이하(시스템 안내 약 1.4천·도구 선언 문자열 약 3.2천 상한·질문 18자). 호출당 타임아웃 60초, 자동 재시도 없음. 형식 오류였다면 400 → 요청 형식·크기 문제 정황 없음.
+      - 한계: `GeminiToolClient`가 상태 코드만 로그에 남겨 Google `error.status`·메시지 없음. 정황상 Gemini 측 일시 과부하/가용성 문제 가능성이 크나 확정 불가.
+      - 구분: 관리자 Wiki 검색(Gemini Embedding, 0.75) = **검증 완료** / 관리자 Agent 최종 답변(`gemini-3.6-flash`) = **미검증**. Agent 실호출은 사용자 결정으로 당분간 보류.
+    - **(2026-11-01) 503 진단 로그 보강 — 오프라인, Gemini 호출 0회.** `GeminiToolClient`가 HTTP 오류 시 `status`에 더해 형식 검증된 `errorStatus`(오류 본문 `error.status`, 예: UNAVAILABLE/RESOURCE_EXHAUSTED)·`Retry-After`·RetryInfo `retryDelay`·`mode`(AUTO/NONE)를 로그에 남김(정규식은 `GeminiEmbeddingProvider.httpFailure`와 동일). 오류 메시지 문장·본문·키는 기록 안 함, 예외 메시지·502 매핑·`upstream_error` 분류·재시도 없음은 그대로. Mock 테스트 3개 추가(503/429/비정상 형식), `./gradlew test` 280개 통과. **다음 실호출 때 로그의 `errorStatus`로 일시 과부하인지 할당량 문제인지 먼저 확인**한 뒤 재시도 도입 여부를 결정.
+- [x] **(2026-11-01) Phase 6E 캐릭터 세계관 RAG OFF/ON 실제 대화 비교 — 렌, 질문 1개, Gemini 채팅 2회(재시도 0), 코드·세계관 문서 무변경, 커밋 `8870890`(문서만).**
+  - **실행 전 확인**: 경로 `POST /api/conversations/2/messages`(REST 폴백, `X-Device-Id`) → `ChatContextAssembler` → `GeminiService.streamReply`(`gemini-3.6-flash`, `streamGenerateContent`) 비스트리밍 수집. **자동 재시도 없음**(WebClient 필터 없음, 60초 타임아웃, 실패 시 `onErrorReturn` 폴백 문구를 201로 반환·DB 저장 — 그래서 성공 판정은 로그 `Gemini REST call failed` 부재로 함). 저장 범위: 로컬 개발 DB(docker MariaDB 3307)에 테스트 기기 2개 → `app_user`·`conversation` 각 +2, `message` +4(id 2122~2125). FCM은 `FIREBASE_CREDENTIALS_PATH` 미설정 + 새 기기 토큰 없음으로 미발송. 전환: `STORIA_CHARACTER_RAG_ENABLED=false/true`로 백엔드 재기동(둘 다 `SPRING_PROFILES_ACTIVE=rag-gemini` 유지, `STORIA_CHARACTER_RAG_PROVIDER` unset → local). 관리자 Agent·지식 검색 호출 없음.
+  - **오프라인 점검**: 기존 테스트 8개 클래스 35개 통과(`ConversationLoreChatTest` 7, `ChatContextAssemblerTest` 8, `CharacterLoreServiceTest` 11, `CharacterRagConfigTest` 3(기본 타임아웃 800 포함), `VoiceCallServiceLoreTest` 2, `RagGeminiProfileTest` 2, `CharacterLoreSpringTest` 1, `CharacterLoreEvalTest` 1) — OFF 프롬프트 불변, ON 덧붙임, 격리, 실패/타임아웃 폴백 모두 기존 테스트로 커버돼 새 테스트 안 만듦. 추가로 스크래치 프로브(저장소 밖)로 **같은 질문의 실제 조립 결과**를 local 제공자로 재현: OFF 3캐릭터 모두 `DISABLED`·프롬프트 동일 / ON 렌 `OK` 3건 — 1위 "렌 세계관 > 서점의 규칙과 명물" 0.2918(보리차 문장 포함), 2위 "배경" 0.1141, 3위 "과거 사건: 첫 북토크" 0.1061, 모두 docId `ren` / 같은 질문을 아리아로 보내면 `NO_EVIDENCE`(프롬프트 불변), 노아는 `OK`("노아 세계관 > 배경" 0.1265 — 무관한 자기 세계관 1건이 임계값 0.08을 넘음, 타 캐릭터 문서는 아님).
+  - **실측 OFF**(기기 `rag6e-off-…`, 이력 0): HTTP 201, 전체 14.8초, 오류 로그 없음. 관측: `enabled=false`, searches 0, 인덱스 NOT_BUILT → 프롬프트 변경 없음. 응답: 성격·말투(다정 + 끈질긴 책 추천) 유지, **사실은 오답** — "따뜻한 **영귤차** 한 잔과 포근한 **수건**", "창가 쪽 1인용 소파", "32페이지 시집" 등을 지어냄.
+  - **실측 ON**(기기 `rag6e-on-…`, 이력 0): HTTP 201, 전체 10.5초, 오류 로그 없음. 관측: searches 1, `ren: OK 1`, 검색 지연 4.9ms(800ms 예산 대비 여유), isolationViolations 0, 인덱스 3개 `local-hashing-v1`·각 7조각(기동 워밍업). 응답: **"책을 사지 않으셔도 … 따뜻한 보리차 한 잔을 정성껏 내어드리고 있답니다"** — 기대 사실과 일치, 말투·책 추천 유지, "자료에 따르면" 낭독 없음, 아리아·노아 세계관 내용 없음. 2·3위 조각(배경/북토크) 내용은 답변에 끌려오지 않음.
+  - 응답 전문은 이번 대화 보고에만 남기고 저장소에는 요약만 기록. 대화 저장 구조 불변(`message` 컬럼 id·content·created_at·role·conversation_id, 기기당 USER 1 + ASSISTANT 1, 세계관 텍스트는 DB에 없음). 렌 base prompt 해시 전후 동일, 세계관 문서 3개 MD5 불변, 관리자 RAG 캐시 해시 불변, 로그·결과에 키 0건. 종료 후 백엔드·DB 컨테이너 정지(시작 전 상태).
+  - **미검증**: 첫 토큰까지 시간(REST 경로는 전체 수집 후 반환 — STOMP 스트리밍 경로로 재야 함), 프롬프트 원문의 **런타임** 캡처(서버가 프롬프트를 로그에 남기지 않음 — 같은 코드·같은 입력의 오프라인 재현과 런타임 검색 상태 `OK`로 대신함), 지연 차이(14.8s vs 10.5s)는 1회씩이라 RAG 영향으로 볼 수 없음(응답 길이 차이가 큼), 다른 질문·다른 캐릭터·멀티턴·STOMP/음성 경로의 실모델 동작, 노아처럼 약한 무관 조각이 붙는 경우의 답변 영향.
+- [x] **(2026-11-01) 음성 통화 ↔ 캐릭터 세계관 RAG 연결 확인 — 코드 확인 + 오프라인만, 외부 API 호출 0회, 코드 무변경.**
+  - **turn 모드(축소판 A안, Track Egress)**: `VoiceCallService.completeTurn()`이 STT 결과를 `postMessage`로 저장 → `getMessages`로 다시 읽은 이력을 `chatContextAssembler.systemPromptFor(characterId, base, history)`에 넘기고 그 결과를 `geminiService.streamReply`에 전달. 질의는 `buildQuery`가 이력의 마지막 USER 메시지(= 방금 저장한 STT 결과, 15자 미만이면 직전 발화를 앞에 붙임)로 만듦. OFF는 `enabled()` 확인 직후 base 그대로, ON은 `CharacterLoreService`가 캐릭터 이름 → 세계관 키 1개의 인덱스만 검색 + 반환 직전 docId 재확인. `systemPromptFor`는 예외를 던지지 않고 실패·타임아웃(800ms)·NO_EVIDENCE·DISABLED 모두 base를 반환하므로 음성 턴은 기존대로 진행. Gemini 실패도 기존 폴백 문구 그대로. TTS는 기존대로 클라이언트가 `GET /api/messages/{id}/audio`로 받음(캐시 없음, 요청 1회 = TTS 1회).
+  - **agent 모드(python-sidecar)**: `StoriaLLMStream`이 마지막 user 발화를 `POST /api/conversations/{id}/messages`로 보냄 → `ConversationController`의 같은 `ChatContextAssembler` 경로(2026-11-01 REST 실측 완료 경로). 사이드카 코드 변경 불필요.
+  - **테스트**: 7개 클래스 33개 통과(`VoiceCallServiceLoreTest` 2 — 음성 턴 ON 시 `<lore-reference>` 추가·OFF 시 base 동일, `ChatContextAssemblerTest` 8, `CharacterLoreServiceTest` 11, `ConversationLoreChatTest` 7, `CharacterRagConfigTest` 3, `CharacterLoreSpringTest` 1, `CharacterLoreEvalTest` 1). 음성 경로의 실패 폴백은 `VoiceCallServiceLoreTest`에 따로 없지만 `completeTurn`이 `systemPromptFor` 결과만 쓰고 그 폴백은 Assembler/Service 테스트가 다룸 → 새 테스트 안 만듦.
+  - **오프라인 프로브(저장소 밖, local 제공자)**: "달무리 서점에서는 비 오는 날 책을 사지 않아도 뭘 줘?" 렌 `OK` — 1위 "서점의 규칙과 명물" 0.300(보리차 포함). STT 변형 가정("?" 없음 0.300 / "달 무리" 0.275 / "다무리…비오는" 0.241 / "비 오는 날 책 안 사도 뭐 줘?" 0.152)도 모두 같은 조각 1위. 같은 질문 아리아 `NO_EVIDENCE`, 노아 `OK`(자기 "배경" 0.128 — 타 캐릭터 문서 아님, 기존에 기록한 약한 무관 조각 현상).
+  - **발견된 결함**: 없음.
+  - **실기기 1회 검증 조건(미실행)**: turn 모드를 검증하려면 python-sidecar를 띄우지 않아야 함(워커가 있으면 클라이언트가 agent 모드로 전환). 필요: Docker MariaDB, `livekit.env`(LIVEKIT_*·`LIVEKIT_EGRESS_AUDIO_WS_URL`·STT/TTS/Gemini 키) + `admin.env` 로드, `STORIA_CHARACTER_RAG_ENABLED=true`, `SPRING_PROFILES_ACTIVE=rag-gemini`, `STORIA_CHARACTER_RAG_PROVIDER` unset, `ngrok http 8080`(예약 도메인), iPhone dev 빌드 + Metro. 예상 외부 호출(1턴): LiveKit room 연결 1 + `startTrackEgress` 1, Google STT `speech:recognize` 1, Gemini `streamGenerateContent` 1, Cloud TTS 1, 임베딩 0. 서버 쪽 자동 재시도 없음. `FIREBASE_CREDENTIALS_PATH`를 설정하면 실기기로 FCM 1건 발송. iPhone 기기 ID에 기존 렌 대화가 있으면 Gemini 이력에 포함됨(검색 질의에는 영향 없음 — 발화가 15자 이상).
+- [x] (이력 — 이후 같은 날 성공, 아래 "Phase 6E 렌 캐릭터 음성 실기기 1턴") **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 미실행(환경 준비 단계에서 차단), 외부 API 호출 0회.**
+  - 준비 상태 확인: iPhone 12 Pro 연결됨(`devicectl` connected), `com.storia.client` 개발 빌드 설치됨, ngrok 설치됨, 사이드카(8083) 미실행.
+  - 차단: Docker DB와 `ngrok http 8080`을 함께 띄우는 명령이 Claude Code 자동 모드 권한 검사에서 거부됨(사유 미표시, 공개 터널 노출 때문으로 추정). turn 모드는 LiveKit Cloud Egress가 ngrok 주소로 백엔드 WebSocket에 접속해야 하므로 ngrok 없이 진행할 수 없음 → 우회하지 않고 중단. 백엔드·Metro는 띄우지 않았고 DB 변경 없음.
+  - 다시 시도하려면: 사용자가 ngrok을 직접 실행하거나 권한을 허용한 뒤 진행. 계획한 계측: Tomcat 접근 로그(실행 시 설정만, 코드 변경 없음)로 `/api/calls/*/turns`(Egress)·`/api/messages/{id}/audio`(요청마다 TTS 1회 — 클라이언트 HEAD 확인 + 재생 GET이므로 최소 2회 예상) 집계, `Voice turn … completing` 로그로 STT/Gemini 각 1회 확인, 관리자 관측으로 `ren: OK` 확인.
+- [x] **(2026-11-01) 포트폴리오 문서 정리 — 문서만.** README에 "AI Agent · RAG · MCP" 절 추가(구현 범위·실제 검증·한계), 백엔드 테스트 규모 갱신(12개 파일·38개 → `./gradlew test` 51개 클래스·280개, 실패 0·건너뜀 1 = `RUN_EVAL_CACHE_EXPORT` 게이트, 2026-11-01 실행). 로드맵 상태 "미구현" → Phase 0~6 구현됨(계획서 성격은 유지). Phase 6 문서: 상태 문구, 8.1절(이후 실호출 검증), 10절 표 1·3행 정정. Phase 6E 문서: 상태 문구, 12.1절(렌 1문항 결과·음성 코드 확인·미검증), 캐릭터 Gemini 제공자 미호출 명시. 유지한 한계: 관리자 Agent 최종 답변(`rag-gemini`)은 503으로 미검증, 캐릭터 RAG ON/OFF는 렌 1문항.
+- [x] **(2026-11-01) 백엔드 소규모 부하 측정 — 격리 환경, 외부 API 호출 0회, 코드 무변경.**
+  - **환경**: MacBook M1 Pro(10코어). 부하 도구 ApacheBench(`ab`, macOS 기본 — k6 등 미설치라 새로 설치하지 않음), keep-alive. 같은 머신에서 부하를 걸어 `ab` 자체도 CPU를 씀. 격리 DB = 임시 컨테이너 `storia-loadtest-db`(mariadb:11.4, 127.0.0.1:3308, 익명 볼륨, 종료 후 `docker rm -v`로 삭제). 백엔드 = `bootJar`를 `env -i`(외부 키 없음, Firebase 없음, 캐릭터 RAG 꺼짐)로 포트 18080, `-Xmx512m`, 기본 설정 그대로(`show-sql: true`, open-in-view 기본값). 개발 DB 컨테이너(`storia-story-chat-db-1`)는 정지 상태 그대로 두고 손대지 않음.
+  - **데이터**: 테스트 기기 `load-m100`(렌 대화 100개), `load-m1000`(1,000개). USER·ASSISTANT 번갈아, 평균 151자(한글). 응답 크기: 캐릭터 목록 441B, 메시지 100개 41,932B, 1,000개 420,948B.
+  - **GET 부수 효과(코드·SQL 로그 확인)**: `GET /api/conversations/{id}/messages`는 요청마다 SELECT 4 + `app_user` UPDATE 1(`getOrCreateConversation`이 `lastActiveAt`·`reengagementPushSent` 갱신, 없으면 사용자·대화 INSERT). 이번 측정은 시나리오마다 VU 전원이 같은 기기 ID → 같은 행을 동시에 UPDATE하는 최악 조건. `GET /api/characters`는 SELECT 1.
+  - **결과**(단계당 워밍업 5초 + 측정 25초, `ab -e` 백분위; CPU는 `ps` 1초 샘플, 100% = 코어 1개; DB는 `docker stats` 1회):
+    | 대상 | VU | 요청 수 | RPS | p50 | p95 | p99 | 최대 | 오류 | Java CPU 평균 | Java RSS 최대 | DB CPU |
+    |---|---|---|---|---|---|---|---|---|---|---|---|
+    | 캐릭터 목록 | 1 | 11,172 | 447 | 2.1ms | 3.3ms | 5.1ms | 21ms | 0 | 52% | 446MB | 9% |
+    | 캐릭터 목록 | 5 | 47,216 | 1,889 | 2.5ms | 3.6ms | 4.6ms | 25ms | 0 | 60% | 458MB | 35% |
+    | 캐릭터 목록 | 10 | 77,700 | 3,108 | 3.1ms | 4.4ms | 5.8ms | 15ms | 0 | 95% | 459MB | 57% |
+    | 메시지 100개 | 1 | 4,549 | 182 | 4.2ms | 11.2ms | 15.3ms | 33ms | 0 | 37% | 467MB | 17% |
+    | 메시지 100개 | 5 | 20,369 | 815 | 5.8ms | 8.7ms | 12.5ms | 43ms | 0 | 78% | 465MB | 75% |
+    | 메시지 100개 | 10 | 30,094 | 1,204 | 8.0ms | 10.7ms | 14.8ms | 95ms | 0 | 108% | 413MB | 120% |
+    | 메시지 1,000개 | 1 | 2,483 | 99 | 8.8ms | 15.1ms | 21.6ms | 61ms | 0 | 48% | 365MB | 20% |
+    | 메시지 1,000개 | 5 | 8,584 | 343 | 14.2ms | 17.8ms | 23.4ms | 62ms | 0 | 130% | 365MB | 77% |
+    | 메시지 1,000개 | 10 | 10,500 | 420 | 23.4ms | 28.9ms | 33.4ms | 80ms | 0 | 164% | 364MB | 102% |
+    - 전 단계 HTTP 200만, `ab` 실패 0·non-2xx 0. DB 메시지 수 측정 전후 100/1,000 그대로.
+  - **관찰**: 메시지 1,000개 조회는 1→10 VU에서 RPS 4.2배, p50 8.8→23.4ms로 늘어남. 1,000개 기준 10 VU 전송량 약 173MB/s(요청당 421KB). 같은 VU에서 메시지 100개 대비 RPS 1/2.9~1/3.5. 오류·급격한 지연 악화는 없음.
+  - **가능한 원인(프로파일링 안 함, 미확정)**: ① 페이지네이션 없이 전체 이력을 엔티티 → DTO → JSON으로 만드는 비용(응답 크기에 비례) ② `show-sql: true`가 요청마다 SQL 5개를 표준 출력에 씀(측정 6분 동안 로그 135MB, `Hibernate:` 62만 줄) ③ 같은 `app_user` 행 동시 UPDATE의 행 잠금 대기 ④ 부하 도구가 같은 머신에서 CPU를 나눠 씀. 원인별 분리 측정은 하지 않았고 코드도 고치지 않음.
+  - **부수 발견**: `ab`가 시간 제한으로 끊을 때 진행 중이던 큰 응답이 `Broken pipe`/`Connection reset`(31건)이 되고, `GlobalExceptionHandler`가 이를 `ERROR "Unhandled exception"`으로 기록함 — 클라이언트가 끊은 것이라 서버 실패는 아니지만 오류 로그가 부풀려짐. HikariCP "Retrograde clock change" 경고 1회(측정 수치에 영향 없음).
+  - **한계**: 로컬 단일 머신, 테스트 기기 2개, 짧은 측정(단계당 25초), 응답 1종(이력 조회만, 쓰기·Gemini 경로 제외). 실제 다수 사용자 동시 접속 규모의 검증이 아님. 모바일 네트워크에서 421KB 응답의 체감 지연은 측정하지 않음.
+- [x] (이력 — 첫 시도는 ngrok 미실행으로 실패, 2차 성공) **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 준비 상태 확인만, 외부 호출·공개 터널 0회(사용자 승인 대기).** iPhone 12 Pro 연결·개발 빌드 설치 재확인, `livekit.env`에 LiveKit·Egress URL·STT·TTS·Gemini 값 모두 있음(값 미출력), Egress URL 호스트는 예약 ngrok 도메인, `ngrok.yml` 유효, 사이드카 미실행. 서버 쪽 자동 재시도 없음, 클라이언트는 턴 상태 600ms 폴링(최대 75초, 로컬 호출)만 하고 턴을 다시 시작하지 않음.
+  - **실기기 시도(사용자 승인, 23:46~23:48) — 실패: Egress가 백엔드에 도달하지 못함.** 백엔드(`rag-gemini`, 캐릭터 RAG on/local, Firebase 없음, Tomcat 접근 로그)·Metro(LAN 192.168.219.109:8081) 기동, iPhone이 수동 URL로 접속. 접근 로그: 통화 토큰 2회, `POST /api/calls/2/turns` **2회**(턴 `d01bb8dd…`, `1894da66…` — 통화를 다시 시작한 것으로 보임), 턴 상태 폴링이 계속 `recording`. 백엔드 로그에 `Voice turn … completing` 없음, Egress WebSocket 접속 0건. 원인: 이 Mac에 ngrok 프로세스가 없었고(`pgrep` 없음, 4040 미리슨) 예약 도메인 공개 주소가 `ERR_NGROK_3200`(엔드포인트 오프라인) 404 → LiveKit Egress가 `wss://…/egress/audio`에 접속 불가.
+  - 외부 호출(관측 기준): LiveKit `startTrackEgress` 2회(HTTP 200, 각 1.2~2.5초), STT 0·Gemini 0·TTS 0·임베딩 0. DB 메시지 수 변화 없음(125개, max id 2125). 캐릭터 RAG 검색 0회. **STT·RAG·Gemini·TTS 실기기 경로는 미검증.**
+- [x] **(2026-11-01) Phase 6E 렌 캐릭터 음성 실기기 1턴 검증 완료 — turn 모드(Track Egress), 사용자 승인, 1턴만, 재시도 0.**
+  - **사전 터널 검증(유료 API 호출 전)**: 사용자가 이 Mac에서 `ngrok http --url=https://feline-request-backtrack.ngrok-free.dev 8080` 실행(Claude Code는 자동 모드 권한 검사 `External Ingress Tunnel`로 실행 차단 — 우회 안 함). 확인: ngrok 프로세스 PID 9587, `localhost:4040` 터널 `→ http://localhost:8080`, 공개 주소 `GET /api/characters` 200(백엔드 접근 로그에 기록), 공개 주소 `wss://…/egress/audio?turnId=tunnel-probe` **101** + 백엔드 `Egress WS connected`(없는 turnId라 처리 없이 종료).
+  - **환경**: 백엔드 `SPRING_PROFILES_ACTIVE=rag-gemini`, `STORIA_CHARACTER_RAG_ENABLED=true`, `STORIA_CHARACTER_RAG_PROVIDER=local`(프로세스 환경 확인), Firebase 미설정, Tomcat 접근 로그(실행 설정만). Metro LAN `192.168.219.109:8081`, iPhone 12 Pro 개발 빌드(수동 URL 접속). 사이드카 미실행.
+  - **단계별 결과(서버 로그·DB 기준)**:
+    1. 마이크·WebRTC: Egress가 오디오 프레임 595개(1,142,172바이트, 약 8.8초)를 받음 → iPhone 마이크 publish와 LiveKit 연결이 동작한 것으로 판단(클라이언트 로그는 수집 안 함).
+    2. Track Egress → 백엔드: `POST /api/calls/2/turns` 1회(200, 1.97초) → `Egress WS connected` 23:56:43.97 → `closed status=1000` 23:56:52.76 → `Voice turn … completing`.
+    3. STT 인식 문장(DB 메시지 2126): **"이 서점에서는 비 오는 날 책을 사지 않아도 보여 줘"** — 원문 "달무리 서점에서는 비 오는 날 책을 사지 않아도 뭘 줘?"와 비교해 "달무리"→"이", "뭘 줘"→"보여 줘"로 **고유명사·끝부분 오인식**, 핵심 구("서점", "비 오는 날 책을 사지 않아도")는 인식. 처리 약 2.9초(턴 종료 → USER 저장).
+    4·5. 캐릭터 RAG: 관리자 관측 searches 0→1, `ren: OK 1`, 지연 **4.6ms**, isolationViolations 0. 근거 문서(같은 코드·같은 문장의 오프라인 재현, 런타임 근거 원문은 로그에 없음): 1위 "렌 세계관 > 서점의 규칙과 명물" 0.338(보리차 문장 포함), 2위 "과거 사건: 첫 북토크" 0.117, 3위 "배경" 0.106 — 모두 `ren`.
+    6. Gemini(DB 메시지 2127, 저장까지 약 12.3초, 실패 로그·폴백 문구 없음): **"…비가 내리는 날엔 책을 꼭 사지 않으셔도 괜찮아요. … 김이 모락모락 나는 따뜻한 보리차 한 잔을 정성껏 내어드리거든요."** — 보리차 사실 반영, 다정함 + 끈질긴 책 추천 말투 유지. 이 대화의 이전 메시지 38개에는 "보리차"·"달무리"가 0건 → 이력에서 온 정보가 아님. 세계관에 없는 세부(창가 소파, 책 제목 「비가 내리면 펼치는 작은 기적」)와 괄호 지문을 덧붙임.
+    7. TTS: `HEAD /api/messages/2127/audio` 200(5.1초) → `GET` 200이지만 139,264바이트 전송 중 클라이언트가 끊음(Broken pipe, 3.0초) → `GET` 200 702,528바이트(5.0초). **사용자가 iPhone 스피커에서 렌 음성을 들었다고 확인.**
+    8. 다른 캐릭터: 관측상 검색은 `ren`만, 답변에 아리아·노아 세계관 내용 없음.
+  - **외부 호출 수**: LiveKit `startTrackEgress` 1회(접근 로그 `POST /turns` 1회). Google STT 1회·Gemini 1회(`completeTurn` 1회 실행, 코드상 각 1회 호출, 실패 로그 0). Google TTS **3회로 추정** — `/audio` 요청이 3회(HEAD 1 + GET 2)였고 코드상 요청마다 `TtsService.synthesize`를 1회 호출함(Google 쪽 사용량으로는 확인 안 함). 코드 기준 예상은 "최소 2회"였고, 실제로는 재생 플레이어가 GET을 한 번 더 보냄. 임베딩 0, 관리자 Agent 0, FCM 0. iPhone↔LiveKit room 연결 횟수는 서버에서 셀 수 없음.
+  - **폴백**: 없음(RAG OK, Gemini 실응답, TTS 성공).
+  - **지연(서버 로그 기준)**: ■ 탭(Egress 종료) → 답변 저장 약 15.3초 → 오디오 요청 시작까지 약 20초 → 완전한 오디오 응답 약 30초.
+  - **저장**: iPhone 기기(`b11b72a3…`)의 기존 렌 대화에 USER 2126 + ASSISTANT 2127, 2개 추가(메시지 125 → 127, 사용자 수 39 그대로). 세계관 참고 블록은 DB에 저장되지 않음. 테스트 데이터는 삭제하지 않음.
+  - **기존 동작 영향**: 코드·설정 파일 변경 없음. 관리자 RAG 캐시 해시 동일(d142c761…).
+  - **부수 관찰**: 첫 GET 중단 때 `GlobalExceptionHandler`가 Broken pipe를 `ERROR "Unhandled exception"`으로 기록하고, `audio/mpeg` 응답에 `ErrorResponse`를 쓰려다 `HttpMessageNotWritableException`(WARN)이 남(부하 측정 때 본 로그 노이즈와 같은 계열, 사용자 영향 없음). `/audio`는 요청마다 TTS를 다시 합성해 한 번 재생에 TTS가 3회 나감(비용·지연). 답변의 괄호 지문이 TTS로 그대로 읽힐 수 있음(청취 내용은 미확인).
+  - **미검증**: STT의 고유명사("달무리") 인식 정확도, 다른 문장·다른 캐릭터·여러 턴, agent 모드(사이드카) 실기기 RAG, 클라이언트 측 지연 측정, Google 콘솔 기준 실제 과금 호출 수.
+- [x] **(2026-11-02) Python Sidecar agent 모드 렌 캐릭터 RAG 실기기 1턴 성공 — 사용자 승인, 1턴만, 재시도 0, ngrok 불필요(agent 모드는 Egress를 쓰지 않음).**
+  - **환경**: DB·백엔드(`rag-gemini`, 캐릭터 RAG on/local, Firebase 없음, 접근 로그)·Metro(LAN) + `apps/python-sidecar` `agent.py dev`(livekit-agents 1.7.1, 워커 `AW_ZwQbCw4Vtycz`, `STORIA_BACKEND_URL=http://localhost:8080`). iPhone 12 Pro 개발 빌드.
+  - **자동 재시도 확인(실행 전, 코드)**: livekit-agents `LLMStream`은 `APIError`만 최대 3회 재시도 — `StoriaLLM`의 httpx 예외는 대상 아님. STT/TTS 플러그인은 일시 API 오류 시 SDK 재시도 가능(이번 로그엔 재시도·실패 0건).
+  - **단계별 결과**:
+    1. agent 모드: LiveKit 디스패치 `AJ_2WKx6VFWy7f5`(room `call-b11b72a3…-2`), Sidecar가 사용자 마이크 스트림 구독, **사용자가 "실시간 통화" 배지 확인**. 앱은 `/api/calls/2/turns`(turn 모드)를 호출하지 않음(접근 로그 0건).
+    2. STT(Google 스트리밍, Sidecar): **"달무리 서점에서는 비 오는 날 책을 사지 않아도 모조."** — "달무리"는 정확, "뭘 줘?"가 "모조."로 오인식. EOT 확률 0.956으로 턴 1개 확정.
+    3. Sidecar → Spring REST: `POST /api/conversations/2/messages` **1회**(201, 10.3초). 다른 REST 대화 호출 없음.
+    4·5. 캐릭터 RAG: 관측 searches 0→1, `ren: OK 1`, **6.0ms**, 격리 위반 0. 근거(같은 문장 오프라인 재현): 1위 "서점의 규칙과 명물" 0.326(보리차 문장), 2위 "배경" 0.118, 3위 "과거 사건: 첫 북토크" 0.109 — 모두 `ren`.
+    6. Gemini(DB 2129): **"…책을 사지 않으셔도 괜찮아요. … 따뜻하고 구수한 보리차 한 잔을 가득 채워 내어드린답니다!"** — 렌 말투·끈질긴 책 추천 유지. 폴백 문구 아님, `Gemini REST call failed` 0건. **주의**: 이 기기의 기존 렌 대화(40개)에 2026-11-01 turn 모드 답변(2127, 보리차 언급)이 있어 Gemini 이력에 포함됨 → 답변의 보리차가 RAG만의 효과라고 단정할 수 없음. RAG 검색 실행·근거는 별도로 확인됨(질의는 마지막 발화만 사용).
+    7. TTS(Chirp3-HD, Sidecar): 00:12:09 재생 시작(`aec warmup active`) → 00:13:51 답변 항목 기록(재생 완료). **사용자가 iPhone 스피커로 렌 음성 청취 확인.**
+    8. 오류·폴백: Sidecar 로그 WARNING은 워밍 프로세스 대기 1건뿐, ERROR 0. 백엔드 오류 로그 0(Netty DNS 공급자 기본 경고 제외).
+    9. DB: USER 2128 + ASSISTANT 2129 저장(127 → 129), 사용자 수 39 그대로.
+  - **외부 호출(관측 가능 범위)**: Gemini 1회(REST 1회). Google STT 스트리밍 세션 1개(통화 약 2분). Google TTS 요청 수는 Sidecar 로그에 남지 않아 **미확인**(긴 답변이라 플러그인이 문장 단위로 여러 번 요청했을 수 있음). LiveKit: 워커 등록 1·디스패치 1. 임베딩·관리자 Agent·FCM 0.
+  - 종료 후 Sidecar·Metro·백엔드·DB 정지. 코드·설정 변경 없음.
+- [x] **(2026-11-02) TTS 중복 합성 — 원인 확인 + 최소 수정(Google TTS 추가 호출 0회).**
+  - **원인**: `GET /api/messages/{id}/audio`(Spring이 HEAD도 같은 핸들러로 처리)가 요청마다 `TtsService.synthesize`를 호출. 클라이언트는 재생 1회에 HEAD(가용성 확인, 15초 제한) + `createAudioPlayer` GET을 보내고, iOS 플레이어가 첫 GET을 139KB에서 끊고 다시 GET → 2026-11-01 실기기에서 재생 1회에 합성 3회(HEAD 5.1초·GET 3.0초·GET 5.0초). 클라이언트 요청 패턴은 정상 동작이고, 결과를 재사용하지 않는 서버가 문제(비용 3배, 재생 전 지연 누적).
+  - **수정(`MessageService`만)**: 메시지 id + 캐릭터 보이스를 키로 성공한 합성 결과만 메모리 LRU에 저장(바이트 합계 상한 16MB, 초과분은 오래된 것부터 제거, 단일 항목이 상한을 넘으면 저장 안 함). 같은 키의 동시 요청은 진행 중인 합성 하나를 기다려 결과를 공유. 실패(null)는 저장하지 않음. 컨트롤러·응답 형식·HEAD/GET 동작·접근 범위(기존과 동일하게 메시지 id만으로 조회)는 그대로. 재시작 시 비워짐.
+  - **테스트(Mock)**: `MessageServiceTest` 5개 추가 — 반복 요청 합성 1회, 실패 미캐시, 보이스 변경 시 재합성, 동시 요청 합성 1회 공유, 바이트 상한 LRU 제거. 기존 3개 포함 8개 통과.
+  - **미검증**: 실기기에서 실제 합성 횟수가 1회로 줄었는지(추가 TTS 호출 금지로 실행 안 함).
+- [x] **(2026-11-02) 클라이언트 연결 종료(Broken pipe) 로그 — 최소 수정.** `GlobalExceptionHandler.handleUnexpected`가 원인 체인에 Spring `AsyncRequestNotUsableException`(응답 쓰기 중 클라이언트 연결 끊김)이 있으면 ERROR 대신 DEBUG로 남기고 바디 없이 종료. 관측된 두 형태(직접 / `HttpMessageNotWritableException`의 원인)를 테스트로 확인, 다른 IO 오류(`disk full`)는 그대로 ERROR·500. 부수 효과로 `audio/mpeg` 응답에 `ErrorResponse`를 쓰려다 나던 `HttpMessageNotWritableException` WARN도 사라짐. `GlobalExceptionHandlerTest` 2개 추가(5개 통과).
+- [x] **(2026-11-02) 최종 테스트**: 백엔드 `./gradlew test` 287개 통과(실패 0, 건너뜀 1 = 게이트), 클라이언트 `tsc --noEmit` 통과·Jest 34개 통과(코드 변경 없음, CI 결과를 `gh` 인증 만료로 확인 못 해 로컬 실행), 관리자 콘솔 빌드는 코드 변경 없어 미실행.
+- **남은 미검증·후속 과제(2026-11-02 기준)**: 관리자 Agent `rag-gemini` 최종 답변(503) / 다른 캐릭터·여러 턴 음성 RAG / 캐릭터 RAG 전용 Gemini 임베딩 실평가 / STOMP 첫 토큰 지연 정밀 측정 / 메시지 히스토리 페이지네이션 미구현 / 부하 병목 원인별 분리 측정 / TTS 캐시 적용 후 실기기 합성 횟수 / Sidecar TTS 요청 수 계측 / STT 고유명사·문장 끝 오인식.
+- [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② ~~캐릭터 세계관 RAG OFF/ON 비교~~(2026-11-01 렌 1문항 완료) ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ ~~음성 통화에서 캐릭터 RAG 적용 확인~~(2026-11-01 turn 모드, 2026-11-02 agent 모드 렌 1턴씩 완료)
 
 ## 문서화 (진행 중 계속 갱신)
 

@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 /**
  * REST 컨트롤러(`@RestController`) 전역 예외 처리기. STOMP 경로(`ConversationStompController`)와
@@ -23,6 +24,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse("NOT_FOUND", e.getMessage()));
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("CONFLICT", e.getMessage()));
     }
 
     @ExceptionHandler(UnauthorizedException.class)
@@ -63,8 +70,25 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception e) {
+        // 응답을 쓰는 도중 클라이언트가 연결을 끊은 경우(Broken pipe/Connection reset). 오디오 플레이어가 첫 GET을
+        // 중간에 끊거나 부하 도구가 시간 제한으로 연결을 닫을 때 관측됐다. 서버 장애가 아니고 응답도 더 쓸 수 없으므로
+        // ERROR로 남기지 않고 바디 없이 끝낸다(null = 처리 완료). 그 밖의 예외는 그대로 500.
+        if (isClientDisconnect(e)) {
+            log.debug("Client disconnected before the response was written: {}", e.getMessage());
+            return null;
+        }
         log.error("Unhandled exception", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse("INTERNAL_ERROR", "예상치 못한 오류가 발생했습니다."));
+    }
+
+    /** Spring은 클라이언트 연결이 끊겨 응답을 쓸 수 없을 때 {@link AsyncRequestNotUsableException}을 던진다(직접 또는 원인으로). */
+    static boolean isClientDisconnect(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof AsyncRequestNotUsableException) {
+                return true;
+            }
+        }
+        return false;
     }
 }
