@@ -353,6 +353,30 @@ Storia 본편 PRD 마일스톤과 무관하게, 웹 제품 경험 공백을 메�
   - 차단: Docker DB와 `ngrok http 8080`을 함께 띄우는 명령이 Claude Code 자동 모드 권한 검사에서 거부됨(사유 미표시, 공개 터널 노출 때문으로 추정). turn 모드는 LiveKit Cloud Egress가 ngrok 주소로 백엔드 WebSocket에 접속해야 하므로 ngrok 없이 진행할 수 없음 → 우회하지 않고 중단. 백엔드·Metro는 띄우지 않았고 DB 변경 없음.
   - 다시 시도하려면: 사용자가 ngrok을 직접 실행하거나 권한을 허용한 뒤 진행. 계획한 계측: Tomcat 접근 로그(실행 시 설정만, 코드 변경 없음)로 `/api/calls/*/turns`(Egress)·`/api/messages/{id}/audio`(요청마다 TTS 1회 — 클라이언트 HEAD 확인 + 재생 GET이므로 최소 2회 예상) 집계, `Voice turn … completing` 로그로 STT/Gemini 각 1회 확인, 관리자 관측으로 `ren: OK` 확인.
 - [x] **(2026-11-01) 포트폴리오 문서 정리 — 문서만.** README에 "AI Agent · RAG · MCP" 절 추가(구현 범위·실제 검증·한계), 백엔드 테스트 규모 갱신(12개 파일·38개 → `./gradlew test` 51개 클래스·280개, 실패 0·건너뜀 1 = `RUN_EVAL_CACHE_EXPORT` 게이트, 2026-11-01 실행). 로드맵 상태 "미구현" → Phase 0~6 구현됨(계획서 성격은 유지). Phase 6 문서: 상태 문구, 8.1절(이후 실호출 검증), 10절 표 1·3행 정정. Phase 6E 문서: 상태 문구, 12.1절(렌 1문항 결과·음성 코드 확인·미검증), 캐릭터 Gemini 제공자 미호출 명시. 유지한 한계: 관리자 Agent 최종 답변(`rag-gemini`)은 503으로 미검증, 캐릭터 RAG ON/OFF는 렌 1문항.
+- [x] **(2026-11-01) 백엔드 소규모 부하 측정 — 격리 환경, 외부 API 호출 0회, 코드 무변경.**
+  - **환경**: MacBook M1 Pro(10코어). 부하 도구 ApacheBench(`ab`, macOS 기본 — k6 등 미설치라 새로 설치하지 않음), keep-alive. 같은 머신에서 부하를 걸어 `ab` 자체도 CPU를 씀. 격리 DB = 임시 컨테이너 `storia-loadtest-db`(mariadb:11.4, 127.0.0.1:3308, 익명 볼륨, 종료 후 `docker rm -v`로 삭제). 백엔드 = `bootJar`를 `env -i`(외부 키 없음, Firebase 없음, 캐릭터 RAG 꺼짐)로 포트 18080, `-Xmx512m`, 기본 설정 그대로(`show-sql: true`, open-in-view 기본값). 개발 DB 컨테이너(`storia-story-chat-db-1`)는 정지 상태 그대로 두고 손대지 않음.
+  - **데이터**: 테스트 기기 `load-m100`(렌 대화 100개), `load-m1000`(1,000개). USER·ASSISTANT 번갈아, 평균 151자(한글). 응답 크기: 캐릭터 목록 441B, 메시지 100개 41,932B, 1,000개 420,948B.
+  - **GET 부수 효과(코드·SQL 로그 확인)**: `GET /api/conversations/{id}/messages`는 요청마다 SELECT 4 + `app_user` UPDATE 1(`getOrCreateConversation`이 `lastActiveAt`·`reengagementPushSent` 갱신, 없으면 사용자·대화 INSERT). 이번 측정은 시나리오마다 VU 전원이 같은 기기 ID → 같은 행을 동시에 UPDATE하는 최악 조건. `GET /api/characters`는 SELECT 1.
+  - **결과**(단계당 워밍업 5초 + 측정 25초, `ab -e` 백분위; CPU는 `ps` 1초 샘플, 100% = 코어 1개; DB는 `docker stats` 1회):
+    | 대상 | VU | 요청 수 | RPS | p50 | p95 | p99 | 최대 | 오류 | Java CPU 평균 | Java RSS 최대 | DB CPU |
+    |---|---|---|---|---|---|---|---|---|---|---|---|
+    | 캐릭터 목록 | 1 | 11,172 | 447 | 2.1ms | 3.3ms | 5.1ms | 21ms | 0 | 52% | 446MB | 9% |
+    | 캐릭터 목록 | 5 | 47,216 | 1,889 | 2.5ms | 3.6ms | 4.6ms | 25ms | 0 | 60% | 458MB | 35% |
+    | 캐릭터 목록 | 10 | 77,700 | 3,108 | 3.1ms | 4.4ms | 5.8ms | 15ms | 0 | 95% | 459MB | 57% |
+    | 메시지 100개 | 1 | 4,549 | 182 | 4.2ms | 11.2ms | 15.3ms | 33ms | 0 | 37% | 467MB | 17% |
+    | 메시지 100개 | 5 | 20,369 | 815 | 5.8ms | 8.7ms | 12.5ms | 43ms | 0 | 78% | 465MB | 75% |
+    | 메시지 100개 | 10 | 30,094 | 1,204 | 8.0ms | 10.7ms | 14.8ms | 95ms | 0 | 108% | 413MB | 120% |
+    | 메시지 1,000개 | 1 | 2,483 | 99 | 8.8ms | 15.1ms | 21.6ms | 61ms | 0 | 48% | 365MB | 20% |
+    | 메시지 1,000개 | 5 | 8,584 | 343 | 14.2ms | 17.8ms | 23.4ms | 62ms | 0 | 130% | 365MB | 77% |
+    | 메시지 1,000개 | 10 | 10,500 | 420 | 23.4ms | 28.9ms | 33.4ms | 80ms | 0 | 164% | 364MB | 102% |
+    - 전 단계 HTTP 200만, `ab` 실패 0·non-2xx 0. DB 메시지 수 측정 전후 100/1,000 그대로.
+  - **관찰**: 메시지 1,000개 조회는 1→10 VU에서 RPS 4.2배, p50 8.8→23.4ms로 늘어남. 1,000개 기준 10 VU 전송량 약 173MB/s(요청당 421KB). 같은 VU에서 메시지 100개 대비 RPS 1/2.9~1/3.5. 오류·급격한 지연 악화는 없음.
+  - **가능한 원인(프로파일링 안 함, 미확정)**: ① 페이지네이션 없이 전체 이력을 엔티티 → DTO → JSON으로 만드는 비용(응답 크기에 비례) ② `show-sql: true`가 요청마다 SQL 5개를 표준 출력에 씀(측정 6분 동안 로그 135MB, `Hibernate:` 62만 줄) ③ 같은 `app_user` 행 동시 UPDATE의 행 잠금 대기 ④ 부하 도구가 같은 머신에서 CPU를 나눠 씀. 원인별 분리 측정은 하지 않았고 코드도 고치지 않음.
+  - **부수 발견**: `ab`가 시간 제한으로 끊을 때 진행 중이던 큰 응답이 `Broken pipe`/`Connection reset`(31건)이 되고, `GlobalExceptionHandler`가 이를 `ERROR "Unhandled exception"`으로 기록함 — 클라이언트가 끊은 것이라 서버 실패는 아니지만 오류 로그가 부풀려짐. HikariCP "Retrograde clock change" 경고 1회(측정 수치에 영향 없음).
+  - **한계**: 로컬 단일 머신, 테스트 기기 2개, 짧은 측정(단계당 25초), 응답 1종(이력 조회만, 쓰기·Gemini 경로 제외). 실제 다수 사용자 동시 접속 규모의 검증이 아님. 모바일 네트워크에서 421KB 응답의 체감 지연은 측정하지 않음.
+- [ ] **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 준비 상태 확인만, 외부 호출·공개 터널 0회(사용자 승인 대기).** iPhone 12 Pro 연결·개발 빌드 설치 재확인, `livekit.env`에 LiveKit·Egress URL·STT·TTS·Gemini 값 모두 있음(값 미출력), Egress URL 호스트는 예약 ngrok 도메인, `ngrok.yml` 유효, 사이드카 미실행. 서버 쪽 자동 재시도 없음, 클라이언트는 턴 상태 600ms 폴링(최대 75초, 로컬 호출)만 하고 턴을 다시 시작하지 않음.
+  - **실기기 시도(사용자 승인, 23:46~23:48) — 실패: Egress가 백엔드에 도달하지 못함.** 백엔드(`rag-gemini`, 캐릭터 RAG on/local, Firebase 없음, Tomcat 접근 로그)·Metro(LAN 192.168.219.109:8081) 기동, iPhone이 수동 URL로 접속. 접근 로그: 통화 토큰 2회, `POST /api/calls/2/turns` **2회**(턴 `d01bb8dd…`, `1894da66…` — 통화를 다시 시작한 것으로 보임), 턴 상태 폴링이 계속 `recording`. 백엔드 로그에 `Voice turn … completing` 없음, Egress WebSocket 접속 0건. 원인: 이 Mac에 ngrok 프로세스가 없었고(`pgrep` 없음, 4040 미리슨) 예약 도메인 공개 주소가 `ERR_NGROK_3200`(엔드포인트 오프라인) 404 → LiveKit Egress가 `wss://…/egress/audio`에 접속 불가.
+  - 외부 호출(관측 기준): LiveKit `startTrackEgress` 2회(HTTP 200, 각 1.2~2.5초), STT 0·Gemini 0·TTS 0·임베딩 0. DB 메시지 수 변화 없음(125개, max id 2125). 캐릭터 RAG 검색 0회. **STT·RAG·Gemini·TTS 실기기 경로는 미검증.**
 - [ ] 다음(우선순위 순): ① ~~반복 검색 수정 실모델 재검증~~(완료) ② ~~캐릭터 세계관 RAG OFF/ON 비교~~(2026-11-01 렌 1문항 완료) ③ ~~Gemini 의미 임베딩 품질 평가~~(완료, 임계값 결정 대기) ④ MCP 로컬 클라이언트 재확인(선택) ⑤ 음성 통화에서 캐릭터 RAG 적용 확인
 
 ## 문서화 (진행 중 계속 갱신)

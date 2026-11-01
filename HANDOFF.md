@@ -4,6 +4,9 @@
 
 ## 참고사항 (재개 전 반드시 확인)
 
+- **(2026-11-01) 백엔드 소규모 부하 측정 — 격리 DB(임시 컨테이너, 삭제함)·외부 호출 0회·코드 무변경.** ApacheBench, 로컬 M1 Pro, 단계당 25초. 캐릭터 목록 10 VU 3,108 RPS·p95 4.4ms. 메시지 이력(페이지네이션 없음): 100개(41.9KB) 10 VU 1,204 RPS·p95 10.7ms, **1,000개(421KB) 1→10 VU에서 RPS 99→420, p95 15.1→28.9ms**, 오류 0. GET 이력 조회는 매번 `app_user` UPDATE를 함(부수 효과). 원인 후보(전체 직렬화, `show-sql` 로그, 같은 행 UPDATE, 같은 머신 부하)는 분리 측정 안 함. 클라이언트 끊김(Broken pipe)이 `ERROR`로 기록되는 로그 노이즈 발견. 실제 다수 사용자 검증 아님. 상세 `TODO.md`.
+- **(2026-11-01) 음성 캐릭터 RAG 실기기 1턴 — 시도했으나 실패(Egress 미도달).** 사용자 승인 후 iPhone에서 통화했지만 이 Mac에 ngrok이 떠 있지 않아(예약 도메인 `ERR_NGROK_3200`) LiveKit Egress가 백엔드에 접속하지 못함 → 턴이 `recording`에 머묾. `POST /api/calls/2/turns` 2회(LiveKit `startTrackEgress` 2회), STT·Gemini·TTS·임베딩 0회, DB 변화 없음. STT·RAG·Gemini·TTS 실기기 경로는 **미검증**. 재시도는 사용자가 이 Mac에서 `ngrok http 8080`을 띄우고 공개 주소를 확인한 뒤 1턴만. 상세 `TODO.md`.
+
 - **(2026-11-01) 음성 통화 캐릭터 RAG 실기기 1턴 — 미실행, 외부 호출 0회.** iPhone 연결·개발 빌드 설치·ngrok 설치는 확인했지만, `ngrok http 8080`을 포함한 환경 기동 명령이 Claude Code 자동 모드 권한 검사에서 거부돼 중단. turn 모드는 LiveKit Egress가 ngrok으로 백엔드에 접속해야 하므로 필수. 재시도는 사용자가 ngrok을 직접 실행하거나 권한을 허용한 뒤. 같은 날 README·로드맵·Phase 6/6E 문서를 검증 결과에 맞게 정정, `./gradlew test` 280개 통과. PR #2는 `gh` 인증 실패(401)로 제목·설명을 읽지 못함. 상세 `TODO.md`.
 
 - **(2026-11-01) 음성 통화 ↔ 캐릭터 RAG 연결 확인 — 코드·오프라인만, 외부 호출 0회.** turn 모드는 `VoiceCallService.completeTurn()`이 STT 결과를 저장한 뒤 이력으로 `ChatContextAssembler.systemPromptFor`를 호출(질의 = 마지막 USER 발화), agent 모드(python-sidecar)는 REST `ConversationController` 경유라 같은 경로 — 사이드카 변경 불필요. 실패·타임아웃·NO_EVIDENCE는 base 프롬프트로 진행. 관련 테스트 33개 통과, 결함 없음. 오프라인 프로브에서 렌 질문과 STT 변형 4종 모두 보리차 조각 1위. **실기기 1회는 미실행(사용자 결정 대기)** — turn 모드 검증 시 사이드카를 띄우지 말 것, 예상 호출: Egress 1·STT 1·Gemini 1·TTS 1·임베딩 0. 상세 `TODO.md`.
