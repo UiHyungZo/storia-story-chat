@@ -65,16 +65,23 @@ docs/                # 아키텍처, ERD, API, ADR, 테스트/CI/배포 문서
 
 ### 1. FlashList 전환 — 메모리는 줄고, JS FPS 최저치는 나빠짐
 
-| | FlatList (Before) | FlashList (After) |
-|---|---|---|
-| 스크롤 중 RAM 증가 | 약 +105MB | **약 +32MB** |
-| UI FPS | 60 | 57~60 |
-| JS FPS 최저치 | 30 | 20 (9/13 측정에선 6~8) |
+**측정 기록은 두 회차입니다.** 2026-09-13 최초 측정과 2026-10-03 README 데모 영상 재측정은 서로 다른 실험이며, 아래 수치는 같은 날짜의 FlatList → FlashList 결과끼리만 나란히 표기했습니다. 메모리는 **절대 사용량이 아닌 스크롤 중 RAM 증가량**입니다.
 
-- 셀 재활용으로 스크롤 중 메모리 증가폭은 확실히 줄었고, 두 차례 측정 모두 같은 경향이었습니다.
-- 반면 긴 플링에서 **JS FPS 최저치는 오히려 낮아졌습니다.** FlashList v2에는 `inverted`가 없어 채팅 리스트를 `maintainVisibleContentPosition={{ startRenderingFromBottom: true }}`로 바꿨는데, 큰 점프 시 위치 재계산 비용이 원인으로 추정됩니다(미검증).
-- 10/3 촬영본은 두 영상의 플링 세기가 같지 않아 JS FPS 비교는 참고용입니다.
-- 측정 방법: 로컬 DB에 더미 메시지 1,000개를 SQL로 직접 넣고(API/LLM 호출 없음), 실기기에서 Perf Monitor를 화면 녹화 → `ffmpeg`로 0.5초 간격 프레임을 뽑아 판독.
+| 측정일 | 지표 | FlatList (Before) | FlashList (After) |
+|---|---|---:|---:|
+| 2026-09-13 | 스크롤 중 RAM 증가량 | 약 +85MB | 약 +33~34MB |
+| 2026-09-13 | JS FPS 최저치 | 34 | 6~8 |
+| 2026-09-13 | UI FPS | 60 | 60 |
+| 2026-10-03 | 스크롤 중 RAM 증가량 | 약 +105MB | 약 +32MB |
+| 2026-10-03 | JS FPS 최저치 | 30 | 20 |
+| 2026-10-03 | UI FPS | 60 | 57~60 |
+
+- **공통 조건:** iPhone 12 Pro 개발 빌드, 로컬 DB에 더미 메시지 1,000개를 SQL로 삽입(API·LLM 호출 없음), 빠른 플링 스크롤 중 React Native Perf Monitor 화면 녹화 후 `ffmpeg`로 프레임을 추출해 판독했습니다.
+- **2026-09-13:** FlashList를 2회 반복 측정했고 메모리 증가량 감소와 빠른 플링 시 JS FPS 최저치 저하가 반복 관찰됐습니다. 프레임은 약 0.5초 간격으로 판독했습니다.
+- **2026-10-03:** README 데모 영상용 재측정입니다. 약 0.25~0.5초 간격 프레임 판독 결과이며, 메시지 1번에 도달하기까지 FlatList 약 23초 / FlashList 약 16초로 **플링 강도가 같지 않았습니다.** 따라서 FPS 값은 통제된 동등 조건 비교가 아닌 참고 관찰값입니다.
+- **결론과 한계:** 두 회차에서 FlashList의 **RAM 증가량은 작았지만 JS FPS 최저치는 낮게 관찰**됐습니다. FlashList v2의 `inverted` 제거에 대응해 `maintainVisibleContentPosition={{ startRenderingFromBottom: true }}`로 변경했으며, 큰 스크롤 점프의 위치 재계산이 FPS 저하 원인일 가능성은 **추정일 뿐 미검증**입니다. 추가 프로파일링이 필요합니다.
+
+공개 데모는 **10월 3일 촬영본**을 사용하며, **9월 13일 수치를 삭제하거나 10월 3일 수치와 혼합하지 않습니다.** 상세 당시 기록은 [TODO](./TODO.md)와 [HANDOFF](./HANDOFF.md)에 보존했습니다.
 
 ### 2. Native Module — iOS/Android 대칭 구현 + `expo prebuild`에서 살아남는 구조
 
